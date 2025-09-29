@@ -22,13 +22,18 @@ if [[ ! -f "$TODO_FILE" ]]; then
   sdk::die "todo.machine.md не найден — дорожная карта недоступна"
 fi
 
-python3 - "$MODE" "$TODO_FILE" <<'PY'
-import sys
-import re
+python3 - "$MODE" "$TODO_FILE" "$SDK_ROOT" <<'PY'
 import json
-import os
+import re
+import sys
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import Dict, List
+
+mode = sys.argv[1]
+todo_path = Path(sys.argv[2])
+sdk_root = Path(sys.argv[3])
 
 STATUS_PROGRESS = {
     "done": 1.0,
@@ -38,24 +43,19 @@ STATUS_PROGRESS = {
     "backlog": 0.0,
     "blocked": 0.0,
 }
-mode = sys.argv[1]
-path = Path(sys.argv[2])
-text = path.read_text(encoding='utf-8')
+
+text = todo_path.read_text(encoding="utf-8")
 
 
-def extract_section(name: str) -> list[str]:
-    pattern = rf"## {re.escape(name)}\n(.*?)(?=\n## |\Z)"
-    match = re.search(pattern, text, re.S)
-    if not match:
-        raise SystemExit(f"Раздел '{name}' отсутствует в todo.machine.md")
-    section = match.group(1)
-    blocks = re.findall(r"```yaml\n(.*?)\n```", section, re.S)
+def extract_section(name: str) -> List[str]:
+    pattern = rf"## {re.escape(name)}\n```yaml\n(.*?)\n```"
+    blocks = re.findall(pattern, text, re.S)
     if not blocks:
-        raise SystemExit(f"В разделе '{name}' нет YAML-блоков")
+        raise SystemExit(f"Раздел '{name}' отсутствует в todo.machine.md")
     return blocks
 
 
-def parse_scalar(block: str, field: str, default=None, cast=str):
+def parse_scalar(block: str, field: str, cast=str, default=None):
     pattern = rf"^{re.escape(field)}:\s*(.+)$"
     match = re.search(pattern, block, re.M)
     if not match:
@@ -70,32 +70,29 @@ def parse_scalar(block: str, field: str, default=None, cast=str):
     return value
 
 
-def parse_phase_progress(block: str) -> dict[str, int]:
+def parse_phase_progress(block: str) -> Dict[str, int]:
     match = re.search(r"phase_progress:\n((?:\s{2,}.+\n)+)", block)
     if not match:
         raise SystemExit("Отсутствует блок phase_progress в Program")
-    lines = match.group(1).splitlines()
     data = {}
-    for raw in lines:
-        stripped = raw.strip()
+    for line in match.group(1).splitlines():
+        stripped = line.strip()
         if not stripped:
             continue
-        key, value = [part.strip() for part in stripped.split(':', 1)]
+        key, value = [part.strip() for part in stripped.split(":", 1)]
         data[key] = int(re.match(r"-?\d+", value).group(0))
     return data
 
 
-def parse_milestones(block: str) -> list[dict[str, str]]:
+def parse_milestones(block: str) -> List[dict]:
     items = []
     for m in re.finditer(r"- \{ id: ([^,]+), title: \"([^\"]+)\", due: ([^,]+), status: ([^}]+) \}", block):
-        items.append(
-            {
-                "id": m.group(1),
-                "title": m.group(2),
-                "due": m.group(3),
-                "status": m.group(4).strip(),
-            }
-        )
+        items.append({
+            "id": m.group(1),
+            "title": m.group(2),
+            "due": m.group(3),
+            "status": m.group(4).strip(),
+        })
     if not items:
         raise SystemExit("Не удалось разобрать milestones для Program")
     return items
@@ -138,91 +135,95 @@ program = {
     "milestones": parse_milestones(program_block),
 }
 
-warnings: list[str] = []
-
 epics = [parse_epic(block) for block in epic_blocks]
 big_tasks = [parse_big_task(block) for block in big_task_blocks]
 
-SDK_ROOT = Path(os.environ.get("SDK_ROOT", str(path.parent)))
-board_path = SDK_ROOT / "data" / "tasks.board.json"
+warnings: List[str] = []
+
+board_path = sdk_root / "data" / "tasks.board.json"
+board_tasks = []
 if board_path.exists():
     try:
         board = json.loads(board_path.read_text(encoding="utf-8"))
         board_tasks = board.get("tasks", [])
-    except Exception:
-        board_tasks = []
+    except Exception as exc:
+        warnings.append(f"Не удалось прочитать tasks.board.json: {exc}")
 else:
-    board_tasks = []
+    warnings.append("tasks.board.json отсутствует")
 
 for task in board_tasks:
     task.setdefault("epic", "default")
     task.setdefault("status", "backlog")
     task.setdefault("size_points", 5)
+    task.setdefault("big_task", None)
 
 if not epics:
     raise SystemExit("Не заданы эпики для дорожной карты")
 if not big_tasks:
     raise SystemExit("Не заданы Big Tasks для дорожной карты")
 
-# Consistency checks
-epic_points = sum(epic["size_points"] for epic in epics)
-weighted_program = round(
-    sum(epic["size_points"] * epic["progress_pct"] for epic in epics) / epic_points
-    if epic_points
-    else 0
-)
-if abs(weighted_program - program["progress_pct"]) > 1:
-    raise SystemExit(
-        "Несогласованный прогресс: program progress_pct не совпадает с взвешенным по эпику"
-    )
-
-for epic in epics:
-    tasks = [task for task in big_tasks if task["parent_epic"] == epic["id"]]
-    if not tasks:
-        warnings.append(f"Для эпика {epic['id']} не найдены Big Tasks")
-        continue
-    points = sum(task["size_points"] for task in tasks)
-    weighted = round(
-        sum(task["size_points"] * task["progress_pct"] for task in tasks) / points if points else 0
-    )
-    if abs(weighted - epic["progress_pct"]) > 1:
-        warnings.append(f"Несогласованный прогресс: epic {epic['id']} (manual {epic['progress_pct']}%, derived {weighted}%)")
-
-phase_values = program["phase_progress"]
-phase_avg = round(sum(phase_values.values()) / len(phase_values))
-if abs(phase_avg - program["progress_pct"]) > 1:
-    warnings.append(f"Среднее phase_progress ({phase_avg}%) расходится с program progress_pct ({program['progress_pct']}%)")
-
-phase_order = ["MVP", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"]
-phase_map = {**{phase: 0 for phase in phase_order}, **phase_values}
-
-milestone_by_title = {m["title"]: m for m in program["milestones"]}
-
-# Расчёт прогресса на основе task board
-epic_totals_board: dict[str, float] = {}
-epic_progress_board: dict[str, float] = {}
+# Aggregation из task board
+epic_totals = defaultdict(float)
+epic_progress = defaultdict(float)
+big_totals = defaultdict(float)
+big_progress = defaultdict(float)
 for task in board_tasks:
-    epic_id = task.get("epic") or "default"
     try:
         size = float(task.get("size_points", 5) or 5)
     except Exception:
         size = 5.0
     ratio = STATUS_PROGRESS.get(task.get("status", "backlog"), 0.0)
-    epic_totals_board[epic_id] = epic_totals_board.get(epic_id, 0.0) + size
-    epic_progress_board[epic_id] = epic_progress_board.get(epic_id, 0.0) + size * ratio
+    epic_totals[task["epic"]] += size
+    epic_progress[task["epic"]] += size * ratio
+    bt = task.get("big_task")
+    if bt:
+        big_totals[bt] += size
+        big_progress[bt] += size * ratio
 
-board_total_points = sum(epic_totals_board.values())
-computed_program_pct = round(100 * sum(epic_progress_board.values()) / board_total_points) if board_total_points else None
-if computed_program_pct is not None:
-    program["computed_progress_pct"] = int(computed_program_pct)
+board_total = sum(epic_totals.values())
+if board_total:
+    program["computed_progress_pct"] = int(round(100 * sum(epic_progress.values()) / board_total))
+
 for epic in epics:
-    total = epic_totals_board.get(epic["id"])
+    total = epic_totals.get(epic["id"])
     if total:
-        epic_progress = epic_progress_board.get(epic["id"], 0.0)
-        epic["computed_progress_pct"] = int(round(100 * epic_progress / total))
+        derived = int(round(100 * epic_progress[epic["id"]] / total))
+        epic["computed_progress_pct"] = derived
+    else:
+        warnings.append(f"Для эпика {epic['id']} нет задач на доске")
 
-active_epics = [e for e in epics if e["status"] in {"in_progress", "review"}]
-upcoming = [m for m in program["milestones"] if m["status"] != "done"]
+for bt in big_tasks:
+    total = big_totals.get(bt["id"])
+    if total:
+        bt["computed_progress_pct"] = int(round(100 * big_progress[bt["id"]] / total))
+    else:
+        warnings.append(f"Для Big Task {bt['id']} нет связанных задач")
+
+if program.get("computed_progress_pct") is not None and abs(program["computed_progress_pct"] - program["progress_pct"]) > 1:
+    warnings.append(
+        f"Program progress_pct {program['progress_pct']}% расходится с вычисленным {program['computed_progress_pct']}%"
+    )
+
+for epic in epics:
+    derived = epic.get("computed_progress_pct")
+    if derived is not None and abs(derived - epic["progress_pct"]) > 1:
+        warnings.append(f"Epic {epic['id']} manual {epic['progress_pct']}% vs derived {derived}%")
+
+phase_order = ["MVP", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"]
+phase_progress = program["phase_progress"]
+if phase_progress:
+    phase_avg = round(sum(phase_progress.values()) / len(phase_progress))
+    if program.get("computed_progress_pct") is not None and abs(phase_avg - program["computed_progress_pct"]) > 5:
+        warnings.append(
+            f"Среднее phase_progress {phase_avg}% не согласовано с вычисленным прогрессом {program['computed_progress_pct']}%"
+        )
+
+effective_phase = int(round(program.get("computed_progress_pct", program["progress_pct"])))
+phase_map = {phase: effective_phase for phase in phase_order}
+program["phase_progress"] = {phase: effective_phase for phase in phase_order}
+
+milestones = program["milestones"]
+upcoming = [m for m in milestones if m.get("status") != "done"]
 upcoming.sort(key=lambda m: m["due"])
 next_milestone = upcoming[0] if upcoming else None
 
@@ -231,7 +232,8 @@ if mode == "json":
         "generated_at": date.today().isoformat(),
         "program": program,
         "phase_progress": phase_map,
-        "active_epics": [{"id": e["id"], "title": e["title"], "progress_pct": e.get("progress_pct"), "computed_progress_pct": e.get("computed_progress_pct"), "status": e["status"], "priority": e["priority"]} for e in active_epics],
+        "epics": epics,
+        "big_tasks": big_tasks,
         "next_milestone": next_milestone,
         "warnings": warnings,
     }
@@ -240,34 +242,33 @@ if mode == "json":
     print(json.dumps(output, ensure_ascii=False))
     sys.exit(0)
 
+focus_epics = [e for e in epics if e.get("status") in {"in_progress", "review"}]
+
 if mode == "compact":
     today = date.today().isoformat()
-    phases = " | ".join(f"{phase}:{phase_map.get(phase, 0)}%" for phase in phase_order)
-    focus = ", ".join(f"{item['id']}:{item['progress_pct']}%" for item in active_epics) or "none"
-    next_line = (
-        f"Next milestone: {next_milestone['title']} due {next_milestone['due']} ({next_milestone['status']})"
-        if next_milestone
-        else "Next milestone: n/a"
-    )
-    effective_pct = program.get('computed_progress_pct', program['progress_pct'])
-    print(
-        f"Roadmap — {today} — {program['name']} — {effective_pct}% complete (health {program['health']})"
-    )
-    if program.get('computed_progress_pct') is not None and program.get('computed_progress_pct') != program.get('progress_pct'):
+    effective_pct = program.get("computed_progress_pct", program["progress_pct"])
+    print(f"Roadmap — {today} — {program['name']} — {effective_pct}% complete (health {program['health']})")
+    if program.get("computed_progress_pct") is not None and program.get("computed_progress_pct") != program.get("progress_pct"):
         print(f"Manual progress: {program['progress_pct']}%")
-    print(f"Phases: {phases}")
-    print(f"Focus epics: {focus}")
+    if warnings:
+        print("Warnings:")
+        for msg in warnings:
+            print(f"- {msg}")
+    phases_line = " | ".join(f"{phase}:{phase_map.get(phase, 0)}%" for phase in phase_order)
+    focus_line = ", ".join(f"{e['id']}:{e.get('computed_progress_pct', e['progress_pct'])}%" for e in focus_epics) or "none"
+    if next_milestone:
+        next_line = f"Next milestone: {next_milestone['title']} due {next_milestone['due']} ({next_milestone['status']})"
+    else:
+        next_line = "Next milestone: n/a"
+    print(f"Phases: {phases_line}")
+    print(f"Focus epics: {focus_line}")
     print(next_line)
     sys.exit(0)
 
 print(f"Roadmap Status — {date.today().isoformat()}")
-print(
-    f"Program: {program['name']} — {program['progress_pct']}% complete (health: {program['health']})"
-)
-if program.get('computed_progress_pct') is not None:
-    print(
-        f"Computed progress: {program['computed_progress_pct']}% (manual {program['progress_pct']}%)"
-    )
+print(f"Program: {program['name']} — {program['progress_pct']}% complete (health: {program['health']})")
+if program.get("computed_progress_pct") is not None:
+    print(f"Computed progress: {program['computed_progress_pct']}% (manual {program['progress_pct']}%)")
 if warnings:
     print("Warnings:")
     for msg in warnings:
@@ -275,23 +276,29 @@ if warnings:
     print()
 print("Phase Timeline:")
 for phase in phase_order:
-    milestone = milestone_by_title.get(phase)
-    due = milestone["due"] if milestone else "n/a"
-    status = milestone["status"] if milestone else "not_planned"
     pct = phase_map.get(phase, 0)
+    milestone = next((m for m in milestones if m["title"] == phase), None)
+    status = milestone["status"] if milestone else "not_planned"
+    due = milestone["due"] if milestone else "n/a"
     print(f"- {phase}: {pct}% — status {status} — due {due}")
 print()
-
 print("Epics:")
 for epic in epics:
-    computed = epic.get('computed_progress_pct', epic['progress_pct'])
-    manual = epic['progress_pct']
-    extra = f" (derived {computed}% vs manual {manual}%)" if computed != manual else ""
+    computed = epic.get("computed_progress_pct", epic["progress_pct"])
+    extra = ""
+    if computed != epic["progress_pct"]:
+        extra = f" (derived {computed}% vs manual {epic['progress_pct']}%)"
     print(
         f"- {epic['id']} — {epic['title']} — {computed}% (status {epic['status']}, priority {epic['priority']}, size {epic['size_points']}){extra}"
     )
-    for task in [t for t in big_tasks if t['parent_epic'] == epic['id']]:
+    for task in big_tasks:
+        if task["parent_epic"] != epic["id"]:
+            continue
+        t_progress = task.get("computed_progress_pct", task["progress_pct"])
+        delta = ""
+        if task.get("computed_progress_pct") is not None and task.get("computed_progress_pct") != task["progress_pct"]:
+            delta = f" (derived {task['computed_progress_pct']}% vs manual {task['progress_pct']}%)"
         print(
-            f"    * {task['id']} — {task['title']} — {task['progress_pct']}% (status {task['status']}, size {task['size_points']})"
+            f"    * {task['id']} — {task['title']} — {t_progress}% (status {task['status']}, size {task['size_points']}){delta}"
         )
 PY

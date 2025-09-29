@@ -8,6 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 export SDK_ROOT
 
+sdk::log "INF" "Синхронизация roadmap"
+"$SDK_ROOT/scripts/sync-roadmap.sh" >/dev/null || sdk::log "WRN" "sync-roadmap завершился с предупреждением"
+
 sdk::log "INF" "Roadmap summary"
 "$SDK_ROOT/scripts/roadmap-status.sh" compact
 printf '\n'

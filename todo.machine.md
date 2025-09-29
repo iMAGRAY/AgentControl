@@ -9,17 +9,17 @@ objectives:
   - Обеспечить повторяемость процессов dev/verify/fix/ship.
   - Минимизировать когнитивную нагрузку оператора.
 kpis: { uptime_pct: 99.9, tti_ms: 1500, error_rate_pct: 0.3 }
-progress_pct: 57
+progress_pct: 50
 health: green
 phase_progress:
-  MVP: 100
-  Q1: 90
-  Q2: 70
-  Q3: 60
+  MVP: 50
+  Q1: 50
+  Q2: 50
+  Q3: 50
   Q4: 50
-  Q5: 40
-  Q6: 30
-  Q7: 20
+  Q5: 50
+  Q6: 50
+  Q7: 50
 milestones:
   - { id: m_mvp, title: "MVP", due: 2025-10-15T00:00:00Z, status: done }
   - { id: m_q1, title: "Q1", due: 2025-12-31T00:00:00Z, status: in_progress }
@@ -96,7 +96,7 @@ budgets: { latency_ms: 0, memory_mb: 0, bundle_kb: 0 }
 risks:
   - Проверки могут потребовать доработки под конкретные стеки.
 dependencies: []
-progress_pct: 57
+progress_pct: 50
 health: green
 acceptance:
   - make status печатает дорожную карту и фокус-задачи.

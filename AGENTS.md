@@ -17,7 +17,7 @@ teach: true
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
-- `make task-add TITLE="..." [EPIC=...]` — добавить задачу без редактирования JSON (alias: `make task add`).
+- `make task-add TITLE="..." [EPIC=...] [BIG_TASK=...]` — добавить задачу без редактирования JSON (alias: `make task add`).
 - `make task take [AGENT=...]` — взять ближайшую доступную задачу (alias grab).
 - `make task drop TASK=<id>` — освободить задачу (alias release).
 - `make task done TASK=<id> [AGENT=...]` — завершить задачу (alias complete).
@@ -29,7 +29,7 @@ teach: true
 - `make task validate` — строгая проверка доски.
 
 ## Plan
-- Global: Program + Epics + Big Tasks в `todo.machine.md`.
+- Global: Program + Epics + Big Tasks в `todo.machine.md` (обновляется автоматически).
 - Micro: через Update Plan Tool (UPT), в репозиторий не добавляется.
 - Task board: `data/tasks.board.json` + runtime `state/task_state.json` + `journal/task_events.jsonl`.
 - AGENT по умолчанию: `gpt-5-codex` (можно переопределять при вызове команд).
@@ -54,3 +54,4 @@ teach: true
 - Task Board: `data/tasks.board.json`.
 - Event Log: `journal/task_events.jsonl`.
 - Status Snapshot: `reports/status.json`.
+- Roadmap sync: `scripts/sync-roadmap.sh` (автоматически вызывается `status`/`verify`).

@@ -9,6 +9,9 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 sdk::load_commands
 
+sdk::log "INF" "Синхронизация roadmap"
+"$SDK_ROOT/scripts/sync-roadmap.sh" >/dev/null || sdk::log "WRN" "sync-roadmap завершился с предупреждением"
+
 sdk::log "INF" "Базовые проверки структуры"
 sdk::ensure_file "AGENTS.md"
 sdk::ensure_file "todo.machine.md"

@@ -157,6 +157,7 @@ def normalize_task(task: dict) -> None:
     task.setdefault("size_points", 5)
     task.setdefault("status", "backlog")
     task.setdefault("owner", DEFAULT_OWNER)
+    task.setdefault("big_task", None)
     task.setdefault("success_criteria", [])
     task.setdefault("failure_criteria", [])
     task.setdefault("blockers", [])
@@ -524,6 +525,7 @@ def add_task(args: argparse.Namespace) -> None:
         "blockers": args.blockers,
         "dependencies": args.dependencies,
         "conflicts": args.conflicts,
+        "big_task": args.big_task,
         "comments": [],
     }
     normalize_task(new_task)
@@ -650,6 +652,7 @@ elif COMMAND == "add":
     parser.add_argument("--conflicts")
     parser.add_argument("--success")
     parser.add_argument("--failure")
+    parser.add_argument("--big-task")
     parser.add_argument("--id")
     parser.add_argument("--agent")
     parser.add_argument("--note")
@@ -675,9 +678,11 @@ elif COMMAND == "add":
     args.conflicts = parse_csv(args.conflicts or os.environ.get("CONFLICTS"))
     args.success = parse_csv(args.success or os.environ.get("SUCCESS"))
     args.failure = parse_csv(args.failure or os.environ.get("FAILURE"))
+    args.big_task = args.big_task or os.environ.get("BIG_TASK")
     args.agent = ensure_agent(args.agent or os.environ.get("AGENT"))
     args.note = args.note or os.environ.get("NOTE") or "add task"
     add_task(args)
+
 else:
     raise SystemExit(f"Неизвестная команда task: {COMMAND}")
 PY

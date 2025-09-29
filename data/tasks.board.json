@@ -27,7 +27,8 @@
           "message": "Базовый отчёт собран и проверен."
         }
       ],
-      "size_points": 8
+      "size_points": 8,
+      "big_task": "bigtask-core-automation"
     },
     {
       "id": "T-002",
@@ -58,7 +59,8 @@
           "message": "Первичная привязка агента"
         }
       ],
-      "size_points": 13
+      "size_points": 13,
+      "big_task": "bigtask-core-automation"
     },
     {
       "id": "T-003",
@@ -83,7 +85,8 @@
       ],
       "conflicts": [],
       "comments": [],
-      "size_points": 5
+      "size_points": 5,
+      "big_task": "bigtask-core-automation"
     },
     {
       "id": "T-004",
@@ -98,7 +101,8 @@
       "blockers": [],
       "dependencies": [],
       "conflicts": [],
-      "comments": []
+      "comments": [],
+      "big_task": "bigtask-core-automation"
     },
     {
       "id": "T-005",
@@ -113,7 +117,8 @@
       "blockers": [],
       "dependencies": [],
       "conflicts": [],
-      "comments": []
+      "comments": [],
+      "big_task": "bigtask-core-automation"
     },
     {
       "id": "T-006",
@@ -128,7 +133,8 @@
       "blockers": [],
       "dependencies": [],
       "conflicts": [],
-      "comments": []
+      "comments": [],
+      "big_task": "bigtask-core-automation"
     }
   ]
 }
