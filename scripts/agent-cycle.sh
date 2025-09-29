@@ -15,17 +15,25 @@ python3 "$SCRIPT_DIR/lib/architecture_tool.py" sync
 python3 "$SCRIPT_DIR/lib/architecture_tool.py" check
 "$SCRIPT_DIR/verify.sh" >/tmp/agent-cycle-verify.log
 
-python3 - <<'PY'
+REPORT_PATH_ENV="$REPORT_PATH" SDK_ROOT_ENV="$ROOT" python3 - <<'PY'
 import datetime as dt
 import json
 from pathlib import Path
 import yaml
 
-root = Path(__file__).resolve().parents[1]
+from os import environ
+
+root = Path(environ["SDK_ROOT_ENV"])
 manifest_path = root / "architecture" / "manifest.yaml"
-report_path = Path("$REPORT_PATH")
+report_path = Path(environ["REPORT_PATH_ENV"])
 verify_log = Path("/tmp/agent-cycle-verify.log")
+import sys
+
+sys.path.insert(0, str(root))
+from scripts.lib.architecture_tool import enrich_manifest
+
 manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+manifest = enrich_manifest(manifest)
 program = manifest["program"]
 summary = {
     "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),

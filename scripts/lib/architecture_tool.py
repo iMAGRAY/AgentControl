@@ -353,8 +353,9 @@ def render_dashboard(manifest: dict) -> str:
     epics = manifest["epics_map"]
     big_tasks = manifest["big_tasks_map"]
     tasks = manifest["tasks_map"]
+    generated_marker = manifest.get("updated_at") or dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     dashboard = {
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "generated_at": generated_marker,
         "manifest_version": manifest["version"],
         "manifest_updated_at": manifest["updated_at"],
         "program_progress_pct": manifest["program"]["progress"]["progress_pct"],
