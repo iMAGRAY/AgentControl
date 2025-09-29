@@ -27,6 +27,7 @@ teach: true
 - `make task status` — подробный список задач с критериями успеха/провала.
 - `make task summary --json` — машинно-читаемая сводка для автоматизации.
 - `make task conflicts` — карта конфликтов (alias работает и для `task-conflicts`).
+- `make task metrics` — метрики загрузки (WIP по агентам, throughput, незахваченные ready).
 - `make task comment TASK=<id> MESSAGE="..." [AUTHOR=...]` — журнал комментариев.
 - `LIMIT=N [JSON=1] make task-history` — просмотр событий из `journal/task_events.jsonl` (alias: `make task history`).
 - `make task validate` — строгая проверка доски.
