@@ -1,0 +1,23 @@
+# SDK defaults
+node_modules/
+dist/
+build/
+.out/
+.next/
+coverage/
+target/
+venv/
+.venv/
+Pods/
+DerivedData/
+*.log
+*.min.*
+*.lock
+*.zip
+*.tar*
+*.bin
+# MCP secrets
+.mcp_profiles.key
+reports/
+journal/
+state/
