@@ -1,140 +1,92 @@
 {
-  "version": "v1",
-  "updated_at": "2025-09-29T16:59:49.694609+00:00",
+  "version": "0.1.0",
+  "updated_at": "2025-09-29T18:00:00Z",
   "tasks": [
     {
-      "id": "T-001",
-      "title": "Roadmap telemetry baseline",
-      "epic": "sdk-foundation",
-      "status": "done",
-      "priority": "P0",
-      "owner": "gpt-5-codex",
-      "success_criteria": [
-        "Команда make status/roadmap синхронно отражает прогресс программы.",
-        "Информация синхронизирована с todo.machine.md."
-      ],
-      "failure_criteria": [
-        "Отчёт содержит невалидные проценты или отсутствующие фазы.",
-        "Скрипт падает на пустом или повреждённом todo.machine.md."
-      ],
-      "blockers": [],
-      "dependencies": [],
-      "conflicts": [],
-      "comments": [
-        {
-          "author": "gpt-5-codex",
-          "timestamp": "2025-09-29T08:00:00Z",
-          "message": "Базовый отчёт собран и проверен."
-        }
-      ],
-      "size_points": 8,
-      "big_task": "bigtask-core-automation"
-    },
-    {
-      "id": "T-002",
-      "title": "Task board orchestration",
+      "id": "ARCH-001",
+      "title": "Manifest-driven sync engine",
       "epic": "sdk-foundation",
       "status": "in_progress",
       "priority": "P0",
       "owner": "gpt-5-codex",
       "success_criteria": [
-        "Доступны make task status/summary/grab/select/release/complete/conflicts/comment/validate.",
-        "Блокировки, зависимости и конфликты валидируются автоматически без ручных правок."
+        "manifest.yaml служит единственным источником данных.",
+        "make architecture-sync регенерирует todo.machine.md и task board без ручных правок."
       ],
       "failure_criteria": [
-        "Несогласованные ссылки на задачи.",
-        "Команды не обновляют запись доски или журнал событий."
+        "Документация изменилась, но manifest.yaml нет."
       ],
       "blockers": [],
-      "dependencies": [
-        "T-001"
-      ],
-      "conflicts": [
-        "T-003"
-      ],
+      "dependencies": [],
+      "conflicts": [],
       "comments": [
         {
           "author": "gpt-5-codex",
-          "timestamp": "2025-09-29T15:00:57.732702+00:00",
-          "message": "Первичная привязка агента"
+          "timestamp": "2025-09-29T18:00:00Z",
+          "message": "Разработка генератора начата."
         }
       ],
-      "size_points": 13,
-      "big_task": "bigtask-core-automation"
+      "size_points": 8,
+      "big_task": "bigtask-arch-sync",
+      "system": "control-plane",
+      "roadmap_phase": "m_q1",
+      "metrics": {}
     },
     {
-      "id": "T-003",
-      "title": "Doc production pipeline",
+      "id": "ARCH-002",
+      "title": "Automated documentation synthesis",
       "epic": "sdk-foundation",
-      "status": "blocked",
+      "status": "planned",
       "priority": "P1",
-      "owner": "vibe-coder",
+      "owner": "gpt-5-codex",
       "success_criteria": [
-        "README/AGENTS/todo синхронизируются через make verify.",
-        "Документация обновляется при релизе."
+        "docs/architecture/overview.md и индексы ADR/RFC собираются автоматически.",
+        "Центральный документ содержит таблицы трассировки систем и задач."
       ],
       "failure_criteria": [
-        "Маршрут обновления не описан.",
-        "Пайплайн верификации документации не запускается."
+        "Нужно ручное обновление после изменений manifest.yaml."
       ],
       "blockers": [
-        "T-002"
+        "ARCH-001"
       ],
       "dependencies": [
-        "T-002"
+        "ARCH-001"
+      ],
+      "conflicts": [],
+      "comments": [],
+      "size_points": 8,
+      "big_task": "bigtask-doc-ops",
+      "system": "doc-sync",
+      "roadmap_phase": "m_q1",
+      "metrics": {}
+    },
+    {
+      "id": "ARCH-003",
+      "title": "Task board governance",
+      "epic": "sdk-foundation",
+      "status": "planned",
+      "priority": "P0",
+      "owner": "gpt-5-codex",
+      "success_criteria": [
+        "Каждая задача присутствует в data/tasks.board.json и связана с системой.",
+        "make verify валидирует согласованность статусов."
+      ],
+      "failure_criteria": [
+        "Несогласованные статусы между manifest.yaml и task board."
+      ],
+      "blockers": [
+        "ARCH-001"
+      ],
+      "dependencies": [
+        "ARCH-001"
       ],
       "conflicts": [],
       "comments": [],
       "size_points": 5,
-      "big_task": "bigtask-core-automation"
-    },
-    {
-      "id": "T-004",
-      "title": "Write docs",
-      "epic": "sdk-foundation",
-      "status": "done",
-      "priority": "P1",
-      "size_points": 5,
-      "owner": "agent-b",
-      "success_criteria": [],
-      "failure_criteria": [],
-      "blockers": [],
-      "dependencies": [],
-      "conflicts": [],
-      "comments": [],
-      "big_task": "bigtask-core-automation"
-    },
-    {
-      "id": "T-005",
-      "title": "QA pass",
-      "epic": "sdk-foundation",
-      "status": "backlog",
-      "priority": "P1",
-      "size_points": 3,
-      "owner": "unassigned",
-      "success_criteria": [],
-      "failure_criteria": [],
-      "blockers": [],
-      "dependencies": [],
-      "conflicts": [],
-      "comments": [],
-      "big_task": "bigtask-core-automation"
-    },
-    {
-      "id": "T-006",
-      "title": "Spike",
-      "epic": "default",
-      "status": "backlog",
-      "priority": "P1",
-      "size_points": 5,
-      "owner": "unassigned",
-      "success_criteria": [],
-      "failure_criteria": [],
-      "blockers": [],
-      "dependencies": [],
-      "conflicts": [],
-      "comments": [],
-      "big_task": "bigtask-core-automation"
+      "big_task": "bigtask-arch-sync",
+      "system": "task-ops",
+      "roadmap_phase": "m_q1",
+      "metrics": {}
     }
   ]
 }

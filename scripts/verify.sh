@@ -9,6 +9,12 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 sdk::load_commands
 
+sdk::log "INF" "Синхронизация архитектуры"
+"$SDK_ROOT/scripts/sync-architecture.sh" >/dev/null
+
+sdk::log "INF" "Проверка целостности архитектуры"
+"$SDK_ROOT/scripts/check-architecture-integrity.py" >/dev/null
+
 sdk::log "INF" "Синхронизация roadmap"
 "$SDK_ROOT/scripts/sync-roadmap.sh" >/dev/null || sdk::log "WRN" "sync-roadmap завершился с предупреждением"
 

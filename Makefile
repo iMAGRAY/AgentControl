@@ -1,4 +1,4 @@
-.PHONY: help init dev verify fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap
+.PHONY: help init dev verify fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle
 
 help:
 	@echo "Доступные цели: init dev verify fix ship roadmap status task <subcommand> task-add task-take task-drop task-done task-history"
@@ -28,6 +28,18 @@ ship:
 roadmap:
 	@$(call execute,sync-roadmap)
 	@$(call execute,roadmap-status)
+
+architecture-sync:
+	@$(call execute,sync-architecture)
+
+arch-edit:
+	@$(DEV_ENV) $(scripts_dir)/arch.sh edit
+
+arch-apply:
+	@$(DEV_ENV) $(scripts_dir)/arch.sh apply
+
+agent-cycle:
+	@$(call execute,agent-cycle)
 
 ifeq ($(firstword $(MAKECMDGOALS)),task)
 TASK_SUBCOMMAND := $(word 2,$(MAKECMDGOALS))

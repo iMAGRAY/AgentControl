@@ -2,7 +2,7 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-09-29T00:00:00Z
+updated_at: 2025-09-29T20:51:00Z
 owners: [ "vibe-coder", "gpt-5-codex" ]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
@@ -12,11 +12,14 @@ teach: true
 ## Commands
 - `make init` — автоконфигурация (commands, roadmap, task board, state, reports/status.json).
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
-- `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board и генерацию отчёта `reports/status.json`.
+- `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board, синхронизацию архитектуры и генерацию отчёта `reports/status.json`.
 - `make fix` — авто-фиксы из `SDK_FIX_COMMANDS`.
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
+- `make architecture-sync` — регенерация todo.machine.md, task board, архитектурного обзора и ADR/RFC из `architecture/manifest.yaml`.
+- `make arch-edit` / `make arch-apply` — подготовка и безопасное применение изменений в `architecture/manifest.yaml`.
+- `make agent-cycle` — полный Hybrid-H цикл: sync → проверки → отчёт `reports/agent_runs/<ts>.yaml`.
 - `make task-add TITLE="..." [EPIC=...] [BIG_TASK=...]` — добавить задачу без редактирования JSON (alias: `make task add`).
 - `make task take [AGENT=...]` — взять ближайшую доступную задачу (alias grab).
 - `make task drop TASK=<id>` — освободить задачу (alias release).
@@ -47,11 +50,12 @@ teach: true
 - Task board reset: восстановить `data/tasks.board.json`, очистить `state/task_selection.json`, архивировать `journal/task_events.jsonl`.
 
 ## Links
-- ADRs: `docs/adr/` (создайте при необходимости).
+- ADRs: `docs/adr/` (генерируются из `architecture/manifest.yaml`).
 - Journal: `docs/changes.md`.
 - Scripts: `scripts/`, Hooks: настраиваются вручную.
-- Roadmap: `todo.machine.md`.
-- Task Board: `data/tasks.board.json`.
+- Roadmap: `todo.machine.md` (генерируется).
+- Task Board: `data/tasks.board.json` (генерируется).
 - Event Log: `journal/task_events.jsonl`.
-- Status Snapshot: `reports/status.json`.
+- Status Snapshot: `reports/status.json`, `reports/architecture-dashboard.json`.
 - Roadmap sync: `scripts/sync-roadmap.sh` (автоматически вызывается `status`/`verify`).
+- Architecture sync: `scripts/sync-architecture.sh` (автоматически вызывается `verify`/`agent-cycle`).

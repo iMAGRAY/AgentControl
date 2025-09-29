@@ -1,0 +1,301 @@
+{
+  "generated_at": "2025-09-29T20:56:07Z",
+  "manifest_version": "0.1.0",
+  "manifest_updated_at": "2025-09-29T18:00:00Z",
+  "program_progress_pct": 15,
+  "systems": [
+    {
+      "id": "control-plane",
+      "name": "Control Plane Automation",
+      "purpose": "Управлять архитектурой, документами и задачами из одного манифеста.",
+      "adr": "ADR-0001",
+      "rfc": "RFC-0001",
+      "owner": "gpt-5-codex",
+      "status": "active",
+      "roadmap_phase": "m_q1",
+      "dependencies": [],
+      "metrics": {
+        "quality_pct": 95,
+        "cycle_hours": 2,
+        "drift_tolerance_min": 0
+      }
+    },
+    {
+      "id": "doc-sync",
+      "name": "Documentation Synchronizer",
+      "purpose": "Автоматически собирать центральный архитектурный документ и индексы ADR/RFC.",
+      "adr": "ADR-0002",
+      "rfc": null,
+      "owner": "gpt-5-codex",
+      "status": "planned",
+      "roadmap_phase": "m_q1",
+      "dependencies": [
+        "control-plane"
+      ],
+      "metrics": {
+        "freshness_minutes": 5,
+        "coverage_pct": 100
+      }
+    },
+    {
+      "id": "task-ops",
+      "name": "Task Ops Governance",
+      "purpose": "Генерировать декомпозированные задачи и держать их в синхронизации с архитектурой.",
+      "adr": "ADR-0003",
+      "rfc": null,
+      "owner": "gpt-5-codex",
+      "status": "planned",
+      "roadmap_phase": "m_q1",
+      "dependencies": [
+        "control-plane",
+        "doc-sync"
+      ],
+      "metrics": {
+        "update_latency_minutes": 5,
+        "traceability_pct": 100
+      }
+    }
+  ],
+  "epics": [
+    {
+      "id": "sdk-foundation",
+      "title": "SDK Foundation",
+      "type": "epic",
+      "status": "in_progress",
+      "priority": "P0",
+      "size_points": 20,
+      "scope_paths": [
+        "scripts/**",
+        "config/**",
+        "AGENTS.md",
+        "todo.machine.md",
+        "architecture/**"
+      ],
+      "spec": "Intent: предоставить железобетонный каркас управления архитектурой и документами.\nGiven: чистый репозиторий с SDK.\nWhen: агент запускает make init/dev/verify/ship.\nThen: все артефакты генерируются из manifest.yaml и остаются консистентными.\n",
+      "budgets": {
+        "latency_ms": 0,
+        "memory_mb": 0,
+        "bundle_kb": 0
+      },
+      "risks": [
+        "Недостаточное покрытие manifest.yaml приведёт к ручной работе.",
+        "Нарушение целостности данных при одновременных правках."
+      ],
+      "dependencies": [],
+      "docs_updates": [
+        "README.md",
+        "AGENTS.md",
+        "docs/architecture/overview.md"
+      ],
+      "artifacts": [
+        "scripts/",
+        "architecture/"
+      ],
+      "tests_required": [
+        "make verify"
+      ],
+      "verify_commands": [
+        "make architecture-sync"
+      ],
+      "audit": {
+        "created_at": "2025-09-29T18:00:00Z",
+        "created_by": "gpt-5-codex",
+        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_by": "gpt-5-codex"
+      },
+      "metrics": {
+        "progress_pct": 15
+      }
+    }
+  ],
+  "big_tasks": [
+    {
+      "id": "bigtask-arch-sync",
+      "title": "Централизация архитектуры",
+      "type": "feature",
+      "status": "in_progress",
+      "priority": "P0",
+      "size_points": 13,
+      "parent_epic": "sdk-foundation",
+      "scope_paths": [
+        "architecture/**",
+        "scripts/sync-architecture.sh",
+        "scripts/lib/architecture_tool.py"
+      ],
+      "spec": "Given: manifest.yaml описывает систему.\nWhen: запускается make architecture-sync.\nThen: документация, todo.machine.md и task board синхронизируются автоматически.\n",
+      "budgets": {
+        "latency_ms": 0,
+        "memory_mb": 0,
+        "bundle_kb": 0
+      },
+      "risks": [
+        "Ошибочная схема проявится во всех артефактах."
+      ],
+      "dependencies": [],
+      "docs_updates": [
+        "docs/architecture/overview.md",
+        "docs/adr/index.md"
+      ],
+      "artifacts": [
+        "scripts/lib/architecture_tool.py"
+      ],
+      "acceptance": [
+        "Все производные документы зависят только от manifest.yaml.",
+        "Проверки make verify падают при несогласованности."
+      ],
+      "tests_required": [
+        "make architecture-sync"
+      ],
+      "verify_commands": [
+        "make architecture-sync"
+      ],
+      "audit": {
+        "created_at": "2025-09-29T18:00:00Z",
+        "created_by": "gpt-5-codex",
+        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_by": "gpt-5-codex"
+      },
+      "metrics": {
+        "progress_pct": 25
+      },
+      "stats": {
+        "done": 0,
+        "total": 2
+      }
+    },
+    {
+      "id": "bigtask-doc-ops",
+      "title": "Документационный конвейер",
+      "type": "feature",
+      "status": "planned",
+      "priority": "P1",
+      "size_points": 8,
+      "parent_epic": "sdk-foundation",
+      "scope_paths": [
+        "docs/**",
+        "templates/**"
+      ],
+      "spec": "Given: manifest.yaml изменён.\nWhen: выполняется make architecture-sync.\nThen: центральный документ, ADR и RFC пересобраны детерминированно.\n",
+      "budgets": {
+        "latency_ms": 0,
+        "memory_mb": 0,
+        "bundle_kb": 0
+      },
+      "risks": [
+        "Шаблоны могут устареть без тестов."
+      ],
+      "dependencies": [
+        "bigtask-arch-sync"
+      ],
+      "docs_updates": [
+        "docs/architecture/overview.md",
+        "docs/adr/index.md",
+        "docs/rfc/index.md"
+      ],
+      "artifacts": [
+        "templates/"
+      ],
+      "acceptance": [
+        "Генерация идемпотентна и полно покрывает архитектуру."
+      ],
+      "tests_required": [
+        "make architecture-sync"
+      ],
+      "verify_commands": [
+        "make architecture-sync"
+      ],
+      "audit": {
+        "created_at": "2025-09-29T18:00:00Z",
+        "created_by": "gpt-5-codex",
+        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_by": "gpt-5-codex"
+      },
+      "metrics": {
+        "progress_pct": 0
+      },
+      "stats": {
+        "done": 0,
+        "total": 1
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "ARCH-001",
+      "title": "Manifest-driven sync engine",
+      "big_task": "bigtask-arch-sync",
+      "system": "control-plane",
+      "roadmap_phase": "m_q1",
+      "status": "in_progress",
+      "priority": "P0",
+      "owner": "gpt-5-codex",
+      "size_points": 8,
+      "success_criteria": [
+        "manifest.yaml служит единственным источником данных.",
+        "make architecture-sync регенерирует todo.machine.md и task board без ручных правок."
+      ],
+      "failure_criteria": [
+        "Документация изменилась, но manifest.yaml нет."
+      ],
+      "blockers": [],
+      "dependencies": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-29T18:00:00Z",
+          "message": "Разработка генератора начата."
+        }
+      ]
+    },
+    {
+      "id": "ARCH-002",
+      "title": "Automated documentation synthesis",
+      "big_task": "bigtask-doc-ops",
+      "system": "doc-sync",
+      "roadmap_phase": "m_q1",
+      "status": "planned",
+      "priority": "P1",
+      "owner": "gpt-5-codex",
+      "size_points": 8,
+      "success_criteria": [
+        "docs/architecture/overview.md и индексы ADR/RFC собираются автоматически.",
+        "Центральный документ содержит таблицы трассировки систем и задач."
+      ],
+      "failure_criteria": [
+        "Нужно ручное обновление после изменений manifest.yaml."
+      ],
+      "blockers": [
+        "ARCH-001"
+      ],
+      "dependencies": [
+        "ARCH-001"
+      ],
+      "comments": []
+    },
+    {
+      "id": "ARCH-003",
+      "title": "Task board governance",
+      "big_task": "bigtask-arch-sync",
+      "system": "task-ops",
+      "roadmap_phase": "m_q1",
+      "status": "planned",
+      "priority": "P0",
+      "owner": "gpt-5-codex",
+      "size_points": 5,
+      "success_criteria": [
+        "Каждая задача присутствует в data/tasks.board.json и связана с системой.",
+        "make verify валидирует согласованность статусов."
+      ],
+      "failure_criteria": [
+        "Несогласованные статусы между manifest.yaml и task board."
+      ],
+      "blockers": [
+        "ARCH-001"
+      ],
+      "dependencies": [
+        "ARCH-001"
+      ],
+      "comments": []
+    }
+  ]
+}

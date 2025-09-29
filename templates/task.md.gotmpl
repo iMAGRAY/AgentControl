@@ -1,0 +1,16 @@
+# Task {{ task.id }} — {{ task.title }}
+
+- System: {{ task.system }}
+- Big Task: {{ task.big_task }}
+- Epic: {{ task.epic }}
+- Status: {{ task.status }}
+- Priority: {{ task.priority }}
+- Owner: {{ task.owner }}
+- Size Points: {{ task.size_points }}
+- Roadmap Phase: {{ task.roadmap_phase }}
+
+## Success Criteria
+{{ task.success_criteria | join("\n") }}
+
+## Failure Criteria
+{{ task.failure_criteria | join("\n") }}

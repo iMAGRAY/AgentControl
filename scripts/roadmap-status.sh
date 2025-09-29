@@ -56,7 +56,7 @@ def extract_section(name: str) -> List[str]:
 
 
 def parse_scalar(block: str, field: str, cast=str, default=None):
-    pattern = rf"^{re.escape(field)}:\s*(.+)$"
+    pattern = rf"^\s*(?:-\s*)?{re.escape(field)}:\s*(.+)$"
     match = re.search(pattern, block, re.M)
     if not match:
         if default is not None:
@@ -86,13 +86,39 @@ def parse_phase_progress(block: str) -> Dict[str, int]:
 
 def parse_milestones(block: str) -> List[dict]:
     items = []
-    for m in re.finditer(r"- \{ id: ([^,]+), title: \"([^\"]+)\", due: ([^,]+), status: ([^}]+) \}", block):
-        items.append({
-            "id": m.group(1),
-            "title": m.group(2),
-            "due": m.group(3),
-            "status": m.group(4).strip(),
-        })
+    inline_matches = list(re.finditer(r"- \{ id: ([^,]+), title: \"([^\"]+)\", due: ([^,]+), status: ([^}]+) \}", block))
+    if inline_matches:
+        for m in inline_matches:
+            items.append({
+                "id": m.group(1),
+                "title": m.group(2),
+                "due": m.group(3),
+                "status": m.group(4).strip(),
+            })
+        return items
+
+    section_match = re.search(r"milestones:\n((?:\s*- .+\n(?:\s{1,}.+\n)*)+)", block)
+    if not section_match:
+        raise SystemExit("Не удалось разобрать milestones для Program")
+    current = {}
+    for raw_line in section_match.group(1).splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            continue
+        if line.lstrip().startswith("-"):
+            if current:
+                items.append(current)
+            current = {}
+            content = line.lstrip()[1:].strip()
+            if content and ":" in content:
+                key, value = [part.strip() for part in content.split(":", 1)]
+                current[key] = value.strip().strip('"').strip("'")
+        else:
+            if ":" in line:
+                key, value = [part.strip() for part in line.split(":", 1)]
+                current[key] = value.strip().strip('"').strip("'")
+    if current:
+        items.append(current)
     if not items:
         raise SystemExit("Не удалось разобрать milestones для Program")
     return items

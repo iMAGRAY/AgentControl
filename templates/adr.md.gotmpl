@@ -1,0 +1,17 @@
+# {{ adr.id }} — {{ adr.title }}
+
+**Status:** {{ adr.status }} (date: {{ adr.date }})
+**Authors:** {{ adr.authors | join(", ") }}
+
+## Context
+{{ adr.context }}
+
+## Decision
+{{ adr.decision }}
+
+## Consequences
+{{ adr.consequences }}
+
+**Related Systems:** {{ adr.related_systems | join(", ") }}
+**Supersedes:** {{ adr.supersedes | join(", ") }}
+**Superseded by:** {{ adr.superseded_by | join(", ") }}
