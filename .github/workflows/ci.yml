@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: make setup
+        run: make setup
+
+      - name: make lock
+        run: make lock
+
+      - name: make verify
+        run: make verify
+
+      - name: Upload reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            reports/verify.json
+            reports/pip-audit.json
+            reports/pip-audit.sarif
+            sbom/python.json
+
+      - name: Upload pip-audit SARIF
+        if: ${{ always() }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/pip-audit.sarif
