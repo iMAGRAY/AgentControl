@@ -7,15 +7,17 @@
   },
   "agents": {
     "codex": {
-      "command": ["node", "vendor/codex/codex-cli/bin/codex.js", "chat", "--input"],
+      "command": ["scripts/bin/codex", "chat", "--input"],
       "prompt_arg": "--input",
       "stdin": false,
-      "owner": "codex-bot"
+      "owner": "codex-bot",
+      "sandbox": "auto"
     },
     "claude": {
-      "command": ["claude"],
+      "command": ["scripts/bin/claude"],
       "stdin": true,
-      "owner": "claude-bot"
+      "owner": "claude-bot",
+      "sandbox": "auto"
     }
   }
 }

@@ -106,5 +106,31 @@ STUB
 setup_codex || warn "codex CLI не настроен"
 setup_claude || warn "claude CLI не настроен"
 
+SANDBOX_BIN="$BIN_DIR/sandbox_exec"
+if [[ ! -f "$SANDBOX_BIN" ]]; then
+  cat <<'SANDBOX' > "$SANDBOX_BIN"
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+# Простая обёртка: если доступен bubblewrap, используем его для изоляции,
+# иначе запускаем команду напрямую.
+if command -v bwrap >/dev/null 2>&1; then
+  WORK_DIR="${SANDBOX_WORK:-/tmp/sandbox-work}"
+  mkdir -p "$WORK_DIR"
+  exec bwrap \
+    --dev-bind / / \
+    --proc /proc \
+    --tmpfs /tmp \
+    --dir /tmp/work \
+    --chdir "$PWD" \
+    "$@"
+else
+  exec "$@"
+fi
+SANDBOX
+  chmod +x "$SANDBOX_BIN"
+  log "sandbox_exec настроен"
+fi
+
 printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LOG_DIR/install.timestamp"
 log "Установка CLI агентов завершена"

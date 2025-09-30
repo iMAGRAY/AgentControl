@@ -15,25 +15,22 @@ if [[ ! -f "$HEART_MANIFEST" ]]; then
 fi
 
 NOW=$(date -u +%s)
-STAMP=$(python3 - <<'PY'
+STAMP=$(python3 <<'PY'
 import json
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
-path = Path(sys.argv[1])
-data = json.loads(path.read_text(encoding='utf-8'))
-value = data.get('generated_at')
-if not value:
-    print(0)
-    raise SystemExit
+path = Path(r"$HEART_MANIFEST")
 try:
-    dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    value = data.get("generated_at")
+    if not value:
+        raise ValueError
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    print(int(dt.replace(tzinfo=timezone.utc).timestamp()))
 except Exception:
     print(0)
-    raise SystemExit
-print(int(dt.replace(tzinfo=timezone.utc).timestamp()))
 PY
-"$HEART_MANIFEST")
+)
 if [[ "$STAMP" -eq 0 ]]; then
   echo "[Heart] manifest timestamp unreadable — running sync" >&2
   "$HEART_CMD" sync

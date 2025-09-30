@@ -61,14 +61,14 @@ def run_subprocess(command: List[str], prompt_path: Path, stdin_mode: bool) -> s
     if stdin_mode:
         prompt_text = prompt_path.read_text(encoding="utf-8")
         return subprocess.run(
-            command,
+            [str(part) for part in command],
             input=prompt_text,
             text=True,
             capture_output=True,
             cwd=ROOT,
             check=False,
         )
-    return subprocess.run(command, text=True, capture_output=True, cwd=ROOT, check=False)
+    return subprocess.run([str(part) for part in command], text=True, capture_output=True, cwd=ROOT, check=False)
 
 
 def generate_stub_response(task_id: str, prompt_path: Path, command: str) -> str:
@@ -127,6 +127,16 @@ def command_for_agent(agent_cfg: Dict[str, object]) -> List[str]:
     return []
 
 
+def add_sandbox(command: List[str], sandbox_mode: str | None) -> List[str]:
+    mode = (sandbox_mode or "auto").lower()
+    sandbox_exec = ROOT / "scripts" / "bin" / "sandbox_exec"
+    if mode == "none":
+        return command
+    if sandbox_exec.exists():
+        return [str(sandbox_exec)] + command
+    return command
+
+
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run AI agent over project context")
     parser.add_argument("command", choices=["assign", "plan", "analysis"], help="Mode of execution")
@@ -176,6 +186,7 @@ def main(argv: List[str] | None = None) -> int:
             command.append(str(prompt_path))
         else:
             command.append(str(prompt_path))
+    command = add_sandbox(command, agent_cfg.get("sandbox"))
     log_dir = Path(cfg.get("log_dir", "reports/agents"))
     ensure_log_dir(log_dir)
 
