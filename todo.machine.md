@@ -17,7 +17,7 @@ owners:
 policies:
   task_min_points: 5
 teach: true
-updated_at: '2025-09-30T13:20:00Z'
+updated_at: '2025-09-30T14:15:46Z'
 health: green
 progress_pct: 100
 phase_progress:
@@ -37,31 +37,31 @@ milestones:
 - id: m_q1
   title: Q1
   due: '2025-12-31T00:00:00Z'
-  status: in_progress
+  status: done
 - id: m_q2
   title: Q2
   due: '2026-03-31T00:00:00Z'
-  status: planned
+  status: done
 - id: m_q3
   title: Q3
   due: '2026-06-30T00:00:00Z'
-  status: planned
+  status: done
 - id: m_q4
   title: Q4
   due: '2026-09-30T00:00:00Z'
-  status: planned
+  status: done
 - id: m_q5
   title: Q5
   due: '2026-12-31T00:00:00Z'
-  status: planned
+  status: done
 - id: m_q6
   title: Q6
   due: '2027-03-31T00:00:00Z'
-  status: planned
+  status: done
 - id: m_q7
   title: Q7
   due: '2027-06-30T00:00:00Z'
-  status: planned
+  status: done
 ```
 
 ## Epics

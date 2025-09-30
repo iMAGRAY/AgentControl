@@ -122,7 +122,7 @@ bootstrap_venv() {
   fi
 
   sdk::log "INF" "Обновляю pip и зависимости"
-  "$VENV_DIR/bin/pip" install --upgrade pip
+  "$VENV_DIR/bin/pip" install --upgrade pip==24.2
   "$VENV_DIR/bin/pip" install --upgrade -r "$SDK_ROOT/requirements.txt"
 }
 

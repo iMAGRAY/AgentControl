@@ -20,7 +20,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 VENV="$TMP_DIR/venv"
 
 python3 -m venv "$VENV"
-"$VENV/bin/pip" install --upgrade pip >/dev/null
+"$VENV/bin/pip" install --upgrade pip==24.2 >/dev/null
 "$VENV/bin/pip" install --quiet pip-tools==7.4.1 >/dev/null
 
 sdk::log "INF" "Генерирую requirements.lock через pip-compile"
@@ -28,6 +28,7 @@ sdk::log "INF" "Генерирую requirements.lock через pip-compile"
   --quiet \
   --no-annotate \
   --no-header \
+  --generate-hashes \
   --resolver=backtracking \
   --strip-extras \
   --output-file "$TMP_DIR/requirements.lock" \

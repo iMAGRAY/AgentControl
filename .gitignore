@@ -16,6 +16,7 @@ __pycache__/
 *.log
 *.min.*
 *.lock
+!requirements.lock
 *.zip
 *.tar*
 *.bin

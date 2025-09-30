@@ -14,7 +14,14 @@ if str(ROOT) not in sys.path:
 
 import yaml
 
-from scripts.lib.progress_utils import compute_phase_progress, status_score, weighted_numeric_average, weighted_status_average
+from scripts.lib.progress_utils import (
+    compute_phase_progress,
+    status_from_progress,
+    status_score,
+    utc_now_iso,
+    weighted_numeric_average,
+    weighted_status_average,
+)
 MANIFEST_PATH = ROOT / "architecture" / "manifest.yaml"
 TODO_PATH = ROOT / "todo.machine.md"
 
@@ -92,6 +99,10 @@ def update_manifest(manifest: dict, epic_progress: dict, big_progress: dict, pro
         if metrics.get("progress_pct") != new_value:
             metrics["progress_pct"] = new_value
             changed = True
+        new_status = status_from_progress(new_value)
+        if epic.get("status") != new_status:
+            epic["status"] = new_status
+            changed = True
 
     for big in manifest.get("big_tasks", []):
         big_id = big["id"]
@@ -99,6 +110,19 @@ def update_manifest(manifest: dict, epic_progress: dict, big_progress: dict, pro
         new_value = big_progress[big_id]
         if metrics.get("progress_pct") != new_value:
             metrics["progress_pct"] = new_value
+            changed = True
+        new_status = status_from_progress(new_value)
+        if big.get("status") != new_status:
+            big["status"] = new_status
+            changed = True
+
+    milestones = program.get("milestones", [])
+    for milestone in milestones:
+        title = milestone.get("title")
+        phase_value = phase_progress.get(title, program_progress)
+        new_status = status_from_progress(phase_value)
+        if milestone.get("status") != new_status:
+            milestone["status"] = new_status
             changed = True
 
     return changed
@@ -116,6 +140,9 @@ def run(dry_run: bool = False) -> None:
     tasks = manifest.get("tasks", [])
     big_tasks = manifest.get("big_tasks", [])
     epics = manifest.get("epics", [])
+
+    big_task_index = {big["id"]: big for big in big_tasks}
+    epic_index = {epic["id"]: epic for epic in epics}
 
     # Big task progress
     big_progress: Dict[str, int] = {}
@@ -171,6 +198,8 @@ def run(dry_run: bool = False) -> None:
         raise SystemExit("Секция Program должна быть YAML-объектом")
     program_block["progress_pct"] = program_progress
     program_block["phase_progress"] = phase_progress
+    program_block["updated_at"] = manifest["program"]["meta"].get("updated_at", utc_now_iso())
+    program_block["milestones"] = manifest["program"].get("milestones", [])
 
     if not isinstance(epics_block, list):
         raise SystemExit("Секция Epics должна быть YAML-списком")
@@ -179,6 +208,7 @@ def run(dry_run: bool = False) -> None:
         if epic_id not in epic_progress:
             raise SystemExit(f"Эпик '{epic_id}' отсутствует в manifest.yaml")
         epic["progress_pct"] = epic_progress[epic_id]
+        epic["status"] = epic_index.get(epic_id, {}).get("status", epic.get("status", "planned"))
 
     if not isinstance(big_tasks_block, list):
         raise SystemExit("Секция Big Tasks должна быть YAML-списком")
@@ -187,6 +217,7 @@ def run(dry_run: bool = False) -> None:
         if big_id not in big_progress:
             raise SystemExit(f"Big Task '{big_id}' отсутствует в manifest.yaml")
         big["progress_pct"] = big_progress[big_id]
+        big["status"] = big_task_index.get(big_id, {}).get("status", big.get("status", "planned"))
 
     new_todo_text = todo_text
     new_todo_text = replace_block(new_todo_text, "Program", format_yaml(program_block))
@@ -208,6 +239,9 @@ def run(dry_run: bool = False) -> None:
         print("todo.machine.md уже актуален")
 
     if manifest_changed:
+        manifest["updated_at"] = utc_now_iso()
+        program_meta = manifest.setdefault("program", {}).setdefault("meta", {})
+        program_meta["updated_at"] = manifest["updated_at"]
         persist_manifest(manifest)
         print("Обновлён architecture/manifest.yaml")
     else:

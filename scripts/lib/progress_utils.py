@@ -1,6 +1,7 @@
 """Утилиты пересчёта прогресса для SDK."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Dict, Iterable, Mapping
 
 STATUS_WEIGHTS: Mapping[str, float] = {
@@ -88,3 +89,15 @@ def compute_phase_progress(tasks: list[dict], milestones: list[dict], default_va
             phase_values[title] = default_value
 
     return phase_values
+
+
+def status_from_progress(progress: int) -> str:
+    if progress >= 100:
+        return "done"
+    if progress <= 0:
+        return "planned"
+    return "in_progress"
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")

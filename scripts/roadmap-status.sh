@@ -249,6 +249,16 @@ phase_map = {phase: int(round(phase_progress.get(phase, effective_phase))) for p
 program["phase_progress"] = phase_map
 
 milestones = program["milestones"]
+for milestone in milestones:
+    if "status" not in milestone:
+        title = milestone.get("title")
+        progress_value = phase_map.get(title, effective_phase)
+        if progress_value >= 100:
+            milestone["status"] = "done"
+        elif progress_value > 0:
+            milestone["status"] = "in_progress"
+        else:
+            milestone["status"] = "planned"
 upcoming = [m for m in milestones if m.get("status") != "done"]
 upcoming.sort(key=lambda m: m["due"])
 next_milestone = upcoming[0] if upcoming else None
@@ -283,7 +293,11 @@ if mode == "compact":
     phases_line = " | ".join(f"{phase}:{phase_map.get(phase, 0)}%" for phase in phase_order)
     focus_line = ", ".join(f"{e['id']}:{e.get('computed_progress_pct', e['progress_pct'])}%" for e in focus_epics) or "none"
     if next_milestone:
-        next_line = f"Next milestone: {next_milestone['title']} due {next_milestone['due']} ({next_milestone['status']})"
+        next_line = (
+            "Next milestone: "
+            f"{next_milestone.get('title', 'n/a')} due {next_milestone.get('due', 'n/a')}"
+            f" ({next_milestone.get('status', 'unknown')})"
+        )
     else:
         next_line = "Next milestone: n/a"
     print(f"Phases: {phases_line}")
@@ -304,8 +318,8 @@ print("Phase Timeline:")
 for phase in phase_order:
     pct = phase_map.get(phase, 0)
     milestone = next((m for m in milestones if m["title"] == phase), None)
-    status = milestone["status"] if milestone else "not_planned"
-    due = milestone["due"] if milestone else "n/a"
+    status = milestone.get("status", "not_planned") if milestone else "not_planned"
+    due = milestone.get("due", "n/a") if milestone else "n/a"
     print(f"- {phase}: {pct}% — status {status} — due {due}")
 print()
 print("Epics:")

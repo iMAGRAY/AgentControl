@@ -22,7 +22,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from scripts.lib.progress_utils import (
     PHASE_ORDER,
     compute_phase_progress,
+    status_from_progress,
     status_score,
+    utc_now_iso,
     weighted_numeric_average,
     weighted_status_average,
 )
@@ -146,6 +148,11 @@ def enrich_manifest(manifest: dict) -> dict:
     program.setdefault("progress", {}).setdefault("health", "green")
     phase_map = compute_phase_progress(manifest.get("tasks", []), program.get("milestones", []), program_progress)
     program.setdefault("progress", {})["phase_progress"] = phase_map
+    milestones = program.get("milestones", [])
+    for milestone in milestones:
+        title = milestone.get("title")
+        phase_value = phase_map.get(title, program_progress)
+        milestone["status"] = status_from_progress(int(phase_value))
     meta.setdefault("updated_at", manifest.get("updated_at"))
     manifest["tasks_map"] = tasks
     manifest["big_tasks_map"] = big_tasks

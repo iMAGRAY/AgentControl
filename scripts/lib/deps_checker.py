@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Iterable, Optional
@@ -151,7 +152,7 @@ def collect(root: Path) -> dict:
         *detect_stack_configs(root),
     ]
     summary = {
-        "generated_at": Path("/").stat().st_mtime,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(root),
         "results": [asdict(r) for r in results],
     }
