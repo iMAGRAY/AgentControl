@@ -14,8 +14,10 @@ teach: true
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
 - `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board, синхронизацию архитектуры и генерацию отчёта `reports/status.json`.
 - `make review` — дифф-фокусированное ревью (`SDK_REVIEW_LINTERS`, `SDK_TEST_COMMAND`, diff-cover, quality_guard) с отчётом `reports/review.json`.
+- `make doctor` — проверка окружения/зависимостей, сохраняет `reports/doctor.json`.
 - `make fix` — авто-фиксы из `SDK_FIX_COMMANDS`.
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
+- Альтернатива Make — `python3 scripts/sdk.py {verify|review|doctor|status|qa}`.
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
 - `make architecture-sync` — регенерация todo.machine.md, task board, архитектурного обзора и ADR/RFC из `architecture/manifest.yaml`.
@@ -45,7 +47,7 @@ teach: true
 - Пользовательские проверки из `config/commands.sh`.
 - Quality guard (заглушки/секреты) возвращает предупреждения, строгий режим — `EXIT_ON_FAIL=1`.
 - Отчёты: `reports/verify.json`, `reports/review.json`, `reports/status.json`.
-- Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает безопасные команды для найденных стеков (npm, Poetry/pytest, Go, Cargo) автоматически.
+- Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает безопасные команды для найденных стеков (npm/Yarn/pnpm, Poetry/Pipenv, Go, Cargo, Gradle/Maven, .NET и др.) автоматически.
 - Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает команды для найденных стеков (npm/Yarn/pnpm, Poetry/Pipenv, Go, Cargo, Gradle/Maven, .NET и т.д.) автоматически.
 - `make ship` блокирует релиз при `exit_code != 0`, упавших шагах или findings в quality guard.
 - Roadmap консистентна (`make roadmap` / верификация внутри `make verify`).

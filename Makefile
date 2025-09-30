@@ -1,4 +1,4 @@
-.PHONY: help init dev verify review fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle
+.PHONY: help init dev verify review doctor fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle
 
 help:
 	@echo "Доступные цели: init dev verify fix ship roadmap status task <subcommand> task-add task-take task-drop task-done task-history"
@@ -21,6 +21,9 @@ verify:
 
 review:
 	@$(call execute,review)
+
+doctor:
+	@$(call execute,doctor)
 
 fix:
 	@$(call execute,fix)
