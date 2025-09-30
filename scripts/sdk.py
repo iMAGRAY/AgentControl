@@ -22,10 +22,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
 
 def cmd_review(args: argparse.Namespace) -> int:
-    cmd = [str(ROOT / "scripts" / "review.sh")]
+    script = str(ROOT / "scripts" / "review.sh")
     if args.base:
-        cmd.insert(1, f"REVIEW_BASE_REF={args.base}")
-    return run(["env", *cmd]) if args.base else run(cmd)
+        return run(["env", f"REVIEW_BASE_REF={args.base}", script])
+    return run([script])
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:

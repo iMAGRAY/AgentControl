@@ -35,6 +35,7 @@ for row in rows:
     if fix and status == "missing":
         line += f" :: fix: {fix}"
     print(line)
+sys.exit(1 if problems else 0)
 PY
 
 sdk::log "INF" "Отчёт сохранён: $REPORT_FILE"
