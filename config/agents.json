@@ -1,0 +1,21 @@
+{
+  "default_role": "Principal Delivery Engineer",
+  "log_dir": "reports/agents",
+  "context": {
+    "max_snippet_chars": 320,
+    "top_k_chunks": 6
+  },
+  "agents": {
+    "codex": {
+      "command": ["node", "vendor/codex/codex-cli/bin/codex.js", "chat", "--input"],
+      "prompt_arg": "--input",
+      "stdin": false,
+      "owner": "codex-bot"
+    },
+    "claude": {
+      "command": ["claude"],
+      "stdin": true,
+      "owner": "claude-bot"
+    }
+  }
+}

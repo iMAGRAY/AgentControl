@@ -1,4 +1,4 @@
-.PHONY: help setup lock init dev verify review doctor fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle progress
+.PHONY: help setup lock init dev verify review doctor fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle progress vendor-update agents-install heart-install heart-sync heart-refresh heart-query heart-serve heart-update agent-assign agent-plan agent-analysis
 
 help:
 	@echo "Доступные цели: setup lock init dev verify fix ship roadmap status task <subcommand> task-add task-take task-drop task-done task-history"
@@ -55,6 +55,39 @@ agent-cycle:
 
 progress:
 	@$(DEV_ENV) python3 $(scripts_dir)/progress.py
+
+vendor-update:
+	@git submodule update --init --recursive --remote
+
+agents-install:
+	@$(call execute,agents/install)
+
+heart-install:
+	@$(call execute,agents/heart) install
+
+heart-sync:
+	@$(call execute,agents/heart) sync
+
+heart-refresh:
+	@$(call execute,agents/heart) refresh
+
+heart-query:
+	@$(call execute,agents/heart) query "$(Q)"
+
+heart-serve:
+	@$(call execute,agents/heart) serve
+
+heart-update:
+	@$(call execute,agents/heart) update
+
+agent-assign:
+	@$(call execute,agents/run) assign "$(TASK)" "$(AGENT)" "$(ROLE)"
+
+agent-plan:
+	@$(call execute,agents/run) plan "$(TASK)" "$(AGENT)" "$(ROLE)"
+
+agent-analysis:
+	@$(call execute,agents/run) analysis "$(AGENT)" "$(ROLE)"
 
 ifeq ($(firstword $(MAKECMDGOALS)),task)
 TASK_SUBCOMMAND := $(word 2,$(MAKECMDGOALS))
