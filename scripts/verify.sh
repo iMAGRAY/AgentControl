@@ -55,11 +55,11 @@ run_step "sync-architecture" "critical" "\"$SDK_ROOT/scripts/sync-architecture.s
 run_step "architecture-integrity" "critical" "\"$SDK_ROOT/scripts/check-architecture-integrity.py\""
 run_step "sync-roadmap" "warning" "\"$SDK_ROOT/scripts/sync-roadmap.sh\""
 
-run_step "ensure:AGENTS.md" "critical" "sdk::ensure_file 'AGENTS.md'"
-run_step "ensure:todo.machine.md" "critical" "sdk::ensure_file 'todo.machine.md'"
-run_step "ensure:.editorconfig" "critical" "sdk::ensure_file '.editorconfig'"
-run_step "ensure:.codexignore" "critical" "sdk::ensure_file '.codexignore'"
-run_step "ensure:data/tasks.board.json" "critical" "sdk::ensure_file 'data/tasks.board.json'"
+run_step "ensure:AGENTS.md" "critical" "( sdk::ensure_file 'AGENTS.md' )"
+run_step "ensure:todo.machine.md" "critical" "( sdk::ensure_file 'todo.machine.md' )"
+run_step "ensure:.editorconfig" "critical" "( sdk::ensure_file '.editorconfig' )"
+run_step "ensure:.codexignore" "critical" "( sdk::ensure_file '.codexignore' )"
+run_step "ensure:data/tasks.board.json" "critical" "( sdk::ensure_file 'data/tasks.board.json' )"
 
 run_step "check:todo_sections" "critical" "grep -q '^## Program' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Epics' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Big Tasks' \"$SDK_ROOT/todo.machine.md\""
 
