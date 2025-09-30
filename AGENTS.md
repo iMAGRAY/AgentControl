@@ -13,6 +13,7 @@ teach: true
 - `make init` — автоконфигурация (commands, roadmap, task board, state, reports/status.json).
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
 - `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board, синхронизацию архитектуры и генерацию отчёта `reports/status.json`.
+- `make review` — дифф-фокусированное ревью (`SDK_REVIEW_LINTERS`, `SDK_TEST_COMMAND`, diff-cover, quality_guard) с отчётом `reports/review.json`.
 - `make fix` — авто-фиксы из `SDK_FIX_COMMANDS`.
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
@@ -42,6 +43,9 @@ teach: true
 - Структура SDK (AGENTS.md, todo.machine.md, .editorconfig, .codexignore).
 - Shellcheck (если доступен).
 - Пользовательские проверки из `config/commands.sh`.
+- Quality guard (заглушки/секреты) возвращает предупреждения, строгий режим — `EXIT_ON_FAIL=1`.
+- Отчёты: `reports/verify.json`, `reports/review.json`, `reports/status.json`.
+- Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает безопасные команды для найденных стеков (npm, Poetry/pytest, Go, Cargo) автоматически.
 - Roadmap консистентна (`make roadmap` / верификация внутри `make verify`).
 - Task board консистентна (`make task validate`), события логируются.
 

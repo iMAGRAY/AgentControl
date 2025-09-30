@@ -24,6 +24,53 @@ sdk::load_commands() {
     SDK_VERIFY_COMMANDS=()
     SDK_FIX_COMMANDS=()
     SDK_SHIP_COMMANDS=()
+    SDK_REVIEW_LINTERS=()
+    SDK_TEST_COMMAND=""
+    SDK_COVERAGE_FILE=""
+    return
+  fi
+
+  if ! declare -p SDK_DEV_COMMANDS >/dev/null 2>&1; then SDK_DEV_COMMANDS=(); fi
+  if ! declare -p SDK_VERIFY_COMMANDS >/dev/null 2>&1; then SDK_VERIFY_COMMANDS=(); fi
+  if ! declare -p SDK_FIX_COMMANDS >/dev/null 2>&1; then SDK_FIX_COMMANDS=(); fi
+  if ! declare -p SDK_SHIP_COMMANDS >/dev/null 2>&1; then SDK_SHIP_COMMANDS=(); fi
+  if ! declare -p SDK_REVIEW_LINTERS >/dev/null 2>&1; then SDK_REVIEW_LINTERS=(); fi
+  if [[ -z "${SDK_TEST_COMMAND:-}" ]]; then SDK_TEST_COMMAND=""; fi
+  if [[ -z "${SDK_COVERAGE_FILE:-}" ]]; then SDK_COVERAGE_FILE=""; fi
+
+  sdk::strip_placeholder_array SDK_DEV_COMMANDS
+  sdk::strip_placeholder_array SDK_VERIFY_COMMANDS
+  sdk::strip_placeholder_array SDK_FIX_COMMANDS
+  sdk::strip_placeholder_array SDK_SHIP_COMMANDS
+  sdk::strip_placeholder_array SDK_REVIEW_LINTERS
+  sdk::strip_placeholder_scalar SDK_TEST_COMMAND
+  sdk::strip_placeholder_scalar SDK_COVERAGE_FILE
+
+  sdk::auto_detect_commands
+}
+
+sdk::strip_placeholder_array() {
+  local -n arr_ref="$1"
+  if [[ ${#arr_ref[@]} -eq 1 ]]; then
+    case "${arr_ref[0]}" in
+      "echo"*"configure"* ) arr_ref=() ;;
+    esac
+  fi
+}
+
+sdk::strip_placeholder_scalar() {
+  local var_name="$1"
+  local value="${!var_name:-}"
+  if [[ "$value" == echo*configure* ]]; then
+    printf -v "$var_name" '%s' ""
+  fi
+}
+
+sdk::auto_detect_commands() {
+  local snippet
+  snippet=$(python3 -m scripts.lib.auto_detect "$SDK_ROOT" 2>/dev/null || true)
+  if [[ -n "$snippet" ]]; then
+    eval "$snippet"
   fi
 }
 

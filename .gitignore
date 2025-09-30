@@ -10,6 +10,7 @@ venv/
 .venv/
 Pods/
 DerivedData/
+__pycache__/
 *.log
 *.min.*
 *.lock

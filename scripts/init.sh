@@ -29,11 +29,17 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 # SDK_VERIFY_COMMANDS=("npm run lint" "npm test")
 # SDK_FIX_COMMANDS=("npm run lint -- --fix")
 # SDK_SHIP_COMMANDS=("npm run build" "npm publish")
+# SDK_REVIEW_LINTERS=("reviewdog -conf=.reviewdog.yml")
+# SDK_TEST_COMMAND="pytest --maxfail=1 --disable-warnings --cov"
+# SDK_COVERAGE_FILE="coverage.xml"
 
 SDK_DEV_COMMANDS=("echo 'configure SDK_DEV_COMMANDS в config/commands.sh'")
 SDK_VERIFY_COMMANDS=("echo 'configure SDK_VERIFY_COMMANDS в config/commands.sh'")
 SDK_FIX_COMMANDS=("echo 'configure SDK_FIX_COMMANDS в config/commands.sh'")
 SDK_SHIP_COMMANDS=("echo 'configure SDK_SHIP_COMMANDS в config/commands.sh'")
+SDK_REVIEW_LINTERS=()
+SDK_TEST_COMMAND=""
+SDK_COVERAGE_FILE=""
 CFG
 else
   sdk::log "INF" "config/commands.sh уже существует — пропускаю"
