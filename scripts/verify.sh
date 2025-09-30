@@ -78,6 +78,7 @@ run_step "check:todo_sections" "critical" "grep -q '^## Program' \"$SDK_ROOT/tod
 run_step "shellcheck" "warning" "sdk::run_shellcheck_if_available"
 run_step "roadmap-status" "warning" "\"$SDK_ROOT/scripts/roadmap-status.sh\" compact"
 run_step "task-validate" "warning" "\"$SDK_ROOT/scripts/task.sh\" validate"
+run_step "heart-check" "warning" "\"$SDK_ROOT/scripts/agents/heart_check.sh\""
 
 # quality guard (diff против базового коммита)
 BASE_REF_DEFAULT="${VERIFY_BASE_REF:-origin/main}"

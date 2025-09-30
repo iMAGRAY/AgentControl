@@ -2,7 +2,7 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-09-30T06:05:00Z
+updated_at: 2025-09-30T20:35:00Z
 owners: [ "vibe-coder", "gpt-5-codex" ]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
@@ -10,7 +10,10 @@ stacks: { runtime: "bash@5", build: "make@4" }
 teach: true
 ```
 ## Commands
-- `make setup` — единоразовая установка системных инструментов, .venv и CLI зависимостей.
+- `make setup` — единоразовая установка системных инструментов, .venv, основных зависимостей, CLI Codex/Claude и Memory Heart индекса (можно пропустить через `SKIP_AGENT_INSTALL=1`/`SKIP_HEART_SYNC=1`).
+- `make vendor-update` — обновление субмодулей (Memory Heart, Codex, Claude).
+- `make agents-install` — форсированная переустановка/линковка CLI агентов.
+- `make heart-sync` — обновление индекса памяти; `make heart-query Q="..."`, `make heart-serve` для поиска/сервиса.
 - `make init` — автоконфигурация (commands, roadmap, task board, state, reports/status.json).
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
 - `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board, синхронизацию архитектуры и генерацию отчёта `reports/status.json`.
@@ -20,10 +23,12 @@ teach: true
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
 - Альтернатива Make — `python3 scripts/sdk.py {verify|review|doctor|status|summary|task|qa}`.
 - `make lock` — пересборка `requirements.lock` с SHA256-хешами и обновление SBOM.
-- `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
+- `make status` — табличный дашборд (Roadmap + TaskBoard + Memory Heart), автоматически вызывает `make progress`.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
 - `make architecture-sync` — регенерация todo.machine.md, task board, архитектурного обзора и ADR/RFC из `architecture/manifest.yaml`.
 - `make progress` — пересчёт прогресса программы/эпиков/Big Tasks и синхронизация todo.machine.md.
+- `make agent-assign TASK=… [AGENT=codex] [ROLE=…]` — вызывает ИИ-агента, добавляет комментарий в задачу и сохраняет лог в `reports/agents`.
+- `make agent-plan TASK=…` / `make agent-analysis` — получает план действий или обзор (использует Memory Heart и прогресс срезы).
 - `make arch-edit` / `make arch-apply` — подготовка и безопасное применение изменений в `architecture/manifest.yaml`.
 - `make agent-cycle` — полный Hybrid-H цикл: sync → проверки → отчёт `reports/agent_runs/<ts>.yaml`.
 - `make task-add TITLE="..." [EPIC=...] [BIG_TASK=...]` — добавить задачу без редактирования JSON (alias: `make task add`).
@@ -55,6 +60,7 @@ teach: true
 - `make ship` блокирует релиз при `exit_code != 0`, упавших шагах или findings в quality guard.
 - Roadmap консистентна (`make roadmap` / верификация внутри `make verify`).
 - Task board консистентна (`make task validate`), события логируются.
+- Memory Heart поддерживается свежим (`make heart-sync`, шаг `heart-check` в `make verify`).
 
 ## Rollback
 - Flags/env toggles: `SDK_*_COMMANDS` в config/commands.sh.

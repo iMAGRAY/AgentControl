@@ -144,4 +144,18 @@ install_system_packages
 bootstrap_venv
 install_reviewdog
 
+if [[ ${SKIP_AGENT_INSTALL:-0} -ne 1 ]]; then
+  sdk::log "INF" "Установка CLI агентов"
+  if ! "$SDK_ROOT/scripts/agents/install.sh"; then
+    sdk::log "WRN" "Установка CLI агентов завершилась с предупреждением"
+  fi
+fi
+
+if [[ ${SKIP_HEART_SYNC:-0} -ne 1 ]]; then
+  sdk::log "INF" "Синхронизирую Memory Heart"
+  if ! "$SDK_ROOT/scripts/agents/heart.sh" sync; then
+    sdk::log "WRN" "Memory Heart sync завершился с предупреждением"
+  fi
+fi
+
 sdk::log "INF" "Установка завершена. Запустите 'make doctor' для проверки."
