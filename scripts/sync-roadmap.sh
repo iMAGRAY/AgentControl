@@ -14,7 +14,7 @@ if [[ ! -f "$TODO_FILE" ]]; then
 fi
 
 STATUS_JSON="$SDK_ROOT/reports/.sync-roadmap.json"
-if ! "$SDK_ROOT/scripts/roadmap-status.sh" json > "$STATUS_JSON" 2>/dev/null; then
+if ! ROADMAP_SKIP_PROGRESS=1 "$SDK_ROOT/scripts/roadmap-status.sh" json > "$STATUS_JSON" 2>/dev/null; then
   sdk::log "WRN" "roadmap-status json недоступен — синхронизация пропущена"
   rm -f "$STATUS_JSON"
   exit 0

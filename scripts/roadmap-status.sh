@@ -22,6 +22,11 @@ if [[ ! -f "$TODO_FILE" ]]; then
   sdk::die "todo.machine.md не найден — дорожная карта недоступна"
 fi
 
+if [[ -z "${ROADMAP_SKIP_PROGRESS:-}" ]]; then
+  "$SDK_ROOT/scripts/progress.py" || sdk::log "WRN" "progress завершился с предупреждением"
+  printf '\n'
+fi
+
 python3 - "$MODE" "$TODO_FILE" "$SDK_ROOT" <<'PY'
 import json
 import re
