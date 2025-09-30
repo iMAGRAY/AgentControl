@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, asdict
+from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 @dataclass(slots=True)
@@ -20,8 +23,61 @@ class CheckResult:
     fix: str
 
 
-def which(cmd: str) -> bool:
-    return shutil.which(cmd) is not None
+ROOT = Path(__file__).resolve().parents[2]
+VENV_DIR = ROOT / ".venv"
+VENV_BIN = VENV_DIR / ("Scripts" if os.name == "nt" else "bin")
+VENV_PYTHON = VENV_BIN / ("python.exe" if os.name == "nt" else "python")
+
+
+def which(cmd: str) -> Optional[str]:
+    path = shutil.which(cmd)
+    if path:
+        return path
+    candidate = VENV_BIN / cmd
+    if candidate.exists():
+        return str(candidate)
+    if os.name == "nt":
+        candidate_exe = candidate.with_suffix(".exe")
+        if candidate_exe.exists():
+            return str(candidate_exe)
+    return None
+
+
+def _version_string(package: str) -> tuple[bool, str]:
+    if VENV_PYTHON.exists():
+        ok, out = run([str(VENV_PYTHON), "-c", f"import importlib.metadata as m; print(m.version('{package}'))"])
+        if ok and out.strip():
+            return True, out.strip()
+    try:
+        return True, importlib_metadata.version(package)
+    except importlib_metadata.PackageNotFoundError:
+        return False, ""
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    digits = re.findall(r"\d+", version)
+    return tuple(int(d) for d in digits) if digits else (0,)
+
+
+def module_available(module: str, package: str, minimum: Optional[str]) -> tuple[str, str]:
+    if VENV_PYTHON.exists():
+        ok, _ = run([str(VENV_PYTHON), "-c", f"import {module}"])
+        if not ok:
+            return "missing", ""
+        origin = str(VENV_PYTHON)
+    else:
+        try:
+            __import__(module)
+        except ImportError:
+            return "missing", ""
+        origin = "system"
+
+    has_version, version = _version_string(package)
+    if has_version and minimum:
+        if _version_tuple(version) < _version_tuple(minimum):
+            return "outdated", f"{version} (<{minimum})"
+    details = version or origin
+    return "ok", details
 
 
 def run(cmd: list[str]) -> tuple[bool, str]:
@@ -33,14 +89,20 @@ def run(cmd: list[str]) -> tuple[bool, str]:
 
 
 def detect_python_packages() -> Iterable[CheckResult]:
-    for pkg in ("pytest", "diff_cover", "reviewdog", "detect_secrets"):
-        try:
-            __import__(pkg.replace("-", "_"))
-            status, details = "ok", "installed"
-        except ImportError:
-            status, details = "missing", ""
-        fix = f"pip install {pkg}" if pkg != "reviewdog" else "GO111MODULE=on go install github.com/reviewdog/reviewdog/cmd/reviewdog@latest"
-        yield CheckResult(name=f"python:{pkg}", status=status, details=details, fix=fix)
+    requirements = (
+        ("pytest", "pytest", "8.4.2"),
+        ("diff_cover", "diff_cover", "9.7.1"),
+        ("detect_secrets", "detect_secrets", "1.5.0"),
+    )
+    for pkg_name, module, minimum in requirements:
+        status, details = module_available(module, pkg_name.replace("_", "-"), minimum)
+        if status == "missing":
+            fix = f"pip install {pkg_name.replace('_', '-')}"
+        elif status == "outdated":
+            fix = f"pip install -U {pkg_name.replace('_', '-')}"
+        else:
+            fix = ""
+        yield CheckResult(name=f"python:{pkg_name}", status=status, details=details, fix=fix)
 
 
 def detect_tools() -> Iterable[CheckResult]:
@@ -51,10 +113,13 @@ def detect_tools() -> Iterable[CheckResult]:
         "shellcheck": "apt install shellcheck",
         "diff-cover": "pip install diff-cover",
         "detect-secrets": "pip install detect-secrets",
+        "reviewdog": "GOBIN=$PWD/.venv/bin go install github.com/reviewdog/reviewdog/cmd/reviewdog@v0.15.0",
+        "go": "apt install golang-go",
     }
     for cmd, fix in commands.items():
-        if which(cmd):
-            status, details = "ok", shutil.which(cmd) or ""
+        location = which(cmd)
+        if location:
+            status, details = "ok", location
         else:
             status, details = "missing", ""
         yield CheckResult(name=f"tool:{cmd}", status=status, details=details, fix=fix)

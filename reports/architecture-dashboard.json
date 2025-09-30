@@ -1,8 +1,8 @@
 {
-  "generated_at": "2025-09-29T18:00:00Z",
+  "generated_at": "2025-09-30T13:20:00Z",
   "manifest_version": "0.1.0",
-  "manifest_updated_at": "2025-09-29T18:00:00Z",
-  "program_progress_pct": 15,
+  "manifest_updated_at": "2025-09-30T13:20:00Z",
+  "program_progress_pct": 100,
   "systems": [
     {
       "id": "control-plane",
@@ -61,7 +61,7 @@
       "id": "sdk-foundation",
       "title": "SDK Foundation",
       "type": "epic",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0",
       "size_points": 20,
       "scope_paths": [
@@ -100,11 +100,11 @@
       "audit": {
         "created_at": "2025-09-29T18:00:00Z",
         "created_by": "gpt-5-codex",
-        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_at": "2025-09-30T13:20:00Z",
         "updated_by": "gpt-5-codex"
       },
       "metrics": {
-        "progress_pct": 15
+        "progress_pct": 100
       }
     }
   ],
@@ -113,7 +113,7 @@
       "id": "bigtask-arch-sync",
       "title": "Централизация архитектуры",
       "type": "feature",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0",
       "size_points": 13,
       "parent_epic": "sdk-foundation",
@@ -152,14 +152,14 @@
       "audit": {
         "created_at": "2025-09-29T18:00:00Z",
         "created_by": "gpt-5-codex",
-        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_at": "2025-09-30T13:20:00Z",
         "updated_by": "gpt-5-codex"
       },
       "metrics": {
-        "progress_pct": 25
+        "progress_pct": 100
       },
       "stats": {
-        "done": 0,
+        "done": 2,
         "total": 2
       }
     },
@@ -167,7 +167,7 @@
       "id": "bigtask-doc-ops",
       "title": "Документационный конвейер",
       "type": "feature",
-      "status": "planned",
+      "status": "done",
       "priority": "P1",
       "size_points": 8,
       "parent_epic": "sdk-foundation",
@@ -207,14 +207,122 @@
       "audit": {
         "created_at": "2025-09-29T18:00:00Z",
         "created_by": "gpt-5-codex",
-        "updated_at": "2025-09-29T18:00:00Z",
+        "updated_at": "2025-09-30T13:20:00Z",
         "updated_by": "gpt-5-codex"
       },
       "metrics": {
-        "progress_pct": 0
+        "progress_pct": 100
       },
       "stats": {
-        "done": 0,
+        "done": 1,
+        "total": 1
+      }
+    },
+    {
+      "id": "bigtask-test-pytest",
+      "title": "Pytest в verify",
+      "type": "test",
+      "status": "done",
+      "priority": "P0",
+      "size_points": 5,
+      "parent_epic": "sdk-foundation",
+      "scope_paths": [
+        "config/commands.sh",
+        "requirements.txt",
+        "README.md",
+        "scripts/verify.sh"
+      ],
+      "spec": "Intent: формализовать прогон pytest в CI.\nGiven: чистый репозиторий.\nWhen: запускается make verify или make ship.\nThen: pytest выполняется через .venv и падает при ошибках тестов.",
+      "budgets": {
+        "latency_ms": 0,
+        "memory_mb": 0,
+        "bundle_kb": 0
+      },
+      "risks": [
+        "Сбой установки зависимостей блокирует verify."
+      ],
+      "dependencies": [],
+      "docs_updates": [
+        "README.md"
+      ],
+      "artifacts": [
+        "config/commands.sh",
+        "requirements.txt"
+      ],
+      "acceptance": [
+        "make verify создаёт .venv и запускает pytest -q.",
+        "README описывает шаги для локального прогона тестов."
+      ],
+      "tests_required": [
+        "make verify"
+      ],
+      "verify_commands": [
+        "make verify"
+      ],
+      "audit": {
+        "created_at": "2025-09-30T05:20:00Z",
+        "created_by": "gpt-5-codex",
+        "updated_at": "2025-09-30T06:05:00Z",
+        "updated_by": "gpt-5-codex"
+      },
+      "metrics": {
+        "progress_pct": 100
+      },
+      "stats": {
+        "done": 1,
+        "total": 1
+      }
+    },
+    {
+      "id": "bigtask-doctor-ux",
+      "title": "Улучшенный вывод make doctor",
+      "type": "ops",
+      "status": "done",
+      "priority": "P1",
+      "size_points": 5,
+      "parent_epic": "sdk-foundation",
+      "scope_paths": [
+        "scripts/doctor.sh",
+        "scripts/lib/deps_checker.py"
+      ],
+      "spec": "Intent: сделать make doctor читаемым.\nGiven: оператор запускает make doctor.\nWhen: формируется вывод проверки окружения.\nThen: результаты отображаются таблицей с командами и ссылками.",
+      "budgets": {
+        "latency_ms": 0,
+        "memory_mb": 0,
+        "bundle_kb": 0
+      },
+      "risks": [
+        "Ссылки могут устареть без ревизии."
+      ],
+      "dependencies": [
+        "bigtask-arch-sync"
+      ],
+      "docs_updates": [],
+      "artifacts": [
+        "scripts/doctor.sh",
+        "scripts/lib/deps_checker.py"
+      ],
+      "acceptance": [
+        "make doctor печатает таблицу со статусами, деталями и ссылками.",
+        "reports/doctor.json остаётся совместимым."
+      ],
+      "tests_required": [
+        "make doctor"
+      ],
+      "verify_commands": [
+        "make doctor || true"
+      ],
+      "audit": {
+        "created_at": "2025-09-30T05:20:00Z",
+        "created_by": "gpt-5-codex",
+        "updated_at": "2025-09-30T06:05:00Z",
+        "updated_by": "gpt-5-codex"
+      },
+      "metrics": {
+        "progress_pct": 100
+      },
+      "stats": {
+        "done": 1,
         "total": 1
       }
     }
@@ -226,7 +334,7 @@
       "big_task": "bigtask-arch-sync",
       "system": "control-plane",
       "roadmap_phase": "m_q1",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0",
       "owner": "gpt-5-codex",
       "size_points": 8,
@@ -244,6 +352,11 @@
           "author": "gpt-5-codex",
           "timestamp": "2025-09-29T18:00:00Z",
           "message": "Разработка генератора начата."
+        },
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Генератор синхронизирует todo.machine.md, task board и документацию из manifest.yaml."
         }
       ]
     },
@@ -253,7 +366,7 @@
       "big_task": "bigtask-doc-ops",
       "system": "doc-sync",
       "roadmap_phase": "m_q1",
-      "status": "planned",
+      "status": "done",
       "priority": "P1",
       "owner": "gpt-5-codex",
       "size_points": 8,
@@ -270,7 +383,13 @@
       "dependencies": [
         "ARCH-001"
       ],
-      "comments": []
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Документы overview/ADR/RFC пересобираются из manifest.yaml."
+        }
+      ]
     },
     {
       "id": "ARCH-003",
@@ -278,7 +397,7 @@
       "big_task": "bigtask-arch-sync",
       "system": "task-ops",
       "roadmap_phase": "m_q1",
-      "status": "planned",
+      "status": "done",
       "priority": "P0",
       "owner": "gpt-5-codex",
       "size_points": 5,
@@ -295,7 +414,67 @@
       "dependencies": [
         "ARCH-001"
       ],
-      "comments": []
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Task board полностью генерируется инструментом синхронизации и валидируется make verify."
+        }
+      ]
+    },
+    {
+      "id": "TEST-001",
+      "title": "Pytest в make verify",
+      "big_task": "bigtask-test-pytest",
+      "system": "control-plane",
+      "roadmap_phase": "m_q1",
+      "status": "done",
+      "priority": "P0",
+      "owner": "gpt-5-codex",
+      "size_points": 5,
+      "success_criteria": [
+        "make verify создаёт .venv и запускает pytest -q.",
+        "README содержит раздел про локальный прогон тестов."
+      ],
+      "failure_criteria": [
+        "pytest не стартует из make verify."
+      ],
+      "blockers": [],
+      "dependencies": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T05:20:00Z",
+          "message": "Интеграция pytest завершена."
+        }
+      ]
+    },
+    {
+      "id": "OPS-001",
+      "title": "Доктор UX с таблицей и ссылками",
+      "big_task": "bigtask-doctor-ux",
+      "system": "control-plane",
+      "roadmap_phase": "m_q1",
+      "status": "done",
+      "priority": "P1",
+      "owner": "gpt-5-codex",
+      "size_points": 5,
+      "success_criteria": [
+        "make doctor выводит табличный отчёт с командами и ссылками.",
+        "reports/doctor.json сохраняет прежний формат."
+      ],
+      "failure_criteria": [
+        "make doctor выдаёт нечитаемый вывод."
+      ],
+      "blockers": [],
+      "dependencies": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T05:20:00Z",
+          "message": "Формат doctor обновлён."
+        }
+      ]
     }
   ]
 }

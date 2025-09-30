@@ -8,6 +8,7 @@ coverage/
 target/
 venv/
 .venv/
+.sdk/
 Pods/
 DerivedData/
 __pycache__/

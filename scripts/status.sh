@@ -19,8 +19,9 @@ sdk::log "INF" "Task board summary"
 "$SDK_ROOT/scripts/task.sh" summary
 
 mkdir -p "$SDK_ROOT/reports"
-export ROADMAP_JSON="$("$SDK_ROOT/scripts/roadmap-status.sh" json)"
-export TASK_JSON="$("$SDK_ROOT/scripts/task.sh" summary --json)"
+ROADMAP_JSON="$("$SDK_ROOT/scripts/roadmap-status.sh" json)"
+TASK_JSON="$("$SDK_ROOT/scripts/task.sh" summary --json)"
+export ROADMAP_JSON TASK_JSON
 python3 <<'PY'
 import json
 import os

@@ -4,8 +4,8 @@
 - Program ID: codex-sdk
 - Name: GPT-5 Codex SDK Toolkit
 - Version: 0.1.0
-- Updated: 2025-09-29T18:00:00Z
-- Progress: 15% (health: green)
+- Updated: 2025-09-30T13:20:00Z
+- Progress: 100% (health: green)
 
 ## Systems
 | ID | Name | Purpose | ADR | RFC | Status | Dependencies | Roadmap Phase | Key Metrics |
@@ -17,9 +17,11 @@
 ## Traceability
 | Task ID | Title | Status | Owner | System | Big Task | Epic | Phase |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| ARCH-001 | Manifest-driven sync engine | in_progress | gpt-5-codex | control-plane | bigtask-arch-sync | sdk-foundation | m_q1 |
-| ARCH-002 | Automated documentation synthesis | planned | gpt-5-codex | doc-sync | bigtask-doc-ops | sdk-foundation | m_q1 |
-| ARCH-003 | Task board governance | planned | gpt-5-codex | task-ops | bigtask-arch-sync | sdk-foundation | m_q1 |
+| ARCH-001 | Manifest-driven sync engine | done | gpt-5-codex | control-plane | bigtask-arch-sync | sdk-foundation | m_q1 |
+| ARCH-002 | Automated documentation synthesis | done | gpt-5-codex | doc-sync | bigtask-doc-ops | sdk-foundation | m_q1 |
+| ARCH-003 | Task board governance | done | gpt-5-codex | task-ops | bigtask-arch-sync | sdk-foundation | m_q1 |
+| TEST-001 | Pytest в make verify | done | gpt-5-codex | control-plane | bigtask-test-pytest | sdk-foundation | m_q1 |
+| OPS-001 | Доктор UX с таблицей и ссылками | done | gpt-5-codex | control-plane | bigtask-doctor-ux | sdk-foundation | m_q1 |
 
 ## Documents
 - ADR Index: docs/adr/index.md

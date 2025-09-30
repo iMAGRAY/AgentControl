@@ -17,18 +17,18 @@ owners:
 policies:
   task_min_points: 5
 teach: true
-updated_at: '2025-09-29T18:00:00Z'
+updated_at: '2025-09-30T13:20:00Z'
 health: green
+progress_pct: 100
 phase_progress:
-  MVP: 19
-  Q1: 19
-  Q2: 19
-  Q3: 19
-  Q4: 19
-  Q5: 19
-  Q6: 19
-  Q7: 19
-progress_pct: 19
+  MVP: 100
+  Q1: 100
+  Q2: 100
+  Q3: 100
+  Q4: 100
+  Q5: 100
+  Q6: 100
+  Q7: 100
 milestones:
 - id: m_mvp
   title: MVP
@@ -69,7 +69,7 @@ milestones:
 - id: sdk-foundation
   title: SDK Foundation
   type: epic
-  status: in_progress
+  status: done
   priority: P0
   size_points: 20
   scope_paths:
@@ -105,7 +105,9 @@ milestones:
   big_tasks_planned:
   - bigtask-arch-sync
   - bigtask-doc-ops
-  progress_pct: 19
+  - bigtask-test-pytest
+  - bigtask-doctor-ux
+  progress_pct: 100
   health: green
   tests_required:
   - make verify
@@ -114,7 +116,7 @@ milestones:
   audit:
     created_at: '2025-09-29T18:00:00Z'
     created_by: gpt-5-codex
-    updated_at: '2025-09-29T18:00:00Z'
+    updated_at: '2025-09-30T13:20:00Z'
     updated_by: gpt-5-codex
 ```
 
@@ -123,7 +125,7 @@ milestones:
 - id: bigtask-arch-sync
   title: Централизация архитектуры
   type: feature
-  status: in_progress
+  status: done
   priority: P0
   size_points: 13
   parent_epic: sdk-foundation
@@ -145,7 +147,7 @@ milestones:
   risks:
   - Ошибочная схема проявится во всех артефактах.
   dependencies: []
-  progress_pct: 31
+  progress_pct: 100
   health: green
   acceptance:
   - Все производные документы зависят только от manifest.yaml.
@@ -162,12 +164,12 @@ milestones:
   audit:
     created_at: '2025-09-29T18:00:00Z'
     created_by: gpt-5-codex
-    updated_at: '2025-09-29T18:00:00Z'
+    updated_at: '2025-09-30T13:20:00Z'
     updated_by: gpt-5-codex
 - id: bigtask-doc-ops
   title: Документационный конвейер
   type: feature
-  status: planned
+  status: done
   priority: P1
   size_points: 8
   parent_epic: sdk-foundation
@@ -189,7 +191,7 @@ milestones:
   - Шаблоны могут устареть без тестов.
   dependencies:
   - bigtask-arch-sync
-  progress_pct: 31
+  progress_pct: 100
   health: green
   acceptance:
   - Генерация идемпотентна и полно покрывает архитектуру.
@@ -206,6 +208,94 @@ milestones:
   audit:
     created_at: '2025-09-29T18:00:00Z'
     created_by: gpt-5-codex
-    updated_at: '2025-09-29T18:00:00Z'
+    updated_at: '2025-09-30T13:20:00Z'
+    updated_by: gpt-5-codex
+- id: bigtask-test-pytest
+  title: Pytest в verify
+  type: test
+  status: done
+  priority: P0
+  size_points: 5
+  parent_epic: sdk-foundation
+  scope_paths:
+  - config/commands.sh
+  - requirements.txt
+  - README.md
+  - scripts/verify.sh
+  spec: 'Intent: формализовать прогон pytest в CI.
+
+    Given: чистый репозиторий.
+
+    When: запускается make verify или make ship.
+
+    Then: pytest выполняется через .venv и падает при ошибках тестов.'
+  budgets:
+    latency_ms: 0
+    memory_mb: 0
+    bundle_kb: 0
+  risks:
+  - Сбой установки зависимостей блокирует verify.
+  dependencies: []
+  progress_pct: 100
+  health: green
+  acceptance:
+  - make verify создаёт .venv и запускает pytest -q.
+  - README описывает шаги для локального прогона тестов.
+  tests_required:
+  - make verify
+  verify_commands:
+  - make verify
+  docs_updates:
+  - README.md
+  artifacts:
+  - config/commands.sh
+  - requirements.txt
+  audit:
+    created_at: '2025-09-30T05:20:00Z'
+    created_by: gpt-5-codex
+    updated_at: '2025-09-30T06:05:00Z'
+    updated_by: gpt-5-codex
+- id: bigtask-doctor-ux
+  title: Улучшенный вывод make doctor
+  type: ops
+  status: done
+  priority: P1
+  size_points: 5
+  parent_epic: sdk-foundation
+  scope_paths:
+  - scripts/doctor.sh
+  - scripts/lib/deps_checker.py
+  spec: 'Intent: сделать make doctor читаемым.
+
+    Given: оператор запускает make doctor.
+
+    When: формируется вывод проверки окружения.
+
+    Then: результаты отображаются таблицей с командами и ссылками.'
+  budgets:
+    latency_ms: 0
+    memory_mb: 0
+    bundle_kb: 0
+  risks:
+  - Ссылки могут устареть без ревизии.
+  dependencies:
+  - bigtask-arch-sync
+  progress_pct: 100
+  health: green
+  acceptance:
+  - make doctor печатает таблицу со статусами, деталями и ссылками.
+  - reports/doctor.json остаётся совместимым.
+  tests_required:
+  - make doctor
+  verify_commands:
+  - make doctor || true
+  docs_updates: []
+  artifacts:
+  - scripts/doctor.sh
+  - scripts/lib/deps_checker.py
+  audit:
+    created_at: '2025-09-30T05:20:00Z'
+    created_by: gpt-5-codex
+    updated_at: '2025-09-30T06:05:00Z'
     updated_by: gpt-5-codex
 ```

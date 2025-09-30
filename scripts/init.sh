@@ -117,6 +117,7 @@ fi
 
 if [[ ! -f "$TODO_FILE" ]]; then
   sdk::log "INF" "Создаю базовый todo.machine.md"
+  # shellcheck disable=SC2215,SC2006,SC2086,SC1130,SC1083
   cat <<TODO >"$TODO_FILE"
 ## Program
 ```yaml

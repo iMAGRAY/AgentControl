@@ -1,12 +1,12 @@
 {
   "version": "0.1.0",
-  "updated_at": "2025-09-29T18:00:00Z",
+  "updated_at": "2025-09-30T13:20:00Z",
   "tasks": [
     {
       "id": "ARCH-001",
       "title": "Manifest-driven sync engine",
       "epic": "sdk-foundation",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0",
       "owner": "gpt-5-codex",
       "success_criteria": [
@@ -24,6 +24,11 @@
           "author": "gpt-5-codex",
           "timestamp": "2025-09-29T18:00:00Z",
           "message": "Разработка генератора начата."
+        },
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Генератор синхронизирует todo.machine.md, task board и документацию из manifest.yaml."
         }
       ],
       "size_points": 8,
@@ -36,7 +41,7 @@
       "id": "ARCH-002",
       "title": "Automated documentation synthesis",
       "epic": "sdk-foundation",
-      "status": "planned",
+      "status": "done",
       "priority": "P1",
       "owner": "gpt-5-codex",
       "success_criteria": [
@@ -53,7 +58,13 @@
         "ARCH-001"
       ],
       "conflicts": [],
-      "comments": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Документы overview/ADR/RFC пересобираются из manifest.yaml."
+        }
+      ],
       "size_points": 8,
       "big_task": "bigtask-doc-ops",
       "system": "doc-sync",
@@ -64,7 +75,7 @@
       "id": "ARCH-003",
       "title": "Task board governance",
       "epic": "sdk-foundation",
-      "status": "planned",
+      "status": "done",
       "priority": "P0",
       "owner": "gpt-5-codex",
       "success_criteria": [
@@ -81,10 +92,76 @@
         "ARCH-001"
       ],
       "conflicts": [],
-      "comments": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T13:20:00Z",
+          "message": "Task board полностью генерируется инструментом синхронизации и валидируется make verify."
+        }
+      ],
       "size_points": 5,
       "big_task": "bigtask-arch-sync",
       "system": "task-ops",
+      "roadmap_phase": "m_q1",
+      "metrics": {}
+    },
+    {
+      "id": "OPS-001",
+      "title": "Доктор UX с таблицей и ссылками",
+      "epic": "sdk-foundation",
+      "status": "done",
+      "priority": "P1",
+      "owner": "gpt-5-codex",
+      "success_criteria": [
+        "make doctor выводит табличный отчёт с командами и ссылками.",
+        "reports/doctor.json сохраняет прежний формат."
+      ],
+      "failure_criteria": [
+        "make doctor выдаёт нечитаемый вывод."
+      ],
+      "blockers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T05:20:00Z",
+          "message": "Формат doctor обновлён."
+        }
+      ],
+      "size_points": 5,
+      "big_task": "bigtask-doctor-ux",
+      "system": "control-plane",
+      "roadmap_phase": "m_q1",
+      "metrics": {}
+    },
+    {
+      "id": "TEST-001",
+      "title": "Pytest в make verify",
+      "epic": "sdk-foundation",
+      "status": "done",
+      "priority": "P0",
+      "owner": "gpt-5-codex",
+      "success_criteria": [
+        "make verify создаёт .venv и запускает pytest -q.",
+        "README содержит раздел про локальный прогон тестов."
+      ],
+      "failure_criteria": [
+        "pytest не стартует из make verify."
+      ],
+      "blockers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "comments": [
+        {
+          "author": "gpt-5-codex",
+          "timestamp": "2025-09-30T05:20:00Z",
+          "message": "Интеграция pytest завершена."
+        }
+      ],
+      "size_points": 5,
+      "big_task": "bigtask-test-pytest",
+      "system": "control-plane",
       "roadmap_phase": "m_q1",
       "metrics": {}
     }

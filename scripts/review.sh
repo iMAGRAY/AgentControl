@@ -56,14 +56,19 @@ if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
 fi
 
 printf "%s\n" "${CHANGED_FILES[@]}" >"$REVIEW_CHANGED_FILES_FILE"
-export REVIEW_CHANGED_FILES="$(printf '%s\n' "${CHANGED_FILES[@]}")"
+REVIEW_CHANGED_FILES="$(printf '%s\n' "${CHANGED_FILES[@]}")"
+export REVIEW_CHANGED_FILES
 export REVIEW_CHANGED_FILES_PATH="$REVIEW_CHANGED_FILES_FILE"
 
 sdk::log "INF" "Изменённые файлы: ${#CHANGED_FILES[@]}"
 
-CHANGED_JSON=$(printf '%s\n' "${CHANGED_FILES[@]}" | python3 - <<'PY'
-import json, sys
-files = [line.strip() for line in sys.stdin.read().splitlines() if line.strip()]
+CHANGED_JSON=$(
+  python3 - "$REVIEW_CHANGED_FILES_FILE" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+files = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 print(json.dumps(files))
 PY
 )

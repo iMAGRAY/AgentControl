@@ -2,7 +2,7 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-09-29T20:51:00Z
+updated_at: 2025-09-30T06:05:00Z
 owners: [ "vibe-coder", "gpt-5-codex" ]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
@@ -10,6 +10,7 @@ stacks: { runtime: "bash@5", build: "make@4" }
 teach: true
 ```
 ## Commands
+- `make setup` — единоразовая установка системных инструментов, .venv и CLI зависимостей.
 - `make init` — автоконфигурация (commands, roadmap, task board, state, reports/status.json).
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
 - `make verify` — базовые проверки + пользовательские `SDK_VERIFY_COMMANDS`; включает валидацию roadmap/task board, синхронизацию архитектуры и генерацию отчёта `reports/status.json`.
@@ -21,6 +22,7 @@ teach: true
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
 - `make architecture-sync` — регенерация todo.machine.md, task board, архитектурного обзора и ADR/RFC из `architecture/manifest.yaml`.
+- `make progress` — пересчёт прогресса программы/эпиков/Big Tasks и синхронизация todo.machine.md.
 - `make arch-edit` / `make arch-apply` — подготовка и безопасное применение изменений в `architecture/manifest.yaml`.
 - `make agent-cycle` — полный Hybrid-H цикл: sync → проверки → отчёт `reports/agent_runs/<ts>.yaml`.
 - `make task-add TITLE="..." [EPIC=...] [BIG_TASK=...]` — добавить задачу без редактирования JSON (alias: `make task add`).

@@ -101,7 +101,10 @@ determine_base_commit() {
 BASE_COMMIT="${VERIFY_BASE_COMMIT:-$(determine_base_commit "$BASE_REF_DEFAULT")}" || true
 QUALITY_JSON="$REPORT_DIR/verify_quality.json"
 if [[ -n "$BASE_COMMIT" ]]; then
-  run_step "quality_guard" "warning" "python3 -m scripts.lib.quality_guard --base \"$BASE_COMMIT\" --include-untracked --output \"$QUALITY_JSON\""
+run_step "quality_guard" "warning" "python3 -m scripts.lib.quality_guard --base \"$BASE_COMMIT\" --include-untracked --output \"$QUALITY_JSON\""
+
+run_step "check-lock" "critical" "\"$SDK_ROOT/scripts/check-lock.sh\""
+run_step "scan-sbom" "critical" "\"$SDK_ROOT/scripts/scan-sbom.sh\""
 else
   sdk::log "WRN" "Не удалось определить базовый коммит для quality_guard"
 fi

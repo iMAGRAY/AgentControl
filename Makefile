@@ -1,7 +1,7 @@
-.PHONY: help init dev verify review doctor fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle
+.PHONY: help setup lock init dev verify review doctor fix ship roadmap status task tasks select conflicts comment list summary grab assign release complete validate history add take drop done task-add task-take task-drop task-done task-history sync-roadmap architecture-sync arch-edit arch-apply agent-cycle progress
 
 help:
-	@echo "Доступные цели: init dev verify fix ship roadmap status task <subcommand> task-add task-take task-drop task-done task-history"
+	@echo "Доступные цели: setup lock init dev verify fix ship roadmap status task <subcommand> task-add task-take task-drop task-done task-history"
 
 DEV_ENV=LC_ALL=C.UTF-8
 
@@ -9,6 +9,12 @@ scripts_dir := ./scripts
 
 execute = $(DEV_ENV) $(scripts_dir)/$1.sh
 execute_task = $(DEV_ENV) $(scripts_dir)/task.sh $1 $(TASK_ARGS)
+
+setup:
+	@$(call execute,setup)
+
+lock:
+	@$(call execute,update-lock)
 
 init:
 	@$(call execute,init)
@@ -46,6 +52,9 @@ arch-apply:
 
 agent-cycle:
 	@$(call execute,agent-cycle)
+
+progress:
+	@$(DEV_ENV) python3 $(scripts_dir)/progress.py
 
 ifeq ($(firstword $(MAKECMDGOALS)),task)
 TASK_SUBCOMMAND := $(word 2,$(MAKECMDGOALS))

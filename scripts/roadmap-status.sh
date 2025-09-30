@@ -245,8 +245,8 @@ if phase_progress:
         )
 
 effective_phase = int(round(program.get("computed_progress_pct", program["progress_pct"])))
-phase_map = {phase: effective_phase for phase in phase_order}
-program["phase_progress"] = {phase: effective_phase for phase in phase_order}
+phase_map = {phase: int(round(phase_progress.get(phase, effective_phase))) for phase in phase_order}
+program["phase_progress"] = phase_map
 
 milestones = program["milestones"]
 upcoming = [m for m in milestones if m.get("status") != "done"]

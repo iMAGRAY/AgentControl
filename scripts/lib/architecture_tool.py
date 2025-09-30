@@ -6,6 +6,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,16 +14,23 @@ from typing import Any, Dict, List, Tuple
 
 import yaml
 
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from scripts.lib.progress_utils import (
+    PHASE_ORDER,
+    compute_phase_progress,
+    status_score,
+    weighted_numeric_average,
+    weighted_status_average,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / "architecture" / "manifest.yaml"
-
-STATUS_WEIGHTS = {
-    "done": 1.0,
-    "in_progress": 0.5,
-    "blocked": 0.25,
-    "planned": 0.0,
-    "backlog": 0.0,
-}
+STATE_DIR = ROOT / ".sdk" / "arch"
+STATE_FILE = STATE_DIR / "outputs.json"
 
 
 @dataclass
@@ -55,11 +63,23 @@ def ensure_json_serialisable(value: Any) -> Any:
     return str(value)
 
 
-def _status_weight(status: str) -> float:
+def load_state() -> Dict[str, str]:
+    if not STATE_FILE.exists():
+        return {}
     try:
-        return STATUS_WEIGHTS[status]
-    except KeyError as exc:
-        raise ValueError(f"Unknown status '{status}'") from exc
+        with STATE_FILE.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            return {str(key): str(value) for key, value in data.items()}
+    except json.JSONDecodeError:
+        return {}
+    return {}
+
+
+def save_state(state: Dict[str, str]) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with STATE_FILE.open("w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False, indent=2)
 
 
 def compute_task_progress(tasks: List[dict]) -> TaskProgress:
@@ -67,8 +87,7 @@ def compute_task_progress(tasks: List[dict]) -> TaskProgress:
         return TaskProgress(percent=0.0, completed=0, total=0)
     total = len(tasks)
     completed = sum(1 for task in tasks if task["status"] == "done")
-    score = sum(_status_weight(task["status"]) for task in tasks)
-    percent = round(score / total * 100, 2)
+    percent = float(weighted_status_average(tasks, "status", "size_points"))
     return TaskProgress(percent=percent, completed=completed, total=total)
 
 
@@ -91,32 +110,42 @@ def enrich_manifest(manifest: dict) -> dict:
     for epic_id, epic in epics.items():
         relevant_big_tasks = [big for big in big_tasks.values() if big["parent_epic"] == epic_id]
         if relevant_big_tasks:
-            total_points = sum(big["size_points"] for big in relevant_big_tasks)
-            if total_points == 0:
-                epic_progress = 0.0
-            else:
-                weighted = 0.0
-                for big in relevant_big_tasks:
-                    weighted += big["size_points"] * big["metrics"]["progress_pct"]
-                epic_progress = int(round(weighted / total_points))
+            epic_progress = weighted_numeric_average(
+                (
+                    {
+                        "value": big["metrics"]["progress_pct"],
+                        "size_points": big.get("size_points", 1),
+                    }
+                    for big in relevant_big_tasks
+                ),
+                "value",
+                "size_points",
+            )
         else:
-            epic_progress = 0.0
+            epic_progress = int(round(status_score(epic["status"]) * 100))
         epic.setdefault("metrics", {})["progress_pct"] = epic_progress
 
     program = manifest.setdefault("program", {})
     meta = program.get("meta", {})
     epics_list = list(epics.values())
     if epics_list:
-        total_epic_points = sum(epic.get("size_points", 0) for epic in epics_list)
-        if total_epic_points:
-            weighted = sum(epic.get("size_points", 0) * epic["metrics"]["progress_pct"] for epic in epics_list)
-            program_progress = int(round(weighted / total_epic_points))
-        else:
-            program_progress = 0.0
+        program_progress = weighted_numeric_average(
+            (
+                {
+                    "value": epic["metrics"]["progress_pct"],
+                    "size_points": epic.get("size_points", 0),
+                }
+                for epic in epics_list
+            ),
+            "value",
+            "size_points",
+        )
     else:
         program_progress = 0.0
     program.setdefault("progress", {})["progress_pct"] = program_progress
     program.setdefault("progress", {}).setdefault("health", "green")
+    phase_map = compute_phase_progress(manifest.get("tasks", []), program.get("milestones", []), program_progress)
+    program.setdefault("progress", {})["phase_progress"] = phase_map
     meta.setdefault("updated_at", manifest.get("updated_at"))
     manifest["tasks_map"] = tasks
     manifest["big_tasks_map"] = big_tasks
@@ -396,37 +425,83 @@ def write_if_changed(path: Path, content: str) -> bool:
 def sync_outputs() -> None:
     manifest = load_manifest()
     outputs = generate_outputs(manifest)
-    changed = []
+    state = load_state()
+    force = os.getenv("ARCH_TOOL_FORCE") == "1"
+
+    updated: List[str] = []
+    skipped: List[str] = []
+    new_state: Dict[str, str] = {}
+
     for rel_path, content in outputs.items():
         target = ROOT / rel_path
-        if write_if_changed(target, content):
-            changed.append(rel_path)
-    if changed:
+        recorded = rel_path in state
+
+        if not force and not recorded and target.exists():
+            existing = target.read_text(encoding="utf-8")
+            if existing != content:
+                skipped.append(rel_path)
+                continue
+            # пользовательский файл: не трогаем, не берём под управление
+            continue
+
+        changed = write_if_changed(target, content)
+        if changed:
+            updated.append(rel_path)
+
+        if changed or recorded or force:
+            new_state[rel_path] = compute_hash(content)
+
+    if new_state:
+        save_state(new_state)
+    else:
+        # Ensure stale state is cleared if nothing is managed anymore
+        if STATE_FILE.exists():
+            STATE_FILE.unlink()
+
+    if updated:
         print("Updated:")
-        for path in changed:
+        for path in updated:
             print(f"  - {path}")
     else:
-        print("All generated artifacts are up-to-date.")
+        print("All managed artifacts are up-to-date.")
+
+    unmanaged = sorted(set(skipped))
+    if unmanaged:
+        print("Skipped user-managed files (use ARCH_TOOL_FORCE=1 to adopt):")
+        for path in unmanaged:
+            print(f"  - {path}")
 
 
 def check_outputs() -> None:
+    state = load_state()
+    if not state:
+        print("Architecture integrity confirmed (no managed artifacts).")
+        return
+
     manifest = load_manifest()
     outputs = generate_outputs(manifest)
-    mismatches = []
-    for rel_path, content in outputs.items():
+    mismatches: List[Tuple[str, str]] = []
+
+    for rel_path, _hash in state.items():
         target = ROOT / rel_path
+        content = outputs.get(rel_path)
+        if content is None:
+            mismatches.append((rel_path, "not produced by manifest"))
+            continue
         if not target.exists():
             mismatches.append((rel_path, "missing"))
             continue
         existing = target.read_text(encoding="utf-8")
         if existing != content:
             mismatches.append((rel_path, "outdated"))
+
     if mismatches:
         print("Architecture integrity check failed:")
         for rel_path, reason in mismatches:
             print(f"  - {rel_path}: {reason}")
-        print("Run `make architecture-sync` to regenerate.")
+        print("Run `ARCH_TOOL_FORCE=1 make architecture-sync` to adopt generated artifacts or edit .sdk/arch/state.json.")
         sys.exit(1)
+
     print("Architecture integrity confirmed.")
 
 
