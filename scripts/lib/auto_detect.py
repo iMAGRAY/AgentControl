@@ -11,6 +11,8 @@ import shlex
 import sys
 from pathlib import Path
 
+__all__ = ["build_snippet"]
+
 
 def wrap(condition: str, command: str, skip: str) -> str:
     """Сформировать безопасную конструкцию if/else."""
@@ -19,27 +21,73 @@ def wrap(condition: str, command: str, skip: str) -> str:
     return f"if {condition}; then {command}; else echo {skip_quoted}; fi"
 
 
+def add_command(bucket: dict, key: str, snippet: str) -> None:
+    values = bucket.setdefault(key, [])
+    if snippet not in values:
+        values.append(snippet)
+
+
+def detect_yarn(root: Path, result: dict) -> bool:
+    if not (root / "yarn.lock").exists():
+        return False
+    condition = "[ -f package.json ] && command -v yarn >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "yarn install", "skip yarn install"))
+    lint_cmd = "yarn lint || true"
+    test_cmd = "yarn test || true"
+    build_cmd = "yarn build || true"
+    add_command(result, "verify", wrap(condition, lint_cmd, "skip yarn lint"))
+    add_command(result, "verify", wrap(condition, test_cmd, "skip yarn test"))
+    add_command(result, "review_linters", wrap(condition, lint_cmd, "skip yarn lint"))
+    add_command(result, "ship", wrap(condition, build_cmd, "skip yarn build"))
+    add_command(result, "test_candidates", wrap(condition, test_cmd, "skip yarn test"))
+    coverage_file = root / "coverage" / "lcov.info"
+    if coverage_file.exists():
+        add_command(result, "coverage_candidates", str(coverage_file.relative_to(root)))
+    return True
+
+
+def detect_pnpm(root: Path, result: dict) -> bool:
+    if not (root / "pnpm-lock.yaml").exists():
+        return False
+    condition = "[ -f package.json ] && command -v pnpm >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "pnpm install", "skip pnpm install"))
+    lint_cmd = "pnpm lint || true"
+    test_cmd = "pnpm test || true"
+    build_cmd = "pnpm build || true"
+    add_command(result, "verify", wrap(condition, lint_cmd, "skip pnpm lint"))
+    add_command(result, "verify", wrap(condition, test_cmd, "skip pnpm test"))
+    add_command(result, "review_linters", wrap(condition, lint_cmd, "skip pnpm lint"))
+    add_command(result, "ship", wrap(condition, build_cmd, "skip pnpm build"))
+    add_command(result, "test_candidates", wrap(condition, test_cmd, "skip pnpm test"))
+    coverage_file = root / "coverage" / "lcov.info"
+    if coverage_file.exists():
+        add_command(result, "coverage_candidates", str(coverage_file.relative_to(root)))
+    return True
+
+
 def detect_node(root: Path, result: dict) -> None:
     package_json = root / "package.json"
     if not package_json.exists():
         return
+    if detect_yarn(root, result):
+        return
+    if detect_pnpm(root, result):
+        return
     condition = "[ -f package.json ] && command -v npm >/dev/null 2>&1"
-    result["dev"].append(
-        wrap(condition, "npm install", "skip npm install (package.json/npm not available)")
-    )
+    add_command(result, "dev", wrap(condition, "npm install", "skip npm install (package.json/npm not available)"))
     lint_cmd = "npm run lint --if-present"
     test_cmd = "npm run test --if-present"
     build_cmd = "npm run build --if-present"
 
-    result["verify"].append(wrap(condition, lint_cmd, "skip npm lint"))
-    result["verify"].append(wrap(condition, test_cmd, "skip npm test"))
-    result["review_linters"].append(wrap(condition, lint_cmd, "skip npm lint"))
-    result["ship"].append(wrap(condition, build_cmd, "skip npm build"))
-    result.setdefault("test_candidates", []).append(wrap(condition, test_cmd, "skip npm test"))
+    add_command(result, "verify", wrap(condition, lint_cmd, "skip npm lint"))
+    add_command(result, "verify", wrap(condition, test_cmd, "skip npm test"))
+    add_command(result, "review_linters", wrap(condition, lint_cmd, "skip npm lint"))
+    add_command(result, "ship", wrap(condition, build_cmd, "skip npm build"))
+    add_command(result, "test_candidates", wrap(condition, test_cmd, "skip npm test"))
 
     coverage_file = root / "coverage" / "lcov.info"
     if coverage_file.exists():
-        result.setdefault("coverage_candidates", []).append(str(coverage_file.relative_to(root)))
+        add_command(result, "coverage_candidates", str(coverage_file.relative_to(root)))
 
 
 def detect_poetry(root: Path, result: dict) -> bool:
@@ -56,25 +104,19 @@ def detect_poetry(root: Path, result: dict) -> bool:
         return False
 
     condition = "[ -f pyproject.toml ] && command -v poetry >/dev/null 2>&1"
-    result["dev"].append(
-        wrap(condition, "poetry install", "skip poetry install (missing poetry)")
-    )
+    add_command(result, "dev", wrap(condition, "poetry install", "skip poetry install (missing poetry)"))
     pytest_cmd = "poetry run pytest"
-    result["verify"].append(wrap(condition, pytest_cmd, "skip pytest (poetry)") )
-    result.setdefault("test_candidates", []).append(
-        wrap(condition, pytest_cmd, "skip pytest (poetry)")
-    )
+    add_command(result, "verify", wrap(condition, pytest_cmd, "skip pytest (poetry)"))
+    add_command(result, "test_candidates", wrap(condition, pytest_cmd, "skip pytest (poetry)"))
 
     if "[tool.ruff" in pyproject_text or (root / "ruff.toml").exists():
-        result["review_linters"].append(
-            wrap(condition, "poetry run ruff check", "skip ruff (poetry)")
-        )
+        add_command(result, "review_linters", wrap(condition, "poetry run ruff check", "skip ruff (poetry)"))
 
     coverage_xml = root / "coverage.xml"
     if coverage_xml.exists():
-        result.setdefault("coverage_candidates", []).append(str(coverage_xml.relative_to(root)))
+        add_command(result, "coverage_candidates", str(coverage_xml.relative_to(root)))
 
-    result["ship"].append(wrap(condition, "poetry build", "skip poetry build"))
+    add_command(result, "ship", wrap(condition, "poetry build", "skip poetry build"))
     return True
 
 
@@ -83,9 +125,7 @@ def detect_python_generic(root: Path, result: dict) -> None:
     requirements_text = ""
     if requirements.exists():
         condition = "[ -f requirements.txt ] && command -v pip >/dev/null 2>&1"
-        result["dev"].append(
-            wrap(condition, "pip install -r requirements.txt", "skip pip install (requirements/pip missing)")
-        )
+        add_command(result, "dev", wrap(condition, "pip install -r requirements.txt", "skip pip install (requirements/pip missing)"))
         try:
             requirements_text = requirements.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -102,49 +142,87 @@ def detect_python_generic(root: Path, result: dict) -> None:
     pytest_cond = "command -v pytest >/dev/null 2>&1"
     has_tests_dir = (root / "tests").exists()
     if has_tests_dir or "pytest" in requirements_text or "pytest" in pyproject_text:
-        result["verify"].append(wrap(pytest_cond, "pytest", "skip pytest (not installed)"))
-        result.setdefault("test_candidates", []).append(
-            wrap(pytest_cond, "pytest", "skip pytest (not installed)")
-        )
+        add_command(result, "verify", wrap(pytest_cond, "pytest", "skip pytest (not installed)"))
+        add_command(result, "test_candidates", wrap(pytest_cond, "pytest", "skip pytest (not installed)"))
 
     if "ruff" in requirements_text or "[tool.ruff" in pyproject_text or (root / "ruff.toml").exists():
-        result["review_linters"].append(
-            wrap("command -v ruff >/dev/null 2>&1", "ruff check", "skip ruff (not installed)")
-        )
+        add_command(result, "review_linters", wrap("command -v ruff >/dev/null 2>&1", "ruff check", "skip ruff (not installed)"))
     elif "flake8" in requirements_text or "flake8" in pyproject_text:
-        result["review_linters"].append(
-            wrap("command -v flake8 >/dev/null 2>&1", "flake8", "skip flake8 (not installed)")
-        )
+        add_command(result, "review_linters", wrap("command -v flake8 >/dev/null 2>&1", "flake8", "skip flake8 (not installed)"))
 
     coverage_xml = root / "coverage.xml"
     if coverage_xml.exists():
-        result.setdefault("coverage_candidates", []).append(str(coverage_xml.relative_to(root)))
+        add_command(result, "coverage_candidates", str(coverage_xml.relative_to(root)))
+
+
+def detect_pipenv(root: Path, result: dict) -> bool:
+    if not (root / "Pipfile").exists():
+        return False
+    condition = "[ -f Pipfile ] && command -v pipenv >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "pipenv install --dev", "skip pipenv install"))
+    test_cmd = "pipenv run pytest"
+    add_command(result, "verify", wrap(condition, test_cmd, "skip pipenv pytest"))
+    add_command(result, "test_candidates", wrap(condition, test_cmd, "skip pipenv pytest"))
+    add_command(result, "review_linters", wrap(condition, "pipenv run ruff check", "skip pipenv ruff"))
+    return True
 
 
 def detect_go(root: Path, result: dict) -> None:
     if not (root / "go.mod").exists():
         return
     condition = "[ -f go.mod ] && command -v go >/dev/null 2>&1"
-    result["dev"].append(wrap(condition, "go mod download", "skip go mod download"))
+    add_command(result, "dev", wrap(condition, "go mod download", "skip go mod download"))
     go_test = "go test ./..."
-    result["verify"].append(wrap(condition, go_test, "skip go test"))
-    result.setdefault("test_candidates", []).append(wrap(condition, go_test, "skip go test"))
-    result["review_linters"].append(
-        wrap(condition + " && command -v golangci-lint >/dev/null 2>&1", "golangci-lint run", "skip golangci-lint")
-    )
+    add_command(result, "verify", wrap(condition, go_test, "skip go test"))
+    add_command(result, "test_candidates", wrap(condition, go_test, "skip go test"))
+    add_command(result, "review_linters", wrap(condition + " && command -v golangci-lint >/dev/null 2>&1", "golangci-lint run", "skip golangci-lint"))
 
 
 def detect_rust(root: Path, result: dict) -> None:
     if not (root / "Cargo.toml").exists():
         return
     condition = "[ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1"
-    result["dev"].append(wrap(condition, "cargo fetch", "skip cargo fetch"))
+    add_command(result, "dev", wrap(condition, "cargo fetch", "skip cargo fetch"))
     cargo_test = "cargo test"
-    result["verify"].append(wrap(condition, cargo_test, "skip cargo test"))
-    result.setdefault("test_candidates", []).append(wrap(condition, cargo_test, "skip cargo test"))
-    result["review_linters"].append(
-        wrap(condition + " && command -v cargo >/dev/null 2>&1", "cargo fmt -- --check", "skip cargo fmt")
-    )
+    add_command(result, "verify", wrap(condition, cargo_test, "skip cargo test"))
+    add_command(result, "test_candidates", wrap(condition, cargo_test, "skip cargo test"))
+    add_command(result, "review_linters", wrap(condition + " && command -v cargo >/dev/null 2>&1", "cargo fmt -- --check", "skip cargo fmt"))
+
+
+def detect_gradle(root: Path, result: dict) -> None:
+    if not any((root / name).exists() for name in ("gradlew", "gradlew.bat", "build.gradle", "build.gradle.kts")):
+        return
+    condition = "command -v ./gradlew >/dev/null 2>&1 && ./gradlew --version >/dev/null || command -v gradle >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "./gradlew --quiet tasks >/dev/null 2>&1 || gradle --quiet tasks >/dev/null 2>&1", "skip gradle warmup"))
+    verify_cmd = "./gradlew check || gradle check"
+    add_command(result, "verify", wrap(condition, verify_cmd, "skip gradle check"))
+    add_command(result, "ship", wrap(condition, "./gradlew build || gradle build", "skip gradle build"))
+
+
+def detect_maven(root: Path, result: dict) -> None:
+    if not (root / "pom.xml").exists():
+        return
+    condition = "[ -f pom.xml ] && command -v mvn >/dev/null 2>&1"
+    add_command(result, "verify", wrap(condition, "mvn -B verify", "skip mvn verify"))
+    add_command(result, "ship", wrap(condition, "mvn -B package", "skip mvn package"))
+
+
+def detect_dotnet(root: Path, result: dict) -> None:
+    projects = list(root.glob("**/*.csproj")) + list(root.glob("**/*.sln"))
+    if not projects:
+        return
+    condition = "command -v dotnet >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "dotnet restore", "skip dotnet restore"))
+    add_command(result, "verify", wrap(condition, "dotnet test", "skip dotnet test"))
+    add_command(result, "ship", wrap(condition, "dotnet build --configuration Release", "skip dotnet build"))
+
+
+def detect_ruby(root: Path, result: dict) -> None:
+    if not (root / "Gemfile").exists():
+        return
+    condition = "[ -f Gemfile ] && command -v bundle >/dev/null 2>&1"
+    add_command(result, "dev", wrap(condition, "bundle install", "skip bundle install"))
+    add_command(result, "verify", wrap(condition, "bundle exec rake test", "skip bundle rake"))
 
 
 def build_snippet(root: Path) -> str:
@@ -161,8 +239,13 @@ def build_snippet(root: Path) -> str:
     poetry_used = detect_poetry(root, result)
     if not poetry_used:
         detect_python_generic(root, result)
+    detect_pipenv(root, result)
     detect_go(root, result)
     detect_rust(root, result)
+    detect_gradle(root, result)
+    detect_maven(root, result)
+    detect_dotnet(root, result)
+    detect_ruby(root, result)
 
     lines: list[str] = []
     for key in ("dev", "verify", "ship", "review_linters"):

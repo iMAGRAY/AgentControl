@@ -17,8 +17,8 @@ declare -a VERIFY_STEPS
 OVERALL_EXIT=0
 
 record_step() {
-  local name="$1" status="$2" exit_code="$3" log_path="$4" severity="$5"
-  VERIFY_STEPS+=("$name|$status|$exit_code|$log_path|$severity")
+  local name="$1" status="$2" exit_code="$3" log_path="$4" severity="$5" duration="$6"
+  VERIFY_STEPS+=("$name|$status|$exit_code|$log_path|$severity|$duration")
   if [[ $status == "fail" && $severity == "critical" ]]; then
     OVERALL_EXIT=1
   fi
@@ -29,16 +29,28 @@ run_step() {
   local log_file
   log_file="$(mktemp)"
   sdk::log "RUN" "$name"
+  local start_ts
+  start_ts=$(python3 - <<'PY'
+import time
+print(time.time())
+PY
+)
   set +e
   eval "$cmd" >"$log_file" 2>&1
   local exit_code=$?
   set -e
+  local duration
+  duration=$(START_TS="$start_ts" python3 - <<'PY'
+import os, time
+print(f"{time.time()-float(os.environ['START_TS']):.6f}")
+PY
+)
   if [[ $exit_code -eq 0 ]]; then
     sdk::log "INF" "$name: success"
-    record_step "$name" "ok" "$exit_code" "$log_file" "$severity"
+    record_step "$name" "ok" "$exit_code" "$log_file" "$severity" "$duration"
   else
     sdk::log "WRN" "$name: exit $exit_code"
-    record_step "$name" "fail" "$exit_code" "$log_file" "$severity"
+    record_step "$name" "fail" "$exit_code" "$log_file" "$severity" "$duration"
   fi
 }
 
@@ -109,9 +121,9 @@ EXIT_ON_FAIL=${EXIT_ON_FAIL:-0}
 
 declare -a steps_json
 for entry in "${VERIFY_STEPS[@]}"; do
-  IFS='|' read -r name status exit_code log_path severity <<<"$entry"
+  IFS='|' read -r name status exit_code log_path severity duration <<<"$entry"
   LOG_CONTENT="$(collect_log_tail "$log_path" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-  steps_json+=("{\"name\":\"$name\",\"status\":\"$status\",\"severity\":\"$severity\",\"exit_code\":$exit_code,\"log_tail\":$LOG_CONTENT}")
+  steps_json+=("{\"name\":\"$name\",\"status\":\"$status\",\"severity\":\"$severity\",\"exit_code\":$exit_code,\"duration_sec\":$duration,\"log_tail\":$LOG_CONTENT}")
 done
 
 QUALITY_REPORT="{}"

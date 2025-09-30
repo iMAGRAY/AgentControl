@@ -73,7 +73,8 @@ record_step() {
   local status="$2"
   local exit_code="$3"
   local log_file="$4"
-  REVIEW_STEPS+=("$name|$status|$exit_code|$log_file")
+  local duration="$5"
+  REVIEW_STEPS+=("$name|$status|$exit_code|$log_file|$duration")
 }
 
 run_command_capture() {
@@ -83,16 +84,28 @@ run_command_capture() {
   tmp_log="$(mktemp)"
   local exit_code=0
   sdk::log "RUN" "$name: $cmd"
+  local start_ts
+  start_ts=$(python3 - <<'PY'
+import time
+print(time.time())
+PY
+)
   set +e
   eval "$cmd" >"$tmp_log" 2>&1
   exit_code=$?
   set -e
+  local duration
+  duration=$(START_TS="$start_ts" python3 - <<'PY'
+import os, time
+print(f"{time.time()-float(os.environ['START_TS']):.6f}")
+PY
+)
   if [[ $exit_code -eq 0 ]]; then
     sdk::log "INF" "$name: success"
-    record_step "$name" "ok" "$exit_code" "$tmp_log"
+    record_step "$name" "ok" "$exit_code" "$tmp_log" "$duration"
   else
     sdk::log "WRN" "$name: exit $exit_code"
-    record_step "$name" "fail" "$exit_code" "$tmp_log"
+    record_step "$name" "fail" "$exit_code" "$tmp_log" "$duration"
   fi
 }
 
@@ -160,9 +173,9 @@ OVERALL_EXIT=0
 
 declare -a steps_json
 for entry in "${REVIEW_STEPS[@]}"; do
-  IFS='|' read -r name status exit_code log_path <<<"$entry"
+  IFS='|' read -r name status exit_code log_path duration <<<"$entry"
   LOG_CONTENT="$(collect_log_tail "$log_path" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-  steps_json+=("{\"name\":\"$name\",\"status\":\"$status\",\"exit_code\":$exit_code,\"log_tail\":$LOG_CONTENT}")
+  steps_json+=("{\"name\":\"$name\",\"status\":\"$status\",\"exit_code\":$exit_code,\"duration_sec\":$duration,\"log_tail\":$LOG_CONTENT}")
   if [[ $status == "fail" ]]; then
     OVERALL_EXIT=1
   fi

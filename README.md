@@ -9,7 +9,7 @@ SDK предназначен для того, чтобы агент GPT‑5 Code
 - **Архитектурный манифест.** `architecture/manifest.yaml` описывает программу, системы, ADR/RFC и задачи; `make architecture-sync` регенерирует все производные артефакты, исключая дрейф.
 - **Автосогласование Roadmap.** Прогресс вычисляется из task board; при расхождении с ручными полями выводятся предупреждения, не прерывая поток.
 - **Совместная работа без конфликтов.** Каждое действие фиксируется в `journal/task_events.jsonl`, атомарные обновления исключают гонки, а проверки блокеров/зависимостей/конфликтов предотвращают одновременный захват несовместимых задач.
-- **Дифф-фокусированное ревью.** `make review` строит diff относительно базового коммита, запускает линтеры/тесты только по изменённым файлам и собирает отчёт `reports/review.json` без остановки потока.
+- **Дифф-фокусированное ревью.** `make review` строит diff относительно базового коммита, запускает линтеры/тесты только по изменённым файлам, фиксирует длительности шагов и сохраняет отчёт `reports/review.json` без остановки потока.
 
 ## Возможности
 - Стандартизированные команды `make init/dev/verify/fix/ship` с единым поведением и автоматической генерацией каркаса.
@@ -18,7 +18,7 @@ SDK предназначен для того, чтобы агент GPT‑5 Code
 - Доска задач корпоративного уровня через `make task add/take/drop/done/status/summary/conflicts/comment/history/validate` с атомарными обновлениями и JSONL-журналом.
 - Конфигурация через `config/commands.sh` — задайте стек-специфичные сценарии без правок скриптов.
 - Политики качества управляются через `config/commands.sh`: массив `SDK_REVIEW_LINTERS`, команда `SDK_TEST_COMMAND` и `SDK_COVERAGE_FILE` используются в `make review`, а `SDK_VERIFY_COMMANDS` — в `make verify`.
-- Если оставить значения по умолчанию (`echo 'configure …'`), SDK автоматически подставит команды для обнаруженных стеков (npm, Poetry/pytest, Go, Cargo и др.), оборачивая их защитой от отсутствующих инструментов.
+- Если оставить значения по умолчанию (`echo 'configure …'`), SDK автоматически подставит команды для обнаруженных стеков (npm/Yarn/pnpm, Poetry/Pipenv, Go, Cargo, Gradle/Maven, .NET, Bundler и др.), оборачивая их защитой от отсутствующих инструментов.
 - Преднастроенные политики форматирования (`.editorconfig`), игнорирования (`.codexignore`, `.gitignore`, `state/`, `journal/`, `reports/`).
 - Обязательная структура документации (`AGENTS.md`, `todo.machine.md`) поддерживается автоматически (`make init`, `make status`).
 - Автоматическая проверка shell-скриптов через `shellcheck`, если утилита установлена.
@@ -35,8 +35,31 @@ SDK предназначен для того, чтобы агент GPT‑5 Code
    - `make task comment TASK=<id> MESSAGE="..."` — вести журнал обсуждений.
    - `LIMIT=20 [JSON=1] make task-history` — посмотреть последние события или получить JSON. 
 5. В любой момент выполняйте `make status`, чтобы увидеть Roadmap + TaskBoard и обновить `reports/status.json`; для полного цикла агента используйте `make agent-cycle` (sync → verify → отчёт `reports/agent_runs/<ts>.yaml`).
-6. Перед коммитом запускайте `make verify` (отчёт `reports/verify.json` фиксирует предупреждения, но не блокирует). Для фокусного ревью изменений используйте `make review` — команда соберёт diff, запустит `SDK_REVIEW_LINTERS`/`SDK_TEST_COMMAND`, выполнит realness & secrets чек и сохранит отчёт `reports/review.json` (и при необходимости `review_quality.json`).
-7. Перед публикацией запускайте `make ship` (использует результаты `make verify` и может включить `EXIT_ON_FAIL=1` для строгого режима).
+6. Перед коммитом запускайте `make verify` — отчёт `reports/verify.json` фиксирует статусы, длительности и предупреждения. Для фокусного ревью изменений используйте `make review` — команда соберёт diff, запустит `SDK_REVIEW_LINTERS`/`SDK_TEST_COMMAND`, выполнит realness & secrets чек по рабочему дереву и сохранит `reports/review.json`.
+7. Перед публикацией запускайте `make ship`: скрипт повторно вызывает `make verify` и блокирует выпуск, если в отчёте есть упавшие шаги или findings.
+
+### Качество и ревью
+
+- `make verify` выполняет архитектурные и структурные проверки, shellcheck, quality-guard (поиск заглушек/секретов) и пользовательские `SDK_VERIFY_COMMANDS` (или автоопределённые команды). Все шаги попадают в `reports/verify.json` с длительностями и логами; предупреждения не прерывают выполнение, строгий режим включается `EXIT_ON_FAIL=1`.
+- `make review [REVIEW_BASE_REF=<ref>]` строит diff против базового коммита, запускает `SDK_REVIEW_LINTERS`, `SDK_TEST_COMMAND`, optional `diff-cover`, quality-guard по рабочему дереву и сохраняет `reports/review.json`.
+- `SDK_COVERAGE_FILE` (например, `coverage.xml`) + `diff-cover` позволяют контролировать покрытие по изменённым строкам. Если `diff-cover` не установлен, шаг помечается предупреждением.
+- Найденные заглушки/секреты фиксируются как предупреждения, но `make ship` остановит релиз, если `quality_guard` сообщает findings.
+
+### Зависимости и инструменты
+
+| Инструмент | Назначение | Установка (Ubuntu/Debian) |
+|------------|------------|---------------------------|
+| `pytest`   | запуск встроенных тестов (`tests/`) | `pip install pytest` |
+| `diff-cover` | покрытие по изменённым строкам | `pip install diff-cover` |
+| `reviewdog` | консолидация линтеров в `make review` | `go install github.com/reviewdog/reviewdog/cmd/reviewdog@latest` |
+| `detect-secrets` | расширенный поиск секретов | `pip install detect-secrets` |
+| `nbconvert`, `jupytext` | поддержка будущего флага `REVIEW_SAVE=1` | `pip install nbconvert jupytext` |
+
+SDK корректно пропускает отсутствующие инструменты, но для максимальной диагностики рекомендуется установить хотя бы `pytest` и `diff-cover`.
+
+### Тесты
+
+В репозитории добавлены smoke-тесты (`tests/test_quality_guard.py`, `tests/test_auto_detect.py`). Запуск: `pytest`. Автоопределение команд добавит `pytest` к `SDK_TEST_COMMAND`, если утилита доступна в PATH.
 
 ## Доска задач
 - Структура: состояние в `data/tasks.board.json`, оперативный state `state/task_state.json`, журнал `journal/task_events.jsonl`.

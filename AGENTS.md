@@ -46,6 +46,8 @@ teach: true
 - Quality guard (заглушки/секреты) возвращает предупреждения, строгий режим — `EXIT_ON_FAIL=1`.
 - Отчёты: `reports/verify.json`, `reports/review.json`, `reports/status.json`.
 - Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает безопасные команды для найденных стеков (npm, Poetry/pytest, Go, Cargo) автоматически.
+- Если в `config/commands.sh` остались плейсхолдеры (`echo 'configure …'`), SDK подбирает команды для найденных стеков (npm/Yarn/pnpm, Poetry/Pipenv, Go, Cargo, Gradle/Maven, .NET и т.д.) автоматически.
+- `make ship` блокирует релиз при `exit_code != 0`, упавших шагах или findings в quality guard.
 - Roadmap консистентна (`make roadmap` / верификация внутри `make verify`).
 - Task board консистентна (`make task validate`), события логируются.
 

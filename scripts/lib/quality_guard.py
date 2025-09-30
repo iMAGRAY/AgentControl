@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -25,6 +26,7 @@ REALNESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("fake_keyword", re.compile(r"\bfake\b", re.IGNORECASE)),
     ("mock_keyword", re.compile(r"\bmock\b", re.IGNORECASE)),
     ("plain_pass", re.compile(r"^\s*pass\s*(#.*)?$")),
+    ("todo_comment", re.compile(r"^\s*(#|//)\s*TODO", re.IGNORECASE)),
 )
 
 SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -32,6 +34,30 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "aws_secret_key",
         re.compile(r"(?i)aws(.{0,20})?(secret|access).{0,20}['\"]?[A-Za-z0-9/+=]{40}"),
+    ),
+    (
+        "gcp_api_key",
+        re.compile(r"AIza[0-9A-Za-z\-_]{35}"),
+    ),
+    (
+        "google_oauth_token",
+        re.compile(r"ya29\.[0-9A-Za-z\-_]+"),
+    ),
+    (
+        "slack_token",
+        re.compile(r"xox[abprs]-[0-9]{11}-[0-9]{11}-[0-9A-Za-z]{24}"),
+    ),
+    (
+        "stripe_secret_key",
+        re.compile(r"sk_live_[0-9a-zA-Z]{16,32}"),
+    ),
+    (
+        "github_token",
+        re.compile(r"gh[pousr]_[A-Za-z0-9]{36}"),
+    ),
+    (
+        "openai_key",
+        re.compile(r"sk-[A-Za-z0-9]{20,}"),
     ),
     (
         "generic_token",
@@ -43,7 +69,65 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 
-TARGET_PREFIXES = ("src/", "app/", "services/", "lib/")
+TARGET_PREFIXES = (
+    "src/",
+    "app/",
+    "services/",
+    "lib/",
+    "config/",
+    "infra/",
+    "terraform/",
+    ".github/",
+    "scripts/",
+)
+
+TARGET_SUFFIXES = (
+    ".py",
+    ".pyi",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".go",
+    ".rs",
+    ".rb",
+    ".java",
+    ".kt",
+    ".kts",
+    ".cs",
+    ".php",
+    ".swift",
+    ".m",
+    ".scala",
+    ".tf",
+    ".tfvars",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".env",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".cfg",
+    ".ini",
+)
+
+TARGET_FILENAMES = {
+    "Dockerfile",
+    "Jenkinsfile",
+    "Makefile",
+    ".env",
+    ".env.example",
+    "cloudbuild.yaml",
+    "build.gradle",
+    "build.gradle.kts",
+    "pom.xml",
+}
+
+SKIP_DIR_PREFIXES = (".git/", "dist/", "build/", "node_modules/", "coverage/", "reports/", "journal/", "state/")
+
+MAX_FILE_BYTES = 2 * 1024 * 1024  # 2 MiB
 
 
 @dataclass(slots=True)
@@ -83,6 +167,9 @@ def changed_files(base: str | None, target: str | None, include_untracked: bool)
         if not rel:
             continue
         path = Path(rel)
+        normalized = rel.replace("\\", "/")
+        if any(normalized.startswith(prefix) for prefix in SKIP_DIR_PREFIXES):
+            continue
         if path.is_dir():
             try:
                 extra = run([
@@ -97,8 +184,22 @@ def changed_files(base: str | None, target: str | None, include_untracked: bool)
             extra_paths = [line.strip() for line in extra.splitlines() if line.strip()]
             if not extra_paths:
                 extra_paths = [str(p) for p in path.rglob("*") if p.is_file()]
-            expanded.update(extra_paths)
+            for item in extra_paths:
+                candidate = Path(item)
+                if not candidate.exists() or candidate.is_dir():
+                    continue
+                try:
+                    if candidate.stat().st_size > MAX_FILE_BYTES:
+                        continue
+                except OSError:
+                    continue
+                expanded.add(item)
         else:
+            try:
+                if path.exists() and path.stat().st_size > MAX_FILE_BYTES:
+                    continue
+            except OSError:
+                continue
             expanded.add(rel)
 
     return sorted(expanded)
@@ -132,8 +233,23 @@ def changed_line_numbers(path: str, base: str | None, target: str | None) -> set
     return numbers
 
 
+def is_binary(path: Path) -> bool:
+    try:
+        with path.open("rb") as fh:
+            chunk = fh.read(1024)
+            return b"\0" in chunk
+    except OSError:
+        return False
+
+
 def read_lines(path: Path) -> list[str]:
     try:
+        if not path.exists() or not path.is_file():
+            return []
+        if path.stat().st_size > MAX_FILE_BYTES:
+            return []
+        if is_binary(path):
+            return []
         return path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except Exception:
         return []
@@ -164,7 +280,14 @@ def scan_secrets(path: Path, lines: set[int]) -> Iterable[Finding]:
 
 
 def should_inspect(path: str) -> bool:
-    return path.startswith(TARGET_PREFIXES)
+    normalized = path.replace("\\", "/")
+    if any(normalized.startswith(prefix) for prefix in TARGET_PREFIXES):
+        return True
+    if any(normalized.endswith(suffix) for suffix in TARGET_SUFFIXES):
+        return True
+    if Path(normalized).name in TARGET_FILENAMES:
+        return True
+    return False
 
 
 def build_report(
