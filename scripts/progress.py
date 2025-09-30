@@ -247,14 +247,72 @@ def run(dry_run: bool = False) -> None:
     else:
         print("manifest.yaml без изменений")
 
-    print(textwrap.dedent(
-        f"""
-        Итоговый прогресс:
-          Программа: {program_progress}%
-          Эпики: {', '.join(f'{epic_id}={value}%' for epic_id, value in epic_progress.items())}
-          Big Tasks: {', '.join(f'{big_id}={value}%' for big_id, value in big_progress.items())}
-        """
-    ).strip())
+    print(render_progress_tables(program_progress, epic_progress, big_progress, manifest))
+
+
+def render_progress_tables(program_progress: int, epic_progress: Dict[str, int], big_progress: Dict[str, int], manifest: dict) -> str:
+    lines: list[str] = []
+
+    def render_table(title: str, headers: list[str], rows: list[list[str]]) -> str:
+        widths = [len(header) for header in headers]
+        for row in rows:
+            for idx, cell in enumerate(row):
+                widths[idx] = max(widths[idx], len(cell))
+
+        def build_border(left: str, mid: str, right: str, fill: str) -> str:
+            segments = [fill * (w + 2) for w in widths]
+            return left + mid.join(segments) + right
+
+        def build_row(cells: list[str]) -> str:
+            parts = [f" {cell.ljust(widths[idx])} " for idx, cell in enumerate(cells)]
+            return "|" + "|".join(parts) + "|"
+
+        table_lines = [title, build_border("+", "+", "+", "-"), build_row(headers), build_border("+", "+", "+", "=")]
+        for row in rows:
+            table_lines.append(build_row(row))
+        table_lines.append(build_border("+", "+", "+", "-"))
+        return "\n".join(table_lines)
+
+    program_rows = [[
+        manifest["program"]["meta"].get("name", "Программа"),
+        manifest["program"].get("progress", {}).get("health", "n/a"),
+        f"{program_progress}%",
+        manifest["program"]["meta"].get("updated_at", "n/a"),
+    ]]
+    lines.append(render_table("Программа", ["Название", "Состояние", "Прогресс", "Обновлено"], program_rows))
+
+    epic_rows: list[list[str]] = []
+    for epic in manifest.get("epics", []):
+        epic_rows.append([
+            epic["id"],
+            epic.get("title", ""),
+            epic.get("status", "n/a"),
+            f"{epic_progress.get(epic['id'], 0)}%",
+            str(epic.get("size_points", 0)),
+        ])
+    if epic_rows:
+        lines.append(render_table("Эпики", ["ID", "Название", "Статус", "Прогресс", "Размер"], epic_rows))
+
+    big_rows: list[list[str]] = []
+    for big in manifest.get("big_tasks", []):
+        big_rows.append([
+            big["id"],
+            big.get("title", ""),
+            big.get("status", "n/a"),
+            f"{big_progress.get(big['id'], 0)}%",
+            big.get("parent_epic", ""),
+            str(big.get("size_points", 0)),
+        ])
+    if big_rows:
+        lines.append(
+            render_table(
+                "Big Tasks",
+                ["ID", "Название", "Статус", "Прогресс", "Эпик", "Размер"],
+                big_rows,
+            )
+        )
+
+    return "\n\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:

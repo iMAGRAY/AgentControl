@@ -153,6 +153,29 @@ program_block = extract_section("Program")[0]
 epic_blocks = extract_section("Epics")
 big_task_blocks = extract_section("Big Tasks")
 
+
+def format_table(title: str, headers: List[str], rows: List[List[str]]) -> str:
+    if not rows:
+        return ""
+
+    widths = [len(header) for header in headers]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            widths[idx] = max(widths[idx], len(cell))
+
+    def border(char: str) -> str:
+        return "+" + "+".join(char * (w + 2) for w in widths) + "+"
+
+    def render_row(cells: List[str]) -> str:
+        parts = [f" {cell.ljust(widths[idx])} " for idx, cell in enumerate(cells)]
+        return "|" + "|".join(parts) + "|"
+
+    lines = [title, border("-"), render_row(headers), border("=")]
+    for row in rows:
+        lines.append(render_row(row))
+    lines.append(border("-"))
+    return "\n".join(lines)
+
 program = {
     "name": parse_scalar(program_block, "name"),
     "progress_pct": parse_scalar(program_block, "progress_pct", cast=int),
@@ -244,7 +267,8 @@ if phase_progress:
             f"Среднее phase_progress {phase_avg}% не согласовано с вычисленным прогрессом {program['computed_progress_pct']}%"
         )
 
-effective_phase = int(round(program.get("computed_progress_pct", program["progress_pct"])))
+effective_pct = int(round(program.get("computed_progress_pct", program["progress_pct"])))
+effective_phase = effective_pct
 phase_map = {phase: int(round(phase_progress.get(phase, effective_phase))) for phase in phase_order}
 program["phase_progress"] = phase_map
 
@@ -279,66 +303,62 @@ if mode == "json":
     sys.exit(0)
 
 focus_epics = [e for e in epics if e.get("status") in {"in_progress", "review"}]
+summary_rows = [[program["name"], f"{effective_pct}%", program["health"]]]
+phase_rows = [[phase, f"{phase_map.get(phase, 0)}%"] for phase in phase_order]
+focus_rows = [[epic["id"], epic.get("title", ""), f"{epic.get('computed_progress_pct', epic['progress_pct'])}%"] for epic in focus_epics]
+milestone_rows = [[m.get("title", ""), m.get("due", "n/a"), m.get("status", "planned")] for m in milestones]
+epic_table_rows = [
+    [
+        epic["id"],
+        epic.get("title", ""),
+        epic.get("status", ""),
+        f"{epic.get('computed_progress_pct', epic['progress_pct'])}%",
+        str(epic.get("size_points", 0)),
+    ]
+    for epic in epics
+]
+big_table_rows = [
+    [
+        task["id"],
+        task.get("title", ""),
+        task.get("status", ""),
+        f"{task.get('computed_progress_pct', task['progress_pct'])}%",
+        task.get("parent_epic", ""),
+        str(task.get("size_points", 0)),
+    ]
+    for task in big_tasks
+]
 
 if mode == "compact":
-    today = date.today().isoformat()
-    effective_pct = program.get("computed_progress_pct", program["progress_pct"])
-    print(f"Roadmap — {today} — {program['name']} — {effective_pct}% complete (health {program['health']})")
-    if program.get("computed_progress_pct") is not None and program.get("computed_progress_pct") != program.get("progress_pct"):
-        print(f"Manual progress: {program['progress_pct']}%")
+    print(format_table("Программа", ["Название", "Прогресс", "Состояние"], summary_rows))
+    print()
     if warnings:
-        print("Warnings:")
+        print("Предупреждения:")
         for msg in warnings:
             print(f"- {msg}")
-    phases_line = " | ".join(f"{phase}:{phase_map.get(phase, 0)}%" for phase in phase_order)
-    focus_line = ", ".join(f"{e['id']}:{e.get('computed_progress_pct', e['progress_pct'])}%" for e in focus_epics) or "none"
+        print()
+    print(format_table("Фазы", ["Фаза", "Прогресс"], phase_rows))
+    if focus_rows:
+        print()
+        print(format_table("Активные эпики", ["ID", "Название", "Прогресс"], focus_rows))
     if next_milestone:
-        next_line = (
-            "Next milestone: "
-            f"{next_milestone.get('title', 'n/a')} due {next_milestone.get('due', 'n/a')}"
-            f" ({next_milestone.get('status', 'unknown')})"
-        )
-    else:
-        next_line = "Next milestone: n/a"
-    print(f"Phases: {phases_line}")
-    print(f"Focus epics: {focus_line}")
-    print(next_line)
+        next_table = [[next_milestone.get("title", ""), next_milestone.get("due", "n/a"), next_milestone.get("status", "unknown")]]
+        print()
+        print(format_table("Ближайшая веха", ["Веха", "Срок", "Статус"], next_table))
     sys.exit(0)
 
-print(f"Roadmap Status — {date.today().isoformat()}")
-print(f"Program: {program['name']} — {program['progress_pct']}% complete (health: {program['health']})")
-if program.get("computed_progress_pct") is not None:
-    print(f"Computed progress: {program['computed_progress_pct']}% (manual {program['progress_pct']}%)")
+print(format_table("Программа", ["Название", "Прогресс", "Состояние"], summary_rows))
+print()
+print(format_table("Фазы", ["Фаза", "Прогресс"], phase_rows))
+print()
+print(format_table("Вехи", ["Веха", "Срок", "Статус"], milestone_rows))
+print()
+print(format_table("Эпики", ["ID", "Название", "Статус", "Прогресс", "Размер"], epic_table_rows))
+print()
+print(format_table("Big Tasks", ["ID", "Название", "Статус", "Прогресс", "Эпик", "Размер"], big_table_rows))
 if warnings:
-    print("Warnings:")
+    print()
+    print("Предупреждения:")
     for msg in warnings:
         print(f"- {msg}")
-    print()
-print("Phase Timeline:")
-for phase in phase_order:
-    pct = phase_map.get(phase, 0)
-    milestone = next((m for m in milestones if m["title"] == phase), None)
-    status = milestone.get("status", "not_planned") if milestone else "not_planned"
-    due = milestone.get("due", "n/a") if milestone else "n/a"
-    print(f"- {phase}: {pct}% — status {status} — due {due}")
-print()
-print("Epics:")
-for epic in epics:
-    computed = epic.get("computed_progress_pct", epic["progress_pct"])
-    extra = ""
-    if computed != epic["progress_pct"]:
-        extra = f" (derived {computed}% vs manual {epic['progress_pct']}%)"
-    print(
-        f"- {epic['id']} — {epic['title']} — {computed}% (status {epic['status']}, priority {epic['priority']}, size {epic['size_points']}){extra}"
-    )
-    for task in big_tasks:
-        if task["parent_epic"] != epic["id"]:
-            continue
-        t_progress = task.get("computed_progress_pct", task["progress_pct"])
-        delta = ""
-        if task.get("computed_progress_pct") is not None and task.get("computed_progress_pct") != task["progress_pct"]:
-            delta = f" (derived {task['computed_progress_pct']}% vs manual {task['progress_pct']}%)"
-        print(
-            f"    * {task['id']} — {task['title']} — {t_progress}% (status {task['status']}, size {task['size_points']}){delta}"
-        )
 PY

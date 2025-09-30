@@ -180,7 +180,7 @@ milestones:
 """
 
 
-def test_progress_updates_manifest_and_todo(monkeypatch, tmp_path: Path) -> None:
+def test_progress_updates_manifest_and_todo(monkeypatch, tmp_path: Path, capsys) -> None:
     root = tmp_path
     (root / "architecture").mkdir()
     (root / "reports").mkdir()
@@ -195,6 +195,9 @@ def test_progress_updates_manifest_and_todo(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(progress, "TODO_PATH", todo_path)
 
     progress.run(dry_run=False)
+    output = capsys.readouterr().out
+    assert "Программа" in output
+    assert "+" in output and "|" in output
 
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     assert manifest["program"]["progress"]["progress_pct"] == 100
