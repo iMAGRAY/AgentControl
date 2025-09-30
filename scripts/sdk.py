@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
 
 
 def run(command: list[str]) -> int:
@@ -18,22 +19,35 @@ def run(command: list[str]) -> int:
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
-    return run([str(ROOT / "scripts" / "verify.sh")])
+    return run([str(SCRIPTS / "verify.sh")])
 
 
 def cmd_review(args: argparse.Namespace) -> int:
-    script = str(ROOT / "scripts" / "review.sh")
+    script = str(SCRIPTS / "review.sh")
     if args.base:
         return run(["env", f"REVIEW_BASE_REF={args.base}", script])
     return run([script])
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    return run([str(ROOT / "scripts" / "doctor.sh")])
+    return run([str(SCRIPTS / "doctor.sh")])
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    return run([str(ROOT / "scripts" / "status.sh")])
+    return run([str(SCRIPTS / "status.sh")])
+
+
+def cmd_summary(args: argparse.Namespace) -> int:
+    script = ["python3", str(SCRIPTS / "lib" / "report_summary.py")]
+    return run(script)
+
+
+def cmd_task(args: argparse.Namespace) -> int:
+    return run([str(SCRIPTS / "task.sh"), *args.args])
+
+
+def cmd_make(args: argparse.Namespace) -> int:
+    return run(["make", args.target, *args.args])
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
@@ -58,6 +72,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status", help="make status")
     status.set_defaults(func=cmd_status)
+
+    summary = sub.add_parser("summary", help="Сводка verify/review/doctor")
+    summary.set_defaults(func=cmd_summary)
+
+    task = sub.add_parser("task", help="Прокси к scripts/task.sh")
+    task.add_argument("args", nargs=argparse.REMAINDER)
+    task.set_defaults(func=cmd_task)
+
+    make = sub.add_parser("make", help="Проброс аргументов в make")
+    make.add_argument("target")
+    make.add_argument("args", nargs=argparse.REMAINDER)
+    make.set_defaults(func=cmd_make)
 
     qa = sub.add_parser("qa", help="verify -> review")
     qa.add_argument("--base", help="Базовый коммит для review", default=None)

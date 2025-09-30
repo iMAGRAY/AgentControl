@@ -17,7 +17,7 @@ teach: true
 - `make doctor` — проверка окружения/зависимостей, сохраняет `reports/doctor.json`.
 - `make fix` — авто-фиксы из `SDK_FIX_COMMANDS`.
 - `make ship` — `make verify` + релизные команды `SDK_SHIP_COMMANDS`.
-- Альтернатива Make — `python3 scripts/sdk.py {verify|review|doctor|status|qa}`.
+- Альтернатива Make — `python3 scripts/sdk.py {verify|review|doctor|status|summary|task|qa}`.
 - `make status` — компактный дашборд (Roadmap + TaskBoard) и сохранение JSON статуса.
 - `make roadmap` — полный отчёт по фазам MVP→Q1…Q7 (с расчётом прогресса из task board).
 - `make architecture-sync` — регенерация todo.machine.md, task board, архитектурного обзора и ADR/RFC из `architecture/manifest.yaml`.
