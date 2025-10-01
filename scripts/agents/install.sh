@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BIN_DIR="$ROOT/scripts/bin"
 LOG_DIR="$ROOT/reports/agents"
+CODEX_SRC="$ROOT/vendor/codex/codex-rs"
+CLAUDE_DIST="$BIN_DIR/claude-dist"
 mkdir -p "$BIN_DIR" "$LOG_DIR"
 
 log() {
@@ -17,89 +19,115 @@ warn() {
   printf ' [WRN] %s\n' "$1" >&2
 }
 
-ensure_node() {
-  if ! command -v node >/dev/null 2>&1; then
-    warn "node не найден в PATH — codex CLI требует Node.js"
+ensure_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    warn "требуется команда '$1'"
     return 1
   fi
   return 0
 }
 
 setup_codex() {
-  local src_dir="$ROOT/vendor/codex/codex-cli"
-  local script="$src_dir/bin/codex.js"
-  if [[ ! -f "$script" ]]; then
-    warn "codex CLI не найден в vendor/codex — обновите субмодуль"
+  if [[ ! -d "$CODEX_SRC" ]]; then
+    warn "codex-rs не найден в vendor/codex — выполните git submodule update"
     return 1
   fi
-  if ensure_node; then
-    pushd "$src_dir" >/dev/null
-    if [[ -f package.json ]]; then
-      if [[ ! -d node_modules ]]; then
-        log "Устанавливаю зависимости codex-cli"
-        npm install --prefer-offline --no-audit >/dev/null 2>&1 || warn "npm install codex-cli завершился с предупреждениями"
-      fi
-    fi
-    popd >/dev/null
-    cat <<'WRAP' > "$BIN_DIR/codex"
+  ensure_cmd cargo || return 1
+  local build_log
+  build_log="$(mktemp -t codex-build.XXXXXX.log)"
+  log "Собираю Codex CLI (cargo build --release -p codex-cli)"
+  if ! cargo build --manifest-path "$CODEX_SRC/Cargo.toml" --release --locked -p codex-cli >"$build_log" 2>&1; then
+    warn "cargo build не удалось; лог: $build_log"
+    return 1
+  fi
+  local built_bin="$CODEX_SRC/target/release/codex"
+  if [[ ! -f "$built_bin" ]]; then
+    warn "после сборки не найден бинарь codex"
+    return 1
+  fi
+  install -m 0755 "$built_bin" "$BIN_DIR/codex.bin"
+  cat <<'WRAP' > "$BIN_DIR/codex"
 #!/usr/bin/env bash
 set -Eeuo pipefail
 IFS=$'\n\t'
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NODE_CMD="node"
-SCRIPT="$ROOT_DIR/vendor/codex/codex-cli/bin/codex.js"
-if [[ ! -f "$SCRIPT" ]]; then
-  echo "codex CLI script не найден (ожидался $SCRIPT)" >&2
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BIN="$ROOT_DIR/scripts/bin/codex.bin"
+CODEX_HOME_DEFAULT="$ROOT_DIR/state/agents/codex-home"
+if [[ ! -x "$BIN" ]]; then
+  echo "codex CLI не установлен — выполните make agents-install" >&2
   exit 1
 fi
-exec "$NODE_CMD" "$SCRIPT" "$@"
+if [[ -z "${CODEX_HOME:-}" ]]; then
+  CODEX_HOME="$CODEX_HOME_DEFAULT"
+fi
+mkdir -p "$CODEX_HOME"
+export CODEX_HOME
+exec "$BIN" "$@"
 WRAP
-    chmod +x "$BIN_DIR/codex"
-    log "codex CLI настроен: scripts/bin/codex"
-    return 0
-  fi
-  return 1
+  chmod +x "$BIN_DIR/codex"
+  log "codex CLI собран и размещён: scripts/bin/codex"
+  return 0
 }
 
 setup_claude() {
-  # Предпочитаем системный бинарь claude, иначе предоставляем заглушку.
   local target="$BIN_DIR/claude"
-  if command -v claude >/dev/null 2>&1; then
-    cat <<'WRAP' > "$target"
+
+  ensure_cmd node || return 1
+  ensure_cmd npm || return 1
+
+  rm -rf "$CLAUDE_DIST"
+  mkdir -p "$CLAUDE_DIST"
+  local install_log
+  install_log="$(mktemp -t claude-install.XXXXXX.log)"
+  log "Устанавливаю @anthropic-ai/claude-code в sandbox"
+  if ! npm install --prefix "$CLAUDE_DIST" --no-save --no-package-lock @anthropic-ai/claude-code >"$install_log" 2>&1; then
+    warn "npm install claude-code не удалось; лог: $install_log"
+    if command -v claude >/dev/null 2>&1; then
+      warn "перехожу на системный claude"
+      cat <<'WRAP' > "$target"
 #!/usr/bin/env bash
 exec claude "$@"
 WRAP
-    chmod +x "$target"
-    log "claude CLI найден в системе и проксирован через scripts/bin/claude"
-    return 0
+      chmod +x "$target"
+      return 0
+    fi
+    return 1
   fi
-  # Заглушка: отвечает эхо-сообщением, чтобы пайплайн не падал.
-  cat <<'STUB' > "$target"
+  local entry="$CLAUDE_DIST/node_modules/@anthropic-ai/claude-code/cli.js"
+  if [[ ! -f "$entry" ]]; then
+    warn "npm установка завершилась без cli.js"
+    if command -v claude >/dev/null 2>&1; then
+      warn "перехожу на системный claude"
+      cat <<'WRAP' > "$target"
+#!/usr/bin/env bash
+exec claude "$@"
+WRAP
+      chmod +x "$target"
+      return 0
+    fi
+    return 1
+  fi
+  cat <<'WRAP' > "$target"
 #!/usr/bin/env bash
 set -Eeuo pipefail
-PROMPT_FILE=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --prompt|--input|-f)
-      shift
-      PROMPT_FILE="$1"
-      ;;
-    --prompt-file)
-      shift
-      PROMPT_FILE="$1"
-      ;;
-  esac
-  shift || break
-done
-if [[ -n "$PROMPT_FILE" && -f "$PROMPT_FILE" ]]; then
-  echo "[claude-stub] Ответ на основании файла $PROMPT_FILE"
-  head -n 20 "$PROMPT_FILE" | sed 's/^/> /'
-else
-  echo "[claude-stub] CLI не найден. Установите официальный Anthropic Claude CLI и добавьте в PATH."
+IFS=$'\n\t'
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DIST_DIR="$ROOT_DIR/scripts/bin/claude-dist"
+ENTRY="$DIST_DIR/node_modules/@anthropic-ai/claude-code/cli.js"
+CONFIG_DIR_DEFAULT="$ROOT_DIR/state/agents/claude-config"
+if [[ ! -f "$ENTRY" ]]; then
+  echo "claude CLI не установлен — выполните make agents-install" >&2
+  exit 1
 fi
-STUB
+if [[ -z "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  CLAUDE_CONFIG_DIR="$CONFIG_DIR_DEFAULT"
+fi
+mkdir -p "$CLAUDE_CONFIG_DIR"
+export CLAUDE_CONFIG_DIR
+exec node "$ENTRY" "$@"
+WRAP
   chmod +x "$target"
-  warn "claude CLI не найден — создана заглушка scripts/bin/claude"
+  log "claude CLI установлен локально: scripts/bin/claude"
   return 0
 }
 

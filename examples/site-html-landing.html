@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product Landing</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f8fb;
+      --text: #1c1f33;
+      --accent: #3a7bff;
+      --card-bg: #ffffffcc;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(180deg, var(--bg), #ffffff);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 3rem 1.5rem 4rem;
+      text-align: center;
+    }
+    header h1 {
+      font-size: clamp(2.5rem, 6vw, 3.8rem);
+      margin-bottom: 1rem;
+    }
+    header p {
+      max-width: 52ch;
+      margin: 0 auto 2rem;
+      font-size: 1.1rem;
+      color: #47506b;
+    }
+    .cta {
+      display: inline-block;
+      padding: 0.85rem 1.8rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 18px rgba(58, 123, 255, 0.25);
+    }
+    main {
+      flex: 1;
+      padding: 2rem 1.5rem 3rem;
+    }
+    .features {
+      display: grid;
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .feature-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(6px);
+      border-radius: 1rem;
+      padding: 2rem 1.5rem;
+      border: 1px solid rgba(58, 123, 255, 0.08);
+      box-shadow: 0 10px 30px rgba(19, 24, 51, 0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 15px 35px rgba(19, 24, 51, 0.12);
+    }
+    .feature-card h2 {
+      font-size: 1.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .feature-card p {
+      color: #525e85;
+    }
+    footer {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #5c6585;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: linear-gradient(180deg, #0f1624, #040711);
+        color: #e6ecff;
+      }
+      header p,
+      .feature-card p {
+        color: #b0bddc;
+      }
+      .features {
+        color: inherit;
+      }
+      .feature-card {
+        background: rgba(19, 24, 51, 0.7);
+        border-color: rgba(94, 123, 255, 0.18);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      }
+      footer {
+        background: rgba(5, 8, 20, 0.8);
+        color: #a4b2d9;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Build Experiences Customers Love</h1>
+    <p>Launch faster with a lightweight toolkit that keeps teams aligned, automates workflows, and surfaces insights the moment you need them.</p>
+    <a class="cta" href="#get-started">Start Free Trial</a>
+  </header>
+
+  <main>
+    <section class="features" aria-label="Key features">
+      <article class="feature-card">
+        <h2>Unified Workspace</h2>
+        <p>Connect docs, tasks, and sprints in one collaborative hub designed for product and engineering teams.</p>
+      </article>
+      <article class="feature-card">
+        <h2>Automation Built-In</h2>
+        <p>Trigger approvals, standups, and release checklists automatically so your team stays focused on impact.</p>
+      </article>
+      <article class="feature-card">
+        <h2>Insights in Real Time</h2>
+        <p>Dashboards update instantly with sprint metrics, customer feedback, and adoption trends to guide decisions.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer id="get-started">
+    © 2025 LaunchFlow. Crafted with care for teams shipping ambitious products.
+  </footer>
+</body>
+</html>

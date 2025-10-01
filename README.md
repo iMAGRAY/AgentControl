@@ -32,7 +32,12 @@ SDK предназначен для того, чтобы агент GPT‑5 Code
 - Автоматическая проверка shell-скриптов через `shellcheck`, если утилита установлена.
 
 ## Memory Heart & ИИ-агенты
-- `make agents-install` — готовит CLI Codex/Claude (или устанавливает заглушку, если бинарь недоступен).
+- `make agents-install` — пересобирает Codex CLI из `vendor/codex` (Rust) и ставит Claude CLI в sandbox (`scripts/bin/claude`).
+- `make agents auth` — запускает интерактивные процедуры авторизации CLI, копирует их конфигурацию в `state/agents/<agent>` (или, если каталог недоступен, в `~/.local/state/agentcontrol/agents`) и обновляет журнал `auth_status.json`. Если токены уже есть, команда сообщит об этом и напомнит, что для смены аккаунта нужно `make agents auth-logout`.
+- `make agents auth-logout` — удаляет сохранённые токены/конфиги и помечает состояние как `logged_out`, чтобы следующая авторизация запросила новые учётные данные.
+- `make agents status` — выводит таблицу по всем агентам (путь до CLI, статус авторизации, наличие токенов, последний запуск и лог-файл).
+- `make agents logs [AGENT=<имя>] [LAST=N]` — показывает последние логи агента без поиска файлов вручную.
+- `make agents workflow pipeline --task=T-123` — запускает сценарий «назначить → ревью» (по умолчанию `codex` + `claude`). Настроить состав можно в блоке `workflows` файла `config/agents.json`.
 - `make heart-sync` — строит локальный индекс (инкрементально); `make heart-query Q="..."` возвращает релевантные чанки в табличном/JSON-формате, `make heart-serve` поднимает лёгкий HTTP-сервис.
 - `make agent-assign TASK=… AGENT=codex` — собирает контекст (прогресс, roadmap, Memory Heart, git diff), вызывает выбранный агент и сохраняет лог + комментарий в задаче.
 - `make agent-plan TASK=…` / `make agent-analysis` — генерируют план действий или высокоуровневый обзор (при отсутствии CLI возвращают детерминированную подсказку).
@@ -56,12 +61,40 @@ SDK предназначен для того, чтобы агент GPT‑5 Code
 
 ### Memory Heart & AI Agents
 
-- `make agents-install` — подтягивает/линкует CLI Codex и Claude (создаёт заглушку при отсутствии бинаря). Повторно вызывайте после обновления субмодулей или смены окружения.
+- `make agents-install` — собирает Codex (Rust, `vendor/codex/codex-rs`) и устанавливает Node-CLI Claude в `scripts/bin/` (при сбое откатывается к системному `claude`). Повторно запускайте после обновления субмодулей или окружения.
+- `make agents auth-logout` — очищает sandbox-конфиги и сбрасывает состояние, позволяя авторизоваться под другой учётной записью.
+- `make agents status` / `make agents logs` — быстрый мониторинг CLI и логов.
+- `make agents workflow pipeline --task=<ID> [--workflow=<имя>]` — оркестрирует связку билд-агента и ревьюера. В конфиге можно описать несколько workflows.
+- Альтернативно: `make agents-status`, `make agents-logs`, `make agents-workflow-pipeline` — прямой вызов без дополнительного аргумента `agents` (избегает запуска `make status`).
+- Артефакты авторизации сохраняются в `state/agents/<agent>` или в каталоге из `AGENTS_AUTH_STATE_FALLBACK`/`XDG_STATE_HOME` (по умолчанию `~/.local/state/agentcontrol/agents`).
 - `make heart-sync` — индексирует код и документацию; `make heart-query Q="…" [FORMAT=json]` и `make heart-serve` используют тот же индекс для поиска релевантных фрагментов.
 - `make agent-assign TASK=ARCH-001 AGENT=codex [ROLE="Tech Lead"]` — формирует роли, подтягивает прогресс, Memory Heart, git diff и вызывает выбранный агент. Ответ логируется в `reports/agents/<timestamp>.log`, комментарий автоматически добавляется в задачу.
 - `make agent-plan TASK=…` / `make agent-analysis` — генерируют пошаговый план или обзор. Если CLI недоступен, возвращают детерминированные подсказки, чтобы пайплайн оставался предсказуемым.
 
-Настройки лежат в `config/agents.json` (роли, sandbox, владельцы) и `config/heart.json` (фильтры файлов, параметры чанков). Индекс хранится локально (`context/heart`) и автоматически обновляется в `make setup`/`make verify` (можно пропустить через `SKIP_HEART_SYNC=1`).
+Настройки лежат в `config/agents.json` (роли, sandbox, владельцы, workflows) и `config/heart.json` (фильтры файлов, параметры чанков). Индекс хранится локально (`context/heart`) и автоматически обновляется в `make setup`/`make verify` (можно пропустить через `SKIP_HEART_SYNC=1`).
+
+```jsonc
+{
+  "agents": {
+    "codex": { "command": ["scripts/bin/codex", "chat", "--input"], ... },
+    "claude": { "command": ["scripts/bin/claude"], ... }
+  },
+  "workflows": {
+    "default": {
+      "assign_agent": "codex",
+      "assign_role": "Implementation Lead",
+      "review_agent": "claude",
+      "review_role": "Staff Reviewer"
+    },
+    "review-only": {
+      "assign_agent": "codex",
+      "review_agent": "claude"
+    }
+  }
+}
+```
+
+Workflow описывает связку агентов для `make agents workflow ...`. Параметры можно переопределить одноразово переменными окружения (`ASSIGN_AGENT`, `REVIEW_AGENT`, `ASSIGN_ROLE`, `REVIEW_ROLE`).
 
 ### Качество и ревью
 

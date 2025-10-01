@@ -2,7 +2,7 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-09-30T20:35:00Z
+updated_at: 2025-09-30T21:15:00Z
 owners: [ "vibe-coder", "gpt-5-codex" ]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
@@ -12,7 +12,13 @@ teach: true
 ## Commands
 - `make setup` — единоразовая установка системных инструментов, .venv, основных зависимостей, CLI Codex/Claude и Memory Heart индекса (можно пропустить через `SKIP_AGENT_INSTALL=1`/`SKIP_HEART_SYNC=1`).
 - `make vendor-update` — обновление субмодулей (Memory Heart, Codex, Claude).
-- `make agents-install` — форсированная переустановка/линковка CLI агентов.
+- `make agents-install` — пересобирает Codex (Rust из `vendor/codex`) и устанавливает Claude CLI в sandbox (`scripts/bin/`), при сбое откатывается к системному `claude`.
+- `make agents auth` — интерактивная авторизация всех CLI, копирует учётные данные в `state/agents/<agent>` (или в `~/.local/state/agentcontrol/agents` при отсутствии прав) и обновляет `auth_status.json`. При наличии действующих токенов сообщает о пропуске и напоминает про `make agents auth-logout`.
+- `make agents auth-logout` — удаляет сохранённые токены/конфиги, помечает статус `logged_out`.
+- `make agents status` — быстрый health-check CLI/токенов/логов.
+- `make agents logs [AGENT=...] [LAST=N]` — просмотреть свежие ответы без открытия файлов.
+- `make agents workflow pipeline --task=<ID> [--workflow=<имя>]` — связка builder→reviewer.
+- Прямые версии команд: `make agents-status`, `make agents-logs`, `make agents-workflow-pipeline` (избегают побочного запуска `make status`).
 - `make heart-sync` — обновление индекса памяти; `make heart-query Q="..."`, `make heart-serve` для поиска/сервиса.
 - `make init` — автоконфигурация (commands, roadmap, task board, state, reports/status.json).
 - `make dev` — печать quickref и запуск команд разработки из config/commands.sh.
@@ -42,6 +48,26 @@ teach: true
 - `make task comment TASK=<id> MESSAGE="..." [AUTHOR=...]` — журнал комментариев.
 - `LIMIT=N [JSON=1] make task-history` — просмотр событий из `journal/task_events.jsonl` (alias: `make task history`).
 - `make task validate` — строгая проверка доски.
+
+
+### Agent Workflows
+- Конфигурация описывается в `config/agents.json` (раздел `workflows`).
+- Пример:
+
+```jsonc
+{
+  "workflows": {
+    "default": {
+      "assign_agent": "codex",
+      "assign_role": "Implementation Lead",
+      "review_agent": "claude",
+      "review_role": "Staff Reviewer"
+    }
+  }
+}
+```
+
+`make agents workflow pipeline --task=T-123` последовательно вызовет назначение и ревью. Переопределяйте агентов на лету через `ASSIGN_AGENT`, `REVIEW_AGENT`, `ASSIGN_ROLE`, `REVIEW_ROLE`.
 
 ## Plan
 - Global: Program + Epics + Big Tasks в `todo.machine.md` (обновляется автоматически).
@@ -74,6 +100,8 @@ teach: true
 - Roadmap: `todo.machine.md` (генерируется).
 - Task Board: `data/tasks.board.json` (генерируется).
 - Event Log: `journal/task_events.jsonl`.
+- Agent Auth State: `state/agents/auth_status.json`.
+- Agent Binaries: `scripts/bin/` (генерируется `make agents-install`).
 - Status Snapshot: `reports/status.json`, `reports/architecture-dashboard.json`.
 - Roadmap sync: `scripts/sync-roadmap.sh` (автоматически вызывается `status`/`verify`).
 - Architecture sync: `scripts/sync-architecture.sh` (автоматически вызывается `verify`/`agent-cycle`).

@@ -7,17 +7,51 @@
   },
   "agents": {
     "codex": {
-      "command": ["scripts/bin/codex", "chat", "--input"],
-      "prompt_arg": "--input",
-      "stdin": false,
+      "command": [
+        "scripts/bin/codex",
+        "exec"
+      ],
+      "stdin": true,
       "owner": "codex-bot",
-      "sandbox": "auto"
+      "sandbox": "none",
+      "auth_command": [
+        "scripts/bin/codex",
+        "auth",
+        "login"
+      ],
+      "credentials_paths": [
+        "state/agents/codex-home",
+        "~/.codex",
+        "~/.config/codex",
+        "~/.cache/codex"
+      ]
     },
     "claude": {
-      "command": ["scripts/bin/claude"],
+      "command": [
+        "scripts/bin/claude"
+      ],
       "stdin": true,
       "owner": "claude-bot",
-      "sandbox": "auto"
+      "sandbox": "none",
+      "auth_command": [
+        "scripts/bin/claude",
+        "login"
+      ],
+      "credentials_paths": [
+        "state/agents/claude-config",
+        "~/.claude",
+        "~/.config/anthropic",
+        "~/.config/claude"
+      ]
     }
-  }
+  },
+  "workflows": {
+    "default": {
+      "assign_agent": "codex",
+      "assign_role": "Implementation Lead",
+      "review_agent": "claude",
+      "review_role": "Staff Reviewer"
+    }
+  },
+  "default_agent": "codex"
 }
