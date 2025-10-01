@@ -1,13 +1,13 @@
 {
-  "generated_at": "2025-09-30T14:15:46Z",
+  "generated_at": "2025-10-01T05:17:22Z",
   "manifest_version": "0.1.0",
-  "manifest_updated_at": "2025-09-30T14:15:46Z",
+  "manifest_updated_at": "2025-10-01T05:17:22Z",
   "program_progress_pct": 100,
   "systems": [
     {
       "id": "control-plane",
       "name": "Control Plane Automation",
-      "purpose": "Управлять архитектурой, документами и задачами из одного манифеста.",
+      "purpose": "Govern architecture, documentation, and tasks from one manifest-driven pipeline.",
       "adr": "ADR-0001",
       "rfc": "RFC-0001",
       "owner": "gpt-5-codex",
@@ -23,7 +23,7 @@
     {
       "id": "doc-sync",
       "name": "Documentation Synchronizer",
-      "purpose": "Автоматически собирать центральный архитектурный документ и индексы ADR/RFC.",
+      "purpose": "Assemble the architecture overview and ADR/RFC indices automatically from the manifest.",
       "adr": "ADR-0002",
       "rfc": null,
       "owner": "gpt-5-codex",
@@ -40,7 +40,7 @@
     {
       "id": "task-ops",
       "name": "Task Ops Governance",
-      "purpose": "Генерировать декомпозированные задачи и держать их в синхронизации с архитектурой.",
+      "purpose": "Generate decomposed tasks and keep them aligned with architecture intent.",
       "adr": "ADR-0003",
       "rfc": null,
       "owner": "gpt-5-codex",
@@ -71,15 +71,15 @@
         "todo.machine.md",
         "architecture/**"
       ],
-      "spec": "Intent: предоставить железобетонный каркас управления архитектурой и документами.\nGiven: чистый репозиторий с SDK.\nWhen: агент запускает make init/dev/verify/ship.\nThen: все артефакты генерируются из manifest.yaml и остаются консистентными.\n",
+      "spec": "Intent: deliver an unshakeable governance backbone for architecture and documentation.\n\nGiven: a clean repository with the SDK installed.\n\nWhen: an agent runs make init/dev/verify/ship.\n\nThen: every artefact regenerates from manifest.yaml and stays consistent.\n",
       "budgets": {
         "latency_ms": 0,
         "memory_mb": 0,
         "bundle_kb": 0
       },
       "risks": [
-        "Недостаточное покрытие manifest.yaml приведёт к ручной работе.",
-        "Нарушение целостности данных при одновременных правках."
+        "Insufficient manifest coverage forces manual edits.",
+        "Concurrent edits may corrupt state without guardrails."
       ],
       "dependencies": [],
       "docs_updates": [
@@ -91,6 +91,14 @@
         "scripts/",
         "architecture/"
       ],
+      "big_tasks_planned": [
+        "bigtask-arch-sync",
+        "bigtask-doc-ops",
+        "bigtask-test-pytest",
+        "bigtask-doctor-ux"
+      ],
+      "progress_pct": 100,
+      "health": "green",
       "tests_required": [
         "make verify"
       ],
@@ -111,7 +119,7 @@
   "big_tasks": [
     {
       "id": "bigtask-arch-sync",
-      "title": "Централизация архитектуры",
+      "title": "Architecture centralisation",
       "type": "feature",
       "status": "done",
       "priority": "P0",
@@ -122,14 +130,14 @@
         "scripts/sync-architecture.sh",
         "scripts/lib/architecture_tool.py"
       ],
-      "spec": "Given: manifest.yaml описывает систему.\nWhen: запускается make architecture-sync.\nThen: документация, todo.machine.md и task board синхронизируются автоматически.\n",
+      "spec": "Given: manifest.yaml describes the system.\n\nWhen: make architecture-sync runs.\n\nThen: documentation, todo.machine.md, and the task board are synchronised automatically.\n",
       "budgets": {
         "latency_ms": 0,
         "memory_mb": 0,
         "bundle_kb": 0
       },
       "risks": [
-        "Ошибочная схема проявится во всех артефактах."
+        "Schema mistakes propagate across every generated artefact."
       ],
       "dependencies": [],
       "docs_updates": [
@@ -140,8 +148,8 @@
         "scripts/lib/architecture_tool.py"
       ],
       "acceptance": [
-        "Все производные документы зависят только от manifest.yaml.",
-        "Проверки make verify падают при несогласованности."
+        "All derivative documents depend solely on manifest.yaml.",
+        "make verify fails when inconsistencies are detected."
       ],
       "tests_required": [
         "make architecture-sync"
@@ -165,7 +173,7 @@
     },
     {
       "id": "bigtask-doc-ops",
-      "title": "Документационный конвейер",
+      "title": "Documentation delivery pipeline",
       "type": "feature",
       "status": "done",
       "priority": "P1",
@@ -175,14 +183,14 @@
         "docs/**",
         "templates/**"
       ],
-      "spec": "Given: manifest.yaml изменён.\nWhen: выполняется make architecture-sync.\nThen: центральный документ, ADR и RFC пересобраны детерминированно.\n",
+      "spec": "Given: manifest.yaml changes.\n\nWhen: make architecture-sync executes.\n\nThen: the central overview, ADR index, and RFC index rebuild deterministically.\n",
       "budgets": {
         "latency_ms": 0,
         "memory_mb": 0,
         "bundle_kb": 0
       },
       "risks": [
-        "Шаблоны могут устареть без тестов."
+        "Templates may drift without automated tests."
       ],
       "dependencies": [
         "bigtask-arch-sync"
@@ -196,7 +204,7 @@
         "templates/"
       ],
       "acceptance": [
-        "Генерация идемпотентна и полно покрывает архитектуру."
+        "Generation is idempotent and covers the entire architecture scope."
       ],
       "tests_required": [
         "make architecture-sync"
@@ -220,7 +228,7 @@
     },
     {
       "id": "bigtask-test-pytest",
-      "title": "Pytest в verify",
+      "title": "Pytest in verify pipeline",
       "type": "test",
       "status": "done",
       "priority": "P0",
@@ -232,14 +240,14 @@
         "README.md",
         "scripts/verify.sh"
       ],
-      "spec": "Intent: формализовать прогон pytest в CI.\nGiven: чистый репозиторий.\nWhen: запускается make verify или make ship.\nThen: pytest выполняется через .venv и падает при ошибках тестов.",
+      "spec": "Intent: enforce pytest execution in CI.\n\nGiven: a clean repository.\n\nWhen: make verify or make ship runs.\n\nThen: pytest executes from .venv and fails the build on test errors.\n",
       "budgets": {
         "latency_ms": 0,
         "memory_mb": 0,
         "bundle_kb": 0
       },
       "risks": [
-        "Сбой установки зависимостей блокирует verify."
+        "Dependency installation failures block the verify pipeline."
       ],
       "dependencies": [],
       "docs_updates": [
@@ -250,8 +258,8 @@
         "requirements.txt"
       ],
       "acceptance": [
-        "make verify создаёт .venv и запускает pytest -q.",
-        "README описывает шаги для локального прогона тестов."
+        "make verify creates .venv and runs pytest -q.",
+        "README documents local test execution steps."
       ],
       "tests_required": [
         "make verify"
@@ -275,7 +283,7 @@
     },
     {
       "id": "bigtask-doctor-ux",
-      "title": "Улучшенный вывод make doctor",
+      "title": "Improved make doctor output",
       "type": "ops",
       "status": "done",
       "priority": "P1",
@@ -285,14 +293,14 @@
         "scripts/doctor.sh",
         "scripts/lib/deps_checker.py"
       ],
-      "spec": "Intent: сделать make doctor читаемым.\nGiven: оператор запускает make doctor.\nWhen: формируется вывод проверки окружения.\nThen: результаты отображаются таблицей с командами и ссылками.",
+      "spec": "Intent: make doctor reports easy to scan.\n\nGiven: an operator runs make doctor.\n\nWhen: the environment checks complete.\n\nThen: results render as a table with commands and support links.\n",
       "budgets": {
         "latency_ms": 0,
         "memory_mb": 0,
         "bundle_kb": 0
       },
       "risks": [
-        "Ссылки могут устареть без ревизии."
+        "Linked resources may age without periodic review."
       ],
       "dependencies": [
         "bigtask-arch-sync"
@@ -303,8 +311,8 @@
         "scripts/lib/deps_checker.py"
       ],
       "acceptance": [
-        "make doctor печатает таблицу со статусами, деталями и ссылками.",
-        "reports/doctor.json остаётся совместимым."
+        "make doctor prints a status table with details and links.",
+        "reports/doctor.json remains backward compatible."
       ],
       "tests_required": [
         "make doctor"
@@ -339,11 +347,11 @@
       "owner": "gpt-5-codex",
       "size_points": 8,
       "success_criteria": [
-        "manifest.yaml служит единственным источником данных.",
-        "make architecture-sync регенерирует todo.machine.md и task board без ручных правок."
+        "manifest.yaml acts as the sole data source.",
+        "make architecture-sync regenerates todo.machine.md and the task board without manual edits."
       ],
       "failure_criteria": [
-        "Документация изменилась, но manifest.yaml нет."
+        "Documentation changes without corresponding manifest.yaml updates."
       ],
       "blockers": [],
       "dependencies": [],
@@ -351,12 +359,12 @@
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-29T18:00:00Z",
-          "message": "Разработка генератора начата."
+          "message": "Sync engine implementation started."
         },
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-30T13:20:00Z",
-          "message": "Генератор синхронизирует todo.machine.md, task board и документацию из manifest.yaml."
+          "message": "Sync engine now updates todo.machine.md, task board, and docs from manifest.yaml."
         }
       ]
     },
@@ -371,11 +379,11 @@
       "owner": "gpt-5-codex",
       "size_points": 8,
       "success_criteria": [
-        "docs/architecture/overview.md и индексы ADR/RFC собираются автоматически.",
-        "Центральный документ содержит таблицы трассировки систем и задач."
+        "docs/architecture/overview.md and ADR/RFC indices generate automatically.",
+        "The overview document includes traceability tables for systems and tasks."
       ],
       "failure_criteria": [
-        "Нужно ручное обновление после изменений manifest.yaml."
+        "Manual edits required after manifest.yaml changes."
       ],
       "blockers": [
         "ARCH-001"
@@ -387,7 +395,7 @@
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-30T13:20:00Z",
-          "message": "Документы overview/ADR/RFC пересобираются из manifest.yaml."
+          "message": "Overview/ADR/RFC documents now rebuild from manifest.yaml."
         }
       ]
     },
@@ -402,11 +410,11 @@
       "owner": "gpt-5-codex",
       "size_points": 5,
       "success_criteria": [
-        "Каждая задача присутствует в data/tasks.board.json и связана с системой.",
-        "make verify валидирует согласованность статусов."
+        "Every task appears in data/tasks.board.json and links to a system.",
+        "make verify validates status consistency."
       ],
       "failure_criteria": [
-        "Несогласованные статусы между manifest.yaml и task board."
+        "Status drift between manifest.yaml and the task board."
       ],
       "blockers": [
         "ARCH-001"
@@ -418,13 +426,13 @@
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-30T13:20:00Z",
-          "message": "Task board полностью генерируется инструментом синхронизации и валидируется make verify."
+          "message": "Task board is now fully generated and validated by make verify."
         }
       ]
     },
     {
       "id": "TEST-001",
-      "title": "Pytest в make verify",
+      "title": "Pytest in make verify",
       "big_task": "bigtask-test-pytest",
       "system": "control-plane",
       "roadmap_phase": "m_q1",
@@ -433,11 +441,11 @@
       "owner": "gpt-5-codex",
       "size_points": 5,
       "success_criteria": [
-        "make verify создаёт .venv и запускает pytest -q.",
-        "README содержит раздел про локальный прогон тестов."
+        "make verify creates .venv and runs pytest -q.",
+        "README describes the steps for local test execution."
       ],
       "failure_criteria": [
-        "pytest не стартует из make verify."
+        "pytest fails to start from make verify."
       ],
       "blockers": [],
       "dependencies": [],
@@ -445,13 +453,13 @@
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-30T05:20:00Z",
-          "message": "Интеграция pytest завершена."
+          "message": "Pytest integration completed."
         }
       ]
     },
     {
       "id": "OPS-001",
-      "title": "Доктор UX с таблицей и ссылками",
+      "title": "Doctor UX with tables and links",
       "big_task": "bigtask-doctor-ux",
       "system": "control-plane",
       "roadmap_phase": "m_q1",
@@ -460,11 +468,11 @@
       "owner": "gpt-5-codex",
       "size_points": 5,
       "success_criteria": [
-        "make doctor выводит табличный отчёт с командами и ссылками.",
-        "reports/doctor.json сохраняет прежний формат."
+        "make doctor outputs a tabular report with commands and links.",
+        "reports/doctor.json preserves the previous schema."
       ],
       "failure_criteria": [
-        "make doctor выдаёт нечитаемый вывод."
+        "make doctor produces unreadable output."
       ],
       "blockers": [],
       "dependencies": [],
@@ -472,7 +480,7 @@
         {
           "author": "gpt-5-codex",
           "timestamp": "2025-09-30T05:20:00Z",
-          "message": "Формат doctor обновлён."
+          "message": "Doctor formatting upgraded."
         }
       ]
     }

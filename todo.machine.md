@@ -4,9 +4,9 @@ program: v1
 program_id: codex-sdk
 name: GPT-5 Codex SDK Toolkit
 objectives:
-- Централизовать архитектурные решения и дорожные карты в одном источнике правды.
-- Автоматизировать выпуск документации, ADR/RFC и доски задач из архитектурного конфига.
-- Обеспечить воспроизводимость агентного цикла принятия решений и доставки.
+- Centralize architectural decisions and roadmaps in a single source of truth.
+- Automate generation of documentation, ADR/RFC indices, and the task board from the architecture manifest.
+- Guarantee reproducible agent decision and delivery cycles end to end.
 kpis:
   uptime_pct: 99.9
   tti_ms: 1200
@@ -17,7 +17,7 @@ owners:
 policies:
   task_min_points: 5
 teach: true
-updated_at: '2025-10-01T04:31:15Z'
+updated_at: '2025-10-01T05:17:22Z'
 health: green
 progress_pct: 100
 phase_progress:
@@ -78,13 +78,16 @@ milestones:
   - AGENTS.md
   - todo.machine.md
   - architecture/**
-  spec: 'Intent: предоставить железобетонный каркас управления архитектурой и документами.
+  spec: 'Intent: deliver an unshakeable governance backbone for architecture and documentation.
 
-    Given: чистый репозиторий с SDK.
 
-    When: агент запускает make init/dev/verify/ship.
+    Given: a clean repository with the SDK installed.
 
-    Then: все артефакты генерируются из manifest.yaml и остаются консистентными.
+
+    When: an agent runs make init/dev/verify/ship.
+
+
+    Then: every artefact regenerates from manifest.yaml and stays consistent.
 
     '
   budgets:
@@ -92,8 +95,8 @@ milestones:
     memory_mb: 0
     bundle_kb: 0
   risks:
-  - Недостаточное покрытие manifest.yaml приведёт к ручной работе.
-  - Нарушение целостности данных при одновременных правках.
+  - Insufficient manifest coverage forces manual edits.
+  - Concurrent edits may corrupt state without guardrails.
   dependencies: []
   docs_updates:
   - README.md
@@ -123,7 +126,7 @@ milestones:
 ## Big Tasks
 ```yaml
 - id: bigtask-arch-sync
-  title: Централизация архитектуры
+  title: Architecture centralisation
   type: feature
   status: done
   priority: P0
@@ -133,11 +136,13 @@ milestones:
   - architecture/**
   - scripts/sync-architecture.sh
   - scripts/lib/architecture_tool.py
-  spec: 'Given: manifest.yaml описывает систему.
+  spec: 'Given: manifest.yaml describes the system.
 
-    When: запускается make architecture-sync.
 
-    Then: документация, todo.machine.md и task board синхронизируются автоматически.
+    When: make architecture-sync runs.
+
+
+    Then: documentation, todo.machine.md, and the task board are synchronised automatically.
 
     '
   budgets:
@@ -145,13 +150,13 @@ milestones:
     memory_mb: 0
     bundle_kb: 0
   risks:
-  - Ошибочная схема проявится во всех артефактах.
+  - Schema mistakes propagate across every generated artefact.
   dependencies: []
   progress_pct: 100
   health: green
   acceptance:
-  - Все производные документы зависят только от manifest.yaml.
-  - Проверки make verify падают при несогласованности.
+  - All derivative documents depend solely on manifest.yaml.
+  - make verify fails when inconsistencies are detected.
   tests_required:
   - make architecture-sync
   verify_commands:
@@ -167,7 +172,7 @@ milestones:
     updated_at: '2025-09-30T13:20:00Z'
     updated_by: gpt-5-codex
 - id: bigtask-doc-ops
-  title: Документационный конвейер
+  title: Documentation delivery pipeline
   type: feature
   status: done
   priority: P1
@@ -176,11 +181,13 @@ milestones:
   scope_paths:
   - docs/**
   - templates/**
-  spec: 'Given: manifest.yaml изменён.
+  spec: 'Given: manifest.yaml changes.
 
-    When: выполняется make architecture-sync.
 
-    Then: центральный документ, ADR и RFC пересобраны детерминированно.
+    When: make architecture-sync executes.
+
+
+    Then: the central overview, ADR index, and RFC index rebuild deterministically.
 
     '
   budgets:
@@ -188,13 +195,13 @@ milestones:
     memory_mb: 0
     bundle_kb: 0
   risks:
-  - Шаблоны могут устареть без тестов.
+  - Templates may drift without automated tests.
   dependencies:
   - bigtask-arch-sync
   progress_pct: 100
   health: green
   acceptance:
-  - Генерация идемпотентна и полно покрывает архитектуру.
+  - Generation is idempotent and covers the entire architecture scope.
   tests_required:
   - make architecture-sync
   verify_commands:
@@ -211,7 +218,7 @@ milestones:
     updated_at: '2025-09-30T13:20:00Z'
     updated_by: gpt-5-codex
 - id: bigtask-test-pytest
-  title: Pytest в verify
+  title: Pytest in verify pipeline
   type: test
   status: done
   priority: P0
@@ -222,25 +229,30 @@ milestones:
   - requirements.txt
   - README.md
   - scripts/verify.sh
-  spec: 'Intent: формализовать прогон pytest в CI.
+  spec: 'Intent: enforce pytest execution in CI.
 
-    Given: чистый репозиторий.
 
-    When: запускается make verify или make ship.
+    Given: a clean repository.
 
-    Then: pytest выполняется через .venv и падает при ошибках тестов.'
+
+    When: make verify or make ship runs.
+
+
+    Then: pytest executes from .venv and fails the build on test errors.
+
+    '
   budgets:
     latency_ms: 0
     memory_mb: 0
     bundle_kb: 0
   risks:
-  - Сбой установки зависимостей блокирует verify.
+  - Dependency installation failures block the verify pipeline.
   dependencies: []
   progress_pct: 100
   health: green
   acceptance:
-  - make verify создаёт .venv и запускает pytest -q.
-  - README описывает шаги для локального прогона тестов.
+  - make verify creates .venv and runs pytest -q.
+  - README documents local test execution steps.
   tests_required:
   - make verify
   verify_commands:
@@ -256,7 +268,7 @@ milestones:
     updated_at: '2025-09-30T06:05:00Z'
     updated_by: gpt-5-codex
 - id: bigtask-doctor-ux
-  title: Улучшенный вывод make doctor
+  title: Improved make doctor output
   type: ops
   status: done
   priority: P1
@@ -265,26 +277,31 @@ milestones:
   scope_paths:
   - scripts/doctor.sh
   - scripts/lib/deps_checker.py
-  spec: 'Intent: сделать make doctor читаемым.
+  spec: 'Intent: make doctor reports easy to scan.
 
-    Given: оператор запускает make doctor.
 
-    When: формируется вывод проверки окружения.
+    Given: an operator runs make doctor.
 
-    Then: результаты отображаются таблицей с командами и ссылками.'
+
+    When: the environment checks complete.
+
+
+    Then: results render as a table with commands and support links.
+
+    '
   budgets:
     latency_ms: 0
     memory_mb: 0
     bundle_kb: 0
   risks:
-  - Ссылки могут устареть без ревизии.
+  - Linked resources may age without periodic review.
   dependencies:
   - bigtask-arch-sync
   progress_pct: 100
   health: green
   acceptance:
-  - make doctor печатает таблицу со статусами, деталями и ссылками.
-  - reports/doctor.json остаётся совместимым.
+  - make doctor prints a status table with details and links.
+  - reports/doctor.json remains backward compatible.
   tests_required:
   - make doctor
   verify_commands:
