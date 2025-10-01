@@ -5,7 +5,8 @@ program_id: codex-sdk
 name: GPT-5 Codex SDK Toolkit
 objectives:
 - Centralize architectural decisions and roadmaps in a single source of truth.
-- Automate generation of documentation, ADR/RFC indices, and the task board from the architecture manifest.
+- Automate generation of documentation, ADR/RFC indices, and the task board from the
+  architecture manifest.
 - Guarantee reproducible agent decision and delivery cycles end to end.
 kpis:
   uptime_pct: 99.9
