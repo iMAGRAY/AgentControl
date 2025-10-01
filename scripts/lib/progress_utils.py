@@ -14,7 +14,16 @@ STATUS_WEIGHTS: Mapping[str, float] = {
     "backlog": 0.0,
 }
 
-PHASE_ORDER: tuple[str, ...] = ("MVP", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7")
+PHASE_ORDER: tuple[str, ...] = (
+    "Phase 0 – Feasibility",
+    "Phase 1 – Foundation",
+    "Phase 2 – Core Build",
+    "Phase 3 – Beta",
+    "Phase 4 – GA",
+    "Phase 5 – Ops & Scaling",
+    "Phase 6 – Optimization",
+    "Phase 7 – Sustain & Innovate",
+)
 
 
 def status_score(status: str) -> float:

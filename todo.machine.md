@@ -17,7 +17,7 @@ owners:
 policies:
   task_min_points: 5
 teach: true
-updated_at: '2025-09-30T14:15:46Z'
+updated_at: '2025-10-01T04:31:15Z'
 health: green
 progress_pct: 100
 phase_progress:
@@ -29,14 +29,6 @@ phase_progress:
   Q5: 100
   Q6: 100
   Q7: 100
-  Phase 0 – Feasibility: 100
-  Phase 1 – Foundation: 100
-  Phase 2 – Core Build: 100
-  Phase 3 – Beta: 100
-  Phase 4 – GA: 100
-  Phase 5 – Ops & Scaling: 100
-  Phase 6 – Optimization: 100
-  Phase 7 – Sustain & Innovate: 100
 milestones:
 - id: m_mvp
   title: Phase 0 – Feasibility

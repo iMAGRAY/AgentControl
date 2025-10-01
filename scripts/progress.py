@@ -196,6 +196,13 @@ def run(dry_run: bool = False) -> None:
     epics = manifest.get("epics", [])
 
     program_progress, epic_progress, big_progress, phase_progress = calculate_progress(manifest)
+    milestones = manifest.get("program", {}).get("milestones", [])
+    if milestones:
+        title_map = {m.get("title"): m.get("title") for m in milestones if m.get("title")}
+        phase_progress = {
+            title: phase_progress.get(title, program_progress)
+            for title in title_map
+        }
     big_task_index = {big["id"]: big for big in big_tasks}
     epic_index = {epic["id"]: epic for epic in epics}
 

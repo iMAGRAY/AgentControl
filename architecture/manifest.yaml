@@ -1,5 +1,5 @@
 version: 0.1.0
-updated_at: '2025-10-01T04:24:06Z'
+updated_at: '2025-10-01T04:31:15Z'
 program:
   meta:
     program: v1
@@ -19,19 +19,11 @@ program:
     policies:
       task_min_points: 5
     teach: true
-    updated_at: '2025-10-01T04:24:06Z'
+    updated_at: '2025-10-01T04:31:15Z'
   progress:
     health: green
     progress_pct: 100
     phase_progress:
-      MVP: 100
-      Q1: 100
-      Q2: 100
-      Q3: 100
-      Q4: 100
-      Q5: 100
-      Q6: 100
-      Q7: 100
       Phase 0 – Feasibility: 100
       Phase 1 – Foundation: 100
       Phase 2 – Core Build: 100

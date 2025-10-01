@@ -263,7 +263,16 @@ for epic in epics:
     if derived is not None and abs(derived - epic["progress_pct"]) > 1:
         warnings.append(f"Epic {epic['id']} manual {epic['progress_pct']}% vs derived {derived}%")
 
-phase_order = ["MVP", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"]
+phase_order = [
+    "Phase 0 – Feasibility",
+    "Phase 1 – Foundation",
+    "Phase 2 – Core Build",
+    "Phase 3 – Beta",
+    "Phase 4 – GA",
+    "Phase 5 – Ops & Scaling",
+    "Phase 6 – Optimization",
+    "Phase 7 – Sustain & Innovate",
+]
 phase_progress = program["phase_progress"]
 if phase_progress:
     phase_avg = round(sum(phase_progress.values()) / len(phase_progress))
