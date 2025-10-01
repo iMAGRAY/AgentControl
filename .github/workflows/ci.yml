@@ -8,6 +8,10 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+  permissions:
+    contents: read
+      security-events: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -51,7 +55,6 @@ jobs:
             sbom/python.json
 
       - name: Upload pip-audit SARIF
-        if: ${{ always() }}
-        uses: github/codeql-action/upload-sarif@v3
+      if: ${{ always() && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request') }}        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: reports/pip-audit.sarif
