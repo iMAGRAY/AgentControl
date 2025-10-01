@@ -9,11 +9,15 @@
     "codex": {
       "command": [
         "scripts/bin/codex",
-        "exec"
+        "exec",
+        "--sandbox",
+        "workspace-write",
+        "--ask-for-approval",
+        "on-request"
       ],
       "stdin": true,
       "owner": "codex-bot",
-      "sandbox": "none",
+      "sandbox": "auto",
       "auth_command": [
         "scripts/bin/codex",
         "auth",
@@ -32,7 +36,7 @@
       ],
       "stdin": true,
       "owner": "claude-bot",
-      "sandbox": "none",
+      "sandbox": "auto",
       "auth_command": [
         "scripts/bin/claude",
         "login"
@@ -50,7 +54,11 @@
       "assign_agent": "codex",
       "assign_role": "Implementation Lead",
       "review_agent": "claude",
-      "review_role": "Staff Reviewer"
+      "review_role": "Staff Reviewer",
+      "assign_args": {
+        "--sandbox": "workspace-write",
+        "--ask-for-approval": "on-request"
+      }
     }
   },
   "default_agent": "codex"

@@ -1,5 +1,5 @@
 version: 0.1.0
-updated_at: '2025-09-30T14:15:46Z'
+updated_at: '2025-10-01T04:24:06Z'
 program:
   meta:
     program: v1
@@ -19,7 +19,7 @@ program:
     policies:
       task_min_points: 5
     teach: true
-    updated_at: '2025-09-30T14:15:46Z'
+    updated_at: '2025-10-01T04:24:06Z'
   progress:
     health: green
     progress_pct: 100
@@ -32,37 +32,45 @@ program:
       Q5: 100
       Q6: 100
       Q7: 100
+      Phase 0 – Feasibility: 100
+      Phase 1 – Foundation: 100
+      Phase 2 – Core Build: 100
+      Phase 3 – Beta: 100
+      Phase 4 – GA: 100
+      Phase 5 – Ops & Scaling: 100
+      Phase 6 – Optimization: 100
+      Phase 7 – Sustain & Innovate: 100
   milestones:
   - id: m_mvp
-    title: MVP
+    title: Phase 0 – Feasibility
     due: '2025-10-15T00:00:00Z'
     status: done
   - id: m_q1
-    title: Q1
+    title: Phase 1 – Foundation
     due: '2025-12-31T00:00:00Z'
     status: done
   - id: m_q2
-    title: Q2
+    title: Phase 2 – Core Build
     due: '2026-03-31T00:00:00Z'
     status: done
   - id: m_q3
-    title: Q3
+    title: Phase 3 – Beta
     due: '2026-06-30T00:00:00Z'
     status: done
   - id: m_q4
-    title: Q4
+    title: Phase 4 – GA
     due: '2026-09-30T00:00:00Z'
     status: done
   - id: m_q5
-    title: Q5
+    title: Phase 5 – Ops & Scaling
     due: '2026-12-31T00:00:00Z'
     status: done
   - id: m_q6
-    title: Q6
+    title: Phase 6 – Optimization
     due: '2027-03-31T00:00:00Z'
     status: done
   - id: m_q7
-    title: Q7
+    title: Phase 7 – Sustain & Innovate
     due: '2027-06-30T00:00:00Z'
     status: done
 systems:
