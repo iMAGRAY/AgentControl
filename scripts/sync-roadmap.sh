@@ -43,7 +43,10 @@ def update_program(match):
     header, body, footer = match.groups()
     body = re.sub(r"progress_pct:\s*\d+", f"progress_pct: {program_value}", body)
     if phase_progress:
-        lines = "\n".join(f"  {phase}: {int(round(phase_progress.get(phase, program_value)))}" for phase in ["MVP", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"])
+        lines = "\n".join(
+            f"  {phase}: {int(round(phase_progress.get(phase, program_value)))}"
+            for phase in phase_progress
+        )
         body = re.sub(r"phase_progress:\n(?:\s{2}.+\n)+", f"phase_progress:\n{lines}\n", body)
     return header + body + footer
 
