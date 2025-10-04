@@ -1,112 +1,101 @@
-# AgentControl Universal Agent SDK Toolkit
+# AgentControl Universal Agent SDK
 
-Enterprise-grade orchestration for autonomous coding agents. The toolkit ships a curated command surface, deterministic planning artefacts, and turnkey agent runtimes so GPT-class developers land in a predictable environment within seconds.
+AgentControl is an enterprise-grade toolkit that standardises how autonomous engineers and human teams operate on any codebase. The SDK provisions a consistent command surface, deterministic governance assets, and ready-to-use agent runtimes, so delivery begins immediately without bespoke project bootstrapping.
 
-## Key Outcomes
-- **Deterministic workflows** — single-entry CLI (`agentcall init/verify/fix/review/ship/status`) обеспечивает одинаковые пайплайны для людей и агентов.
-- **Integrated governance** — roadmaps, task boards, and architectural manifests stay synchronized through `agentcall progress`, `agentcall status`, and `agentcall run architecture-sync`.
-- **Agent-ready runtime** — Codex and Claude CLIs install, authenticate, and execute inside the project sandbox, delegating work or reviews with zero manual prep.
-- **Knowledge fabric** — Memory Heart builds a local vector index of source and docs so agents and humans can query the entire codebase with millisecond latency.
-- **Compliance guardrails** — lockfiles, SBOMs, quality gates, and audit logs keep delivery reproducible and verifiable.
+## 1. Value Proposition
+- **Single operational entrypoint.** The `agentcall` CLI aligns humans and agents on the same verified pipelines (`init`, `verify`, `ship`, `status`, and more).
+- **Integrated governance.** Roadmaps, task boards, and architecture manifests remain in sync through automated status and progress commands.
+- **Agent-first runtime.** Codex/Claude CLIs, Memory Heart, and supporting scripts install without manual steps, keeping cognitive load low for automated contributors.
+- **Compliance by default.** Lockfiles, SBOM generation, audit artefacts, and release gates are embedded into the workflow.
 
-## Quick Start
-1. **Install prerequisites** (Bash ≥ 5.0, Python ≥ 3.10, Cargo ≥ 1.75, Node.js ≥ 18). Ensure `sudo` is available if system packages must be installed.
-2. **Global install** (один раз на машине):
+## 2. Solution Architecture
+| Layer | Responsibility | Key artefacts |
+| --- | --- | --- |
+| **CLI & Pipelines** | Lifecycle orchestration (`init`, `verify`, `ship`, `status`). | `src/agentcontrol/cli`, `src/agentcontrol/app` |
+| **Domain & Governance** | Capsule, template, and command models with explicit invariants. | `src/agentcontrol/domain`, `src/agentcontrol/ports` |
+| **Templates** | Project capsules (`default`, `python`, `node`, `monorepo`) fully contained inside `./agentcontrol/`. | `src/agentcontrol/templates/<version>/<template>` |
+| **Plugin framework** | Extensible CLI via the `agentcontrol.plugins` entry point group. | `src/agentcontrol/plugins`, `examples/plugins/` |
+| **Observability** | Telemetry, Memory Heart, status artefacts. | `src/agentcontrol/utils/telemetry`, `reports/` |
+
+## 3. Quick Start (fresh machine)
+1. **Prerequisites.** Bash ≥ 5.0, Python ≥ 3.10, Node.js ≥ 18, Cargo ≥ 1.75. Pin versions in CI for reproducibility.
+2. **Install the SDK globally.**
    ```bash
    ./scripts/install_agentcontrol.sh
-   pip install -e .  # либо pipx install .
+   pipx install agentcontrol  # alternatively: python3 -m pip install agentcontrol
    ```
-   Скрипт кладёт шаблоны в `~/.agentcontrol/templates/stable/0.2.0`, а `pip install` добавляет `agentcall` в `PATH`.
-3. **Bootstrap проекта:**
+   Templates are placed under `~/.agentcontrol/templates/<channel>/<version>` and `agentcall` is published to `PATH`.
+3. **Bootstrap a project capsule.**
    ```bash
-   agentcall init ~/workspace/my-project
+   agentcall status ~/workspace/project        # auto-initialises default@stable
+   # or explicitly
+   agentcall init --template python ~/workspace/project
    ```
-   Команда разворачивает структуру проекта, генерирует `config/commands.sh`, `agentcontrol/agentcall.yaml`, дорожную карту и отчёты.
-4. **Аутентифицируйте агентов (из корня проекта):**
+   All SDK artefacts live inside `project/agentcontrol/`; the host repository remains untouched.
+4. **Authenticate agents.**
    ```bash
-   cd ~/workspace/my-project
+   cd ~/workspace/project
    agentcall agents auth
    agentcall agents status
    ```
-   CLI запустит Codex/Claude login, сохранит токены в `~/.agentcontrol/state/`.
-5. **Проверка окружения:**
+   Credentials are stored beneath `~/.agentcontrol/state/`.
+5. **Qualify the environment.**
    ```bash
    agentcall verify
    ```
-   Пайплайн выполнит форматирование, тесты, безопасность, синхронизацию архитектуры и соберёт отчёты.
+   The pipeline runs formatting, tests, security checks, SBOM, architecture sync, Memory Heart, and emits `reports/verify.json`.
 
-## Command Portfolio
+## 4. Command Portfolio
 | Command | Purpose | Notes |
 | --- | --- | --- |
-| `agentcall setup` | Install required system packages, Python/Node deps, and agent CLIs. | Use `SKIP_AGENT_INSTALL=1` or `SKIP_HEART_SYNC=1` to shorten bootstrap on air-gapped hosts. |
-| `agentcall init` | Generate command hooks, roadmap/task board baselines, and status reports. | Idempotent; safe to rerun after upgrades. |
-| `agentcall dev` | Print the quick reference (from `AGENTS.md`) and start configured dev commands. | Respects overrides in `config/commands.sh`. |
-| `agentcall verify` | Canonical quality gate (format, lint, tests, coverage, security, docs, roadmap/task board validation, Memory Heart check). | Supports `VERIFY_MODE=prepush|ci|full`, `CHANGED_ONLY=1`, `NET=0|1`, `TIMEOUT_MIN=<n>`, `QUIET=1`, `JSON=1`. |
-| `agentcall fix` | Execute safe autofixes defined in `SDK_FIX_COMMANDS`. | Follow with `agentcall verify` before committing. |
-| `agentcall review` | Diff-focused review workflow (`SDK_REVIEW_LINTERS`, `SDK_TEST_COMMAND`, optional `diff-cover`). | Outputs `reports/review.json`; accepts `REVIEW_BASE_REF`, `REVIEW_SAVE`, `REVIEW_FORMAT`. |
-| `agentcall ship` | Release gate: runs verify in pre-push mode, bumps version (`BUMP=patch|minor|major`), updates changelog, tags and pushes. | Aborts if any gate fails or open micro tasks exist. |
-| `agentcall status` | Comprehensive dashboard (Program/Epics/Big Tasks, roadmap phases, task board summary, Memory Heart state). | Invokes `agentcall progress` automatically before rendering tables. |
-| `agentcall roadmap` | Phase-focused report with formal progress tables and deltas. | Uses the same progress engine as `agentcall progress`. |
-| `agentcall progress` | Parse `architecture/manifest.yaml` and `todo.machine.md`, recompute weighted progress, sync YAML blocks, and persist audit metadata. | Runs in dry-run mode with `DRY_RUN=1`. |
-| `agentcall agents install` | Build Codex CLI from `vendor/codex` (Cargo) and install Claude CLI into `scripts/bin/`. | Falls back to system binaries when sandbox install fails. |
-| `agentcall agents auth` | Authenticate all configured agent CLIs and store credentials in the sandbox state directory. | Skips already authenticated agents and reminds about `agentcall agents logout`. |
-| `agentcall agents status` | Display health of agent binaries, credentials, and last activity. | Useful for CI smoke tests. |
-| `agentcall heart sync` | Refresh the Memory Heart vector index. | Query with `agentcall heart query Q="…"` or expose an API via `agentcall heart serve`. |
+| `agentcall status [PATH]` | Dashboard plus capsule auto-bootstrap. | Controlled via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`. |
+| `agentcall init / upgrade` | Template provisioning or migration. | Templates: `default`, `python`, `node`, `monorepo`. |
+| `agentcall setup` | Install project dependencies and agent CLIs. | Respect `SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`. |
+| `agentcall verify` | Gold standard quality gate (fmt/lint/tests/coverage/security/docs/SBOM). | Options: `VERIFY_MODE`, `CHANGED_ONLY`, `JSON=1`. |
+| `agentcall fix` | Execute safe autofixes from `config/commands.sh`. | Re-run `verify` afterwards. |
+| `agentcall review` | Diff-focused review workflow with diff-cover support. | Options: `REVIEW_BASE_REF`, `REVIEW_SAVE`. |
+| `agentcall ship` | Release gate (verify → release choreography). | Blocks on failing checks or open micro tasks. |
+| `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
+| `agentcall heart …` | Memory Heart lifecycle (`sync`, `query`, `serve`). | Settings in `config/heart.json`. |
+| `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
+| `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report`, `tail --limit`, `clear`. |
+| `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |
 
-## Agent Operations
-### Installing and Updating CLIs
-- `agentcall run vendor-update` pulls upstream submodules (Codex CLI, Claude Code, Memory Heart).
-- `agentcall agents install` compiles Codex (Rust) and installs Claude (Node). Artifacts land in `scripts/bin/`. Installation logs are stored in `reports/agents/install.timestamp`.
+## 5. Capsule Templates
+| Template | Use case | Highlights |
+| --- | --- | --- |
+| `default` | Full governance skeleton with architecture and documentation. | Turnkey `verify/fix/ship` scripts, Memory Heart integration. |
+| `python` | Python backend with pytest. | Isolated virtualenv inside `agentcontrol/.venv`, sample tests included. |
+| `node` | Node.js service with ESLint and `node --test`. | npm workflows encapsulated within the capsule. |
+| `monorepo` | Python backend + Node front-end. | Coordinated pipelines across both packages. |
 
-### Authenticating Agents
-- Run `agentcall agents auth` in the project root. Successful logins persist JSON credentials in `state/agents/<agent>/`. CLI prompts close automatically once tokens are captured.
-- To rotate credentials: `agentcall agents logout` removes stored tokens and marks the status as `logged_out`.
+Custom templates live under `src/agentcontrol/templates/<version>/<name>`; update `template.json` accordingly.
 
-### Delegating Work
-- `agentcall run agent-assign TASK=T-123 [AGENT=codex] [ROLE="Implementation Lead"]` prepares contextual bundles (git diff, Memory Heart excerpts, roadmap slices) and streams them to the chosen CLI.
-- `agentcall run agent-plan TASK=T-123` or `agentcall run agent-analysis` request planning or diagnostic summaries.
-- Workflow pipelines combine assign + review steps via `agentcall agents workflow --task=T-123 [--workflow=default]`. Configure defaults in `config/agents.json`.
-- Inspect agent activity with `agentcall agents logs [AGENT=claude] [LAST=20]` and verify readiness via `agentcall agents status`.
+## 6. Release Procedure
+1. Update version metadata (`src/agentcontrol/__init__.py`, `pyproject.toml`) and changelog.
+2. Build artefacts with `./scripts/release.sh` (wheel, sdist, SHA256, manifest).
+3. Optional publication via `python -m twine upload dist/*`.
+4. Offline install: distribute the `.whl` and `agentcontrol.sha256`, then run `pipx install --force <wheel>`.
 
-### Sandbox Execution
-Agent processes run through `scripts/agents/run.py`, which wraps binaries inside bubblewrap when available (fallback: direct execution). Adjust sandbox profiles in `config/agents.json` per agent if custom isolation is required.
+## 7. Observability
+- Telemetry is local, stored in `~/.agentcontrol/logs/telemetry.jsonl`. Disable with `AGENTCONTROL_TELEMETRY=0`.
+- Memory Heart resides in `agentcontrol/state/heart/`; query using `agentcall heart query` or serve via `agentcall heart serve`.
+- Key artefacts: `reports/verify.json`, `reports/status.json`, `reports/review.json`, `reports/doctor.json`.
 
-## Memory Heart
-- Configuration lives in `config/heart.json`; state is rooted at `state/heart/`.
-- `agentcall heart sync` updates embeddings incrementally; use `SKIP_HEART_SYNC=1` during bootstrap to defer large syncs.
-- `agentcall heart query Q="build pipeline"` prints top-matching chunks with file and line references.
-- `agentcall heart serve` exposes the index via HTTP for real-time agent consumption.
+## 8. Service Model
+- Product owner: AgentControl Core team (see `AGENTS.md`).
+- Operational coverage: 24/7, with programme-level SLA for agent responses.
+- Escalation: raise tasks via `agentcall agents workflow --task=<ID>` or contact the listed owner directly.
 
-## Planning and Governance
-- `todo.machine.md` maintains Program → Epics → Big Tasks (no micro tasks). It is regenerated by `agentcall progress` and `agentcall run architecture-sync`.
-- `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl` capture the operational task board. Manage entries via `agentcall task add/take/drop/done/status/conflicts/metrics/history`.
-- `architecture/manifest.yaml` is the source of truth for program metadata, systems, tasks, ADR/RFC references, and roadmap phases. `agentcall run architecture-sync` regenerates docs/ADR/RFC/roadmap artefacts from this manifest.
-- Micro tasks belong exclusively to the Update Plan Tool (UPT) inside the Codex CLI; ensure the queue is empty before running `agentcall ship`.
+## 9. FAQ
+**Q:** How do I disable automatic bootstrap?
+**A:** Export `AGENTCONTROL_NO_AUTO_INIT=1` before running `agentcall`.
 
-## Customising Commands
-Edit `config/commands.sh` to align the toolkit with the target stack:
-```bash
-SDK_VERIFY_COMMANDS=("npm run lint" "npm test")
-SDK_FIX_COMMANDS=("npm run lint -- --fix")
-SDK_SHIP_COMMANDS=("npm run build" "npm publish")
-```
-Commands execute sequentially; any non-zero exit aborts the current phase. All scripts use `set -Eeuo pipefail` for predictable failure handling.
+**Q:** How do I add a custom pipeline?
+**A:** Extend `agentcontrol/agentcall.yaml` and `config/commands.sh`. The command will appear in `agentcall commands`.
 
-## Continuous Integration
-- GitHub Actions loads `.github/workflows/ci.yml`, which runs `agentcall verify` on push/PR and nightly at 03:00 UTC. SARIF findings surface in GitHub Security alerts.
-- `agentcall status` and `agentcall roadmap` are safe to publish as artefacts for leadership dashboards.
-- Pre-push hooks should call `agentcall verify --mode=prepush CHANGED_ONLY=1 JSON=1` to block regressions early.
+**Q:** Where is state stored?
+**A:** Project-level artefacts live in `agentcontrol/state/`; global state (registry, credentials) lives under `~/.agentcontrol/state/`.
 
-## Troubleshooting
-- **Permission denied inside `state/`** — ensure the project root is writable. When running inside restricted directories, export `AGENTCONTROL_STATE_DIR=/custom/path` before invoking commands.
-- **Third-party installs are slow** — set `SKIP_AGENT_INSTALL=1` and run `agentcall agents install` later. Cache `~/.cache/pip` and `~/.cache/npm` in CI.
-- **Memory Heart syncs are heavy** — run `agentcall heart sync DRY_RUN=1` to estimate impact, or configure path globs in `config/heart.json` to reduce scope.
-- **Agents reuse global credentials** — verify that `agentcall agents auth` created files under `state/agents/`. Run `agentcall agents logout` followed by `agentcall agents auth` to regenerate sandboxed credentials.
-- **Quality gates fail on placeholders** — update `config/commands.sh` with real commands; the SDK promotes safe defaults when placeholders remain.
-
-## Support & Change Control
-- Source of truth for governance: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, and `data/tasks.board.json`.
-- Architectural decisions live in `docs/adr/`; RFC drafts in `docs/rfc/`; change log seeds in `docs/changes.md`.
-- Submit pull requests with `agentcall verify` output attached. For high-risk modifications, pair with an agent-driven review via `agentcall agents workflow`.
-
-For questions or escalations contact the owners listed in `AGENTS.md`.
+---
+© AgentControl — Universal Agent SDK.

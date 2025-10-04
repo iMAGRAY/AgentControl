@@ -81,7 +81,7 @@ def remove_path(path: Path) -> bool:
     except FileNotFoundError:
         return False
     except PermissionError:
-        print(f"[agents-auth-logout] недостаточно прав для {path}", file=sys.stderr)
+        print(f"[agents-auth-logout] insufficient permissions for {path}", file=sys.stderr)
     return False
 
 

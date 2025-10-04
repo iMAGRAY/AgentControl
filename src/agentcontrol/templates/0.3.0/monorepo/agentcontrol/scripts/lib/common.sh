@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Общие утилиты AgentControl Universal Agent SDK.
+# Common utilities for the AgentControl Universal Agent SDK.
 
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly SDK_ROOT
@@ -77,10 +77,10 @@ sdk::auto_detect_commands() {
 sdk::print_quickref() {
   local agents_file="$SDK_ROOT/AGENTS.md"
   if [[ -f "$agents_file" ]]; then
-    sdk::log "INF" "AGENTS.md quickref (первые 40 строк):"
+    sdk::log "INF" "AGENTS.md quick reference (first 40 lines):"
     sed -n '1,40p' "$agents_file"
   else
-    sdk::log "WRN" "AGENTS.md отсутствует — создайте документ управления проектом."
+    sdk::log "WRN" "AGENTS.md is missing — create the project governance document."
   fi
 }
 
@@ -89,9 +89,9 @@ sdk::run_command_group() {
   local array_name="$2"
   local -n commands_ref="$array_name"
 
-  sdk::log "INF" "Запуск набора команд: $title"
+  sdk::log "INF" "Running command group: $title"
   if [[ ${#commands_ref[@]} -eq 0 ]]; then
-    sdk::log "INF" "Команды не заданы — пропуск"
+    sdk::log "INF" "No commands configured — skipping"
     return 0
   fi
 
@@ -111,47 +111,14 @@ sdk::ensure_file() {
   local rel="$1"
   local path="$SDK_ROOT/$rel"
   if [[ ! -f "$path" ]]; then
-    sdk::die "Файл $rel обязателен для SDK."
+    sdk::die "File $rel is required for the SDK."
   fi
-  sdk::log "INF" "Обнаружен $rel"
+  sdk::log "INF" "Detected $rel"
 }
-
-
-sdk::ensure_editorconfig() {
-  local path="$SDK_ROOT/.editorconfig"
-  if [[ ! -f "$path" ]]; then
-    cat <<'EOF' > "$path"
-root = true
-
-[*]
-indent_style = space
-indent_size = 2
-charset = utf-8
-end_of_line = lf
-trim_trailing_whitespace = true
-insert_final_newline = true
-EOF
-  fi
-  sdk::log "INF" "Обнаружен .editorconfig"
-}
-
-sdk::ensure_codexignore() {
-  local path="$SDK_ROOT/.codexignore"
-  if [[ ! -f "$path" ]]; then
-    cat <<'EOF' > "$path"
-# Ignore generated artefacts within agentcontrol runtime
-reports/
-state/
-journal/
-EOF
-  fi
-  sdk::log "INF" "Обнаружен .codexignore"
-}
-
 
 sdk::run_shellcheck_if_available() {
   if ! sdk::command_exists shellcheck; then
-    sdk::log "WRN" "shellcheck не установлен — шаг проверки пропущен"
+    sdk::log "WRN" "shellcheck is not installed — skipping"
     return 0
   fi
 
@@ -160,11 +127,11 @@ sdk::run_shellcheck_if_available() {
   shopt -u nullglob
 
   if [[ ${#files[@]} -eq 0 ]]; then
-    sdk::log "INF" "Shellcheck: нечего проверять"
+    sdk::log "INF" "Shellcheck: nothing to lint"
     return 0
   fi
 
-  sdk::log "INF" "Shellcheck: ${#files[@]} файлов"
+  sdk::log "INF" "Shellcheck: ${#files[@]} files"
   shellcheck "${files[@]}"
 }
 

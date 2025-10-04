@@ -186,7 +186,7 @@ def build_index(cfg: Dict[str, object]) -> None:
                 }
             )
     if not chunk_records:
-        warn("Heart: нет пригодных чанков для индекса")
+        warn("Heart: no suitable chunks for index")
         return
 
     total_chunks = len(chunk_records)
@@ -204,7 +204,7 @@ def build_index(cfg: Dict[str, object]) -> None:
             weights[token] = tf * idf
         if not weights:
             continue
-        # оставляем топ-64 токена
+        # keep top-64 tokens
         top_tokens = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:64]
         weights = {token: weight for token, weight in top_tokens}
         norm = math.sqrt(sum(value * value for value in weights.values())) or 1e-9
@@ -336,7 +336,7 @@ def cmd_sync(args: argparse.Namespace) -> None:
 
 
 def cmd_refresh(args: argparse.Namespace) -> None:
-    # текущее упрощение: refresh == sync
+    # current simplification: refresh == sync
     cmd_sync(args)
 
 
@@ -345,7 +345,7 @@ def cmd_install(args: argparse.Namespace) -> None:
     if requirements.exists():
         pip = ROOT / ".venv" / "bin" / "pip"
         if not pip.exists():
-            warn(".venv/bin/pip не найден — выполните agentcall setup")
+            warn(".venv/bin/pip not found — run agentcall setup")
         else:
             subprocess.run([str(pip), "install", "-r", str(requirements)], check=False)
     print("Memory Heart install complete (requirements applied if available)")
@@ -368,7 +368,7 @@ def cmd_query(args: argparse.Namespace) -> None:
             ]
         )
     if not rows:
-        print("Нет подходящих фрагментов")
+        print("No matching fragments")
         return
     print(
         print_table(
@@ -425,7 +425,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 def cmd_update(args: argparse.Namespace) -> None:
     subprocess.run(["git", "submodule", "update", "--init", "--recursive", "--remote", "vendor/memory-heart"], check=False)
-    print("vendor/memory-heart обновлён")
+    print("vendor/memory-heart updated")
 
 
 def build_parser() -> argparse.ArgumentParser:

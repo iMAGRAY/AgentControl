@@ -11,7 +11,7 @@ VENV_BIN="$VENV_DIR/bin"
 SETUP_STATE_DIR="$SDK_ROOT/.sdk/setup"
 mkdir -p "$SETUP_STATE_DIR"
 
-sdk::log "INF" "Старт полной установки зависимостей"
+sdk::log "INF" "Starting full dependency installation"
 
 detect_pkg_manager() {
   if command -v apt-get >/dev/null 2>&1; then
@@ -31,7 +31,7 @@ install_system_packages() {
   local manager packages=()
   manager="$(detect_pkg_manager)"
   if [[ -z "$manager" ]]; then
-    sdk::log "WRN" "Не удалось определить пакетный менеджер. Пропускаю установку системных пакетов."
+    sdk::log "WRN" "Unable to determine package manager. Skipping system package installation."
     return 0
   fi
 
@@ -51,7 +51,7 @@ install_system_packages() {
   esac
 
   if [[ ${#packages[@]} -eq 0 ]]; then
-    sdk::log "WRN" "Нет пакетов для установки для $manager"
+    sdk::log "WRN" "No packages to install for $manager"
     return 0
   fi
 
@@ -68,7 +68,7 @@ install_system_packages() {
   fi
   local sentinel="$SETUP_STATE_DIR/system-${manager}-${fingerprint}"
   if [[ -f "$sentinel" ]]; then
-    sdk::log "INF" "Системные пакеты уже установлены (cache hit)."
+    sdk::log "INF" "System packages already installed (cache hit)."
     return 0
   fi
 
@@ -77,14 +77,14 @@ install_system_packages() {
     if command -v sudo >/dev/null 2>&1; then
       sudo_cmd=(sudo)
     else
-      sdk::log "WRN" "Нет sudo — пропускаю установку системных пакетов. Установите вручную: ${packages[*]}"
+      sdk::log "WRN" "sudo not available — skipping system package installation. Install manually: ${packages[*]}"
       return 0
     fi
   fi
 
   local pkg_list
   pkg_list=$(printf '%s ' "${packages[@]}")
-  sdk::log "INF" "Устанавливаю системные пакеты: ${pkg_list% }"
+  sdk::log "INF" "Installing system packages: ${pkg_list% }"
   case "$manager" in
     apt)
       "${sudo_cmd[@]}" apt-get update
@@ -111,9 +111,9 @@ bootstrap_venv() {
   else
     python_bin="$(command -v python3 || true)"
     if [[ -z "$python_bin" ]]; then
-      sdk::die "python3 не найден"
+      sdk::die "python3 not found"
     fi
-    sdk::log "INF" "Создаю виртуальное окружение в $VENV_DIR"
+    sdk::log "INF" "Creating virtual environment in $VENV_DIR"
     if "$python_bin" -m venv --help 2>&1 | grep -q -- '--upgrade-deps'; then
       "$python_bin" -m venv --upgrade-deps "$VENV_DIR"
     else
@@ -121,22 +121,22 @@ bootstrap_venv() {
     fi
   fi
 
-  sdk::log "INF" "Обновляю pip и зависимости"
+  sdk::log "INF" "Upgrading pip and dependencies"
   "$VENV_DIR/bin/pip" install --upgrade pip==24.2
   "$VENV_DIR/bin/pip" install --upgrade -r "$SDK_ROOT/requirements.txt"
 }
 
 install_reviewdog() {
   if ! command -v go >/dev/null 2>&1; then
-    sdk::log "WRN" "go не найден — пропуск установки reviewdog"
+    sdk::log "WRN" "go not found — skipping reviewdog installation"
     return 0
   fi
   if [[ -x "$VENV_BIN/reviewdog" ]]; then
-    sdk::log "INF" "reviewdog уже установлен (cache hit)."
+    sdk::log "INF" "reviewdog already installed (cache hit)."
     return 0
   fi
   mkdir -p "$VENV_BIN"
-  sdk::log "INF" "Устанавливаю reviewdog в $VENV_BIN"
+  sdk::log "INF" "Installing reviewdog into $VENV_BIN"
   GOBIN="$VENV_BIN" GO111MODULE=on go install github.com/reviewdog/reviewdog/cmd/reviewdog@v0.15.0
 }
 
@@ -145,17 +145,17 @@ bootstrap_venv
 install_reviewdog
 
 if [[ ${SKIP_AGENT_INSTALL:-0} -ne 1 ]]; then
-  sdk::log "INF" "Установка CLI агентов"
+  sdk::log "INF" "Installing agent CLIs"
   if ! "$SDK_ROOT/scripts/agents/install.sh"; then
-    sdk::log "WRN" "Установка CLI агентов завершилась с предупреждением"
+    sdk::log "WRN" "Agent CLI installation completed with warnings"
   fi
 fi
 
 if [[ ${SKIP_HEART_SYNC:-0} -ne 1 ]]; then
-  sdk::log "INF" "Синхронизирую Memory Heart"
+  sdk::log "INF" "Syncing Memory Heart"
   if ! "$SDK_ROOT/scripts/agents/heart.sh" sync; then
-    sdk::log "WRN" "Memory Heart sync завершился с предупреждением"
+    sdk::log "WRN" "Memory Heart sync finished with warnings"
   fi
 fi
 
-sdk::log "INF" "Установка завершена. Запустите 'agentcall doctor' для проверки."
+sdk::log "INF" "Installation complete. Run 'agentcall doctor' to verify."

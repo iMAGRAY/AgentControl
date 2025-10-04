@@ -1,5 +1,4 @@
-# Команды SDK для конкретного проекта.
-# Обновите массивы, чтобы привязать SDK к стеку разрабатываемого решения.
+# SDK commands tailored for the Python template (capsule local virtualenv).
 
 SDK_CAPSULE_ROOT="agentcontrol"
 

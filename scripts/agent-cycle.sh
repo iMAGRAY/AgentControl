@@ -48,4 +48,4 @@ summary = {
 report_path.write_text(yaml.safe_dump(summary, sort_keys=False, allow_unicode=True), encoding="utf-8")
 PY
 
-echo "Создан отчёт: $REPORT_PATH"
+echo "Created report: $REPORT_PATH"

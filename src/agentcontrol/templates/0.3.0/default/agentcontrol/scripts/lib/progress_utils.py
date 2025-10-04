@@ -1,4 +1,4 @@
-"""Утилиты пересчёта прогресса для SDK."""
+"""Progress recalculation utilities for SDK."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -30,7 +30,7 @@ def status_score(status: str) -> float:
     try:
         return STATUS_WEIGHTS[status]
     except KeyError as exc:
-        raise ValueError(f"Неизвестный статус '{status}'") from exc
+        raise ValueError(f"Unknown status '{status}'") from exc
 
 
 def _normalise_weight(weight: float | int | None) -> float:
@@ -39,7 +39,7 @@ def _normalise_weight(weight: float | int | None) -> float:
     try:
         numeric = float(weight)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"Вес '{weight}' нечисловой") from exc
+        raise ValueError(f"Weight '{weight}' non-numeric") from exc
     if numeric <= 0:
         return 1.0
     return numeric

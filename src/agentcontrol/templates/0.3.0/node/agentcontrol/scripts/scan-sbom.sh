@@ -14,11 +14,11 @@ SARIF_REPORT="$SDK_ROOT/reports/pip-audit.sarif"
 CACHE_DIR="$SDK_ROOT/.sdk/pip-audit-cache"
 
 if [[ ! -x "$PIP_AUDIT" ]]; then
-  sdk::die "scan-sbom: отсутствует pip-audit — выполните agentcall setup"
+  sdk::die "scan-sbom: pip-audit not found — run agentcall setup"
 fi
 
 if [[ ! -f "$LOCK_FILE" ]]; then
-  sdk::die "scan-sbom: отсутствует requirements.lock — выполните agentcall lock"
+  sdk::die "scan-sbom: requirements.lock missing — run agentcall lock"
 fi
 
 mkdir -p "$SDK_ROOT/reports"
@@ -30,7 +30,7 @@ status_json=$?
 set -e
 
 if [[ $status_json -ne 0 ]]; then
-  sdk::log "WRN" "pip-audit вернул код $status_json — анализирую отчёт"
+  sdk::log "WRN" "pip-audit returned exit code $status_json — analyzing report"
 fi
 
 python3 - "$REPORT" "$SARIF_REPORT" <<'PY'
@@ -106,10 +106,10 @@ sarif = {
 sarif_path.write_text(json.dumps(sarif, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 if results:
-    print("pip-audit обнаружил уязвимости:")
+    print("pip-audit detected vulnerabilities:")
     for result in results:
         print(f"  - {result['ruleId']}: {result['message']['text']}")
     sys.exit(1)
 
-print("pip-audit: уязвимости не найдены")
+print("pip-audit: no vulnerabilities found")
 PY

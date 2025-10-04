@@ -40,12 +40,12 @@ def writable_dir(candidate: Path) -> Path | None:
         return candidate
     except PermissionError:
         print(
-            f"[agents-auth] нет прав на каталог {candidate} — ищу альтернативу",
+            f"[agents-auth] no permissions for directory {candidate} — looking for alternative",
             file=sys.stderr,
         )
     except OSError as exc:
         print(
-            f"[agents-auth] не удалось подготовить каталог {candidate}: {exc}",
+            f"[agents-auth] failed to prepare directory {candidate}: {exc}",
             file=sys.stderr,
         )
     return None
@@ -74,7 +74,7 @@ def resolve_state_dir() -> Path:
     fallback = writable_dir(home_fallback)
     if fallback is not None:
         return fallback
-    raise PermissionError("не удалось подобрать каталог для хранения state")
+    raise PermissionError("failed to select directory for state storage")
 
 
 def load_config() -> Dict[str, object]:
@@ -93,7 +93,7 @@ def load_state(state_dir: Path) -> Dict[str, object]:
                 return json.load(fh)
             except json.JSONDecodeError:
                 print(
-                    f"[agents-auth] повреждён state-файл {state_path}, пересоздаю",
+                    f"[agents-auth] state file is corrupted {state_path}, recreating",
                     file=sys.stderr,
                 )
     return {"updated_at": None, "agents": {}}
@@ -164,11 +164,11 @@ def store_credentials(agent: str, cfg: Dict[str, object], env: Dict[str, str], s
     for src in targets:
         src_path = src.expanduser().resolve()
         if not src_path.exists():
-            warnings.append(f"[agents-auth] {agent}: credential source не найден: {src_path}")
+            warnings.append(f"[agents-auth] {agent}: credential source not found: {src_path}")
             continue
         try:
             if agent_state_dir in src_path.parents:
-                warnings.append(f"[agents-auth] {agent}: пропуск копирования {src_path} (уже внутри state)")
+                warnings.append(f"[agents-auth] {agent}: skipping copy {src_path} (already inside state)")
                 continue
             if src_path.is_dir():
                 dest = agent_state_dir / src_path.name
@@ -184,7 +184,7 @@ def store_credentials(agent: str, cfg: Dict[str, object], env: Dict[str, str], s
             except ValueError:
                 stored.append(str(dest))
         except OSError as exc:
-            warnings.append(f"[agents-auth] {agent}: не удалось сохранить {src_path}: {exc}")
+            warnings.append(f"[agents-auth] {agent}: failed to save {src_path}: {exc}")
     export_cmd = normalize_command(cfg.get("credentials_export_command"))
     if export_cmd:
         export_dest = agent_state_dir / "export.json"
@@ -206,13 +206,13 @@ def store_credentials(agent: str, cfg: Dict[str, object], env: Dict[str, str], s
                     except ValueError:
                         stored.append(str(export_dest))
                 except json.JSONDecodeError:
-                    warnings.append(f"[agents-auth] {agent}: export командa вернула не-JSON")
+                    warnings.append(f"[agents-auth] {agent}: export command returned non-JSON")
             else:
                 warnings.append(
-                    f"[agents-auth] {agent}: export команда завершилась с кодом {result.returncode}: {result.stderr.strip()}"
+                    f"[agents-auth] {agent}: export command exited with code {result.returncode}: {result.stderr.strip()}"
                 )
         except FileNotFoundError:
-            warnings.append(f"[agents-auth] {agent}: export команда не найдена: {' '.join(export_cmd)}")
+            warnings.append(f"[agents-auth] {agent}: export command not found: {' '.join(export_cmd)}")
     return stored, warnings
 
 
@@ -228,13 +228,13 @@ def credentials_exist(agent: str, state_dir: Path, entry: Dict[str, object]) -> 
             if candidate.is_file():
                 return True
             if candidate.is_dir():
-                # Проверяем наличие хотя бы одного файла внутри каталога
+                # Check for at least one file inside directory
                 for child in candidate.rglob("*"):
                     if child.is_file():
                         return True
         except PermissionError as exc:
             print(
-                f"[agents-auth] {agent}: нет доступа к {candidate} ({exc})",
+                f"[agents-auth] {agent}: no access to {candidate} ({exc})",
                 file=sys.stderr,
             )
             continue
@@ -324,7 +324,7 @@ def run_auth(agent: str, cfg: Dict[str, object], state_dir: Path) -> Dict[str, o
     env = os.environ.copy()
     env.update(env_overrides)
     start = datetime.now(timezone.utc).replace(microsecond=0)
-    print(f"[agents-auth] Запуск аутентификации для {agent}: {' '.join(command)}")
+    print(f"[agents-auth] Starting authentication for {agent}: {' '.join(command)}")
     auto_exit_trigger = str(cfg.get("auth_auto_exit_trigger", "Successfully logged in")) if cfg.get("auth_auto_exit") else ""
     try:
         if auto_exit_trigger:
@@ -371,7 +371,7 @@ def main() -> int:
 
     agents_cfg = cfg.get("agents", {})
     if not isinstance(agents_cfg, dict) or not agents_cfg:
-        print("[agents-auth] в config/agents.json не найдены агенты", file=sys.stderr)
+        print("[agents-auth] no agents defined in config/agents.json", file=sys.stderr)
         return 1
 
     state_dir = resolve_state_dir()

@@ -80,7 +80,7 @@ run_step "roadmap-status" "warning" "\"$SDK_ROOT/scripts/roadmap-status.sh\" com
 run_step "task-validate" "warning" "\"$SDK_ROOT/scripts/task.sh\" validate"
 run_step "heart-check" "warning" "\"$SDK_ROOT/scripts/agents/heart_check.sh\""
 
-# quality guard (diff против базового коммита)
+# quality guard (diff against base commit)
 BASE_REF_DEFAULT="${VERIFY_BASE_REF:-origin/main}"
 determine_base_commit() {
   local base_ref="$1"
@@ -107,12 +107,12 @@ run_step "quality_guard" "warning" "python3 -m scripts.lib.quality_guard --base 
 run_step "check-lock" "critical" "\"$SDK_ROOT/scripts/check-lock.sh\""
 run_step "scan-sbom" "critical" "\"$SDK_ROOT/scripts/scan-sbom.sh\""
 else
-  sdk::log "WRN" "Не удалось определить базовый коммит для quality_guard"
+  sdk::log "WRN" "Failed to determine base commit for quality_guard"
 fi
 
-# кастомные команды верификации (не прерывают скрипт)
+# custom verification commands (do not interrupt script)
 if [[ ${#SDK_VERIFY_COMMANDS[@]} -eq 0 ]]; then
-  sdk::log "INF" "SDK_VERIFY_COMMANDS пуст — пропуск"
+  sdk::log "INF" "SDK_VERIFY_COMMANDS empty — skipping"
 else
   idx=0
   for cmd in "${SDK_VERIFY_COMMANDS[@]}"; do
@@ -147,32 +147,32 @@ JSON
 )
 
 printf '%s\n' "$VERIFY_OUTPUT" >"$VERIFY_JSON"
-sdk::log "INF" "Отчёт сохранён: $VERIFY_JSON"
+sdk::log "INF" "Report saved: $VERIFY_JSON"
 
 HAS_FINDINGS=0
 if [[ -f "$QUALITY_JSON" ]]; then
   FINDINGS_COUNT=$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); print(len(data.get("findings",[])))' "$QUALITY_JSON" 2>/dev/null || printf 0)
   if [[ ${FINDINGS_COUNT:-0} -gt 0 ]]; then
-    sdk::log "WRN" "quality_guard: обнаружено $FINDINGS_COUNT потенциальных проблем"
+    sdk::log "WRN" "quality_guard: detected $FINDINGS_COUNT potential issues"
     HAS_FINDINGS=1
   fi
 fi
 
 if [[ $EXIT_ON_FAIL == 1 ]]; then
   if [[ $OVERALL_EXIT -ne 0 || $HAS_FINDINGS -eq 1 ]]; then
-    sdk::die "verify: обнаружены критичные ошибки — см. $VERIFY_JSON"
+    sdk::die "verify: critical issues detected — see $VERIFY_JSON"
   fi
 else
   if [[ $OVERALL_EXIT -ne 0 ]]; then
-    sdk::log "ERR" "Верификация завершена с ошибками"
+    sdk::log "ERR" "Verification completed with errors"
     exit $OVERALL_EXIT
   fi
 fi
 
 if [[ $HAS_FINDINGS -eq 1 ]]; then
-  sdk::log "WRN" "Верификация завершена с предупреждениями"
+  sdk::log "WRN" "Verification completed with warnings"
   exit 0
 fi
 
-sdk::log "INF" "Верификация завершена без критичных ошибок"
+sdk::log "INF" "Verification completed without critical errors"
 exit 0

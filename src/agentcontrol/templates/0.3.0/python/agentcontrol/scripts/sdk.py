@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Единый CLI для управления AgentControl Universal Agent SDK."""
+"""Unified helper CLI for the AgentControl Universal Agent SDK."""
 
 from __future__ import annotations
 
@@ -60,33 +60,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sdk", description="AgentControl Universal Agent SDK helper")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    verify = sub.add_parser("verify", help="Запустить agentcall verify")
+    verify = sub.add_parser("verify", help="Run agentcall verify")
     verify.set_defaults(func=cmd_verify)
 
-    review = sub.add_parser("review", help="Запустить agentcall review")
-    review.add_argument("--base", help="Базовый коммит для diff", default=None)
+    review = sub.add_parser("review", help="Run agentcall review")
+    review.add_argument("--base", help="Base commit for diff", default=None)
     review.set_defaults(func=cmd_review)
 
-    doctor = sub.add_parser("doctor", help="Проверка окружения и зависимостей")
+    doctor = sub.add_parser("doctor", help="Environment and dependency doctor")
     doctor.set_defaults(func=cmd_doctor)
 
     status = sub.add_parser("status", help="agentcall status")
     status.set_defaults(func=cmd_status)
 
-    summary = sub.add_parser("summary", help="Сводка verify/review/doctor")
+    summary = sub.add_parser("summary", help="Summarise verify/review/doctor reports")
     summary.set_defaults(func=cmd_summary)
 
-    task = sub.add_parser("task", help="Прокси к scripts/task.sh")
+    task = sub.add_parser("task", help="Proxy to scripts/task.sh")
     task.add_argument("args", nargs=argparse.REMAINDER)
     task.set_defaults(func=cmd_task)
 
-    call = sub.add_parser("run", help="Проброс команды в agentcall run <name>")
+    call = sub.add_parser("run", help="Forward command to agentcall run <name>")
     call.add_argument("target")
     call.add_argument("args", nargs=argparse.REMAINDER)
     call.set_defaults(func=cmd_call)
 
-    qa = sub.add_parser("qa", help="verify -> review")
-    qa.add_argument("--base", help="Базовый коммит для review", default=None)
+    qa = sub.add_parser("qa", help="Run verify followed by review")
+    qa.add_argument("--base", help="Base commit for review", default=None)
     qa.set_defaults(func=cmd_qa)
 
     return parser

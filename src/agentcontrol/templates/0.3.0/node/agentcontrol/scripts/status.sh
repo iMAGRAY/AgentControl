@@ -8,11 +8,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 export SDK_ROOT
 
-sdk::log "INF" "Синхронизация прогресса"
-"$SDK_ROOT/scripts/progress.py" || sdk::log "WRN" "progress завершился с предупреждением"
+sdk::log "INF" "Synchronising progress"
+"$SDK_ROOT/scripts/progress.py" || sdk::log "WRN" "progress finished with warnings"
 printf '\n'
-sdk::log "INF" "Синхронизация roadmap"
-"$SDK_ROOT/scripts/sync-roadmap.sh" >/dev/null || sdk::log "WRN" "sync-roadmap завершился с предупреждением"
+sdk::log "INF" "Synchronising roadmap"
+"$SDK_ROOT/scripts/sync-roadmap.sh" >/dev/null || sdk::log "WRN" "sync-roadmap finished with warnings"
 
 sdk::log "INF" "Roadmap summary"
 ROADMAP_SKIP_PROGRESS=1 "$SDK_ROOT/scripts/roadmap-status.sh" compact

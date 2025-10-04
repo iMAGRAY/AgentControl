@@ -1,3 +1,0 @@
-[console_scripts]
-agentcall = agentcontrol.cli.main:main
-agentcontrol = agentcontrol.cli.main:main

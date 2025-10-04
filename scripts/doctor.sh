@@ -12,7 +12,7 @@ REPORT_DIR="$SDK_ROOT/reports"
 mkdir -p "$REPORT_DIR"
 REPORT_FILE="$REPORT_DIR/doctor.json"
 
-sdk::log "INF" "Анализ окружения"
+sdk::log "INF" "Environment analysis"
 python3 -m scripts.lib.deps_checker "$SDK_ROOT" >"$REPORT_FILE"
 
 python3 - "$REPORT_FILE" <<'PY'
@@ -22,13 +22,13 @@ from pathlib import Path
 report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 rows = report["results"]
 problems = [r for r in rows if r["status"] == "missing"]
-print(f"Итог: {len(rows)} проверок, {len(problems)} проблем.")
+print(f"Summary: {len(rows)} checks, {len(problems)} issues.")
 for row in rows:
     name = row["name"]
     status = row["status"]
     details = row.get("details") or ""
     fix = row.get("fix") or ""
-    prefix = "✔" if status == "ok" or status == "detected" else "✖"
+    prefix = "✔" if status in {"ok", "detected"} else "✖"
     line = f"{prefix} {name} — {status}"
     if details:
         line += f" ({details})"
@@ -38,4 +38,4 @@ for row in rows:
 sys.exit(1 if problems else 0)
 PY
 
-sdk::log "INF" "Отчёт сохранён: $REPORT_FILE"
+sdk::log "INF" "Report saved: $REPORT_FILE"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Сводный обзор отчетов verify/review/doctor."""
+"""Summary overview of verify/review/doctor reports."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def load(path: Path) -> ReportInfo:
 
 def summarize_verify(data: Optional[Dict[str, Any]]) -> str:
     if not data:
-        return "verify: отчёт недоступен"
+        return "verify: report not available"
     exit_code = data.get("exit_code")
     steps = data.get("steps", [])
     failed = [s for s in steps if s.get("status") == "fail"]
@@ -36,16 +36,16 @@ def summarize_verify(data: Optional[Dict[str, Any]]) -> str:
 
 def summarize_review(data: Optional[Dict[str, Any]]) -> str:
     if not data:
-        return "review: отчёт недоступен"
+        return "review: report not available"
     exit_code = data.get("exit_code")
     return "review: OK" if exit_code == 0 else f"review: FAIL (exit={exit_code})"
 
 
 def summarize_doctor(data: Optional[Dict[str, Any]]) -> str:
     if not data:
-        return "doctor: отчёт недоступен"
+        return "doctor: report not available"
     problems = [r for r in data.get("results", []) if r.get("status") == "missing"]
-    return "doctor: OK" if not problems else f"doctor: требуется {len(problems)} исправлений"
+    return "doctor: OK" if not problems else f"doctor: requires {len(problems)} fixes"
 
 
 def build_summary(root: Path) -> Dict[str, str]:

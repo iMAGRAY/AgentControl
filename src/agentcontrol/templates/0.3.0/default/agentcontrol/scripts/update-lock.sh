@@ -12,7 +12,7 @@ LOCK_DST="$SDK_ROOT/requirements.lock"
 SBOM_DST="$SDK_ROOT/sbom/python.json"
 
 if [[ ! -f "$LOCK_SRC" ]]; then
-  sdk::die "update-lock: отсутствует $LOCK_SRC"
+  sdk::die "update-lock: missing $LOCK_SRC"
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -23,7 +23,7 @@ python3 -m venv "$VENV"
 "$VENV/bin/pip" install --upgrade pip==24.2 >/dev/null
 "$VENV/bin/pip" install --quiet pip-tools==7.4.1 >/dev/null
 
-sdk::log "INF" "Генерирую requirements.lock через pip-compile"
+sdk::log "INF" "Generating requirements.lock via pip-compile"
 ("$VENV/bin/python" -m piptools compile \
   --quiet \
   --no-annotate \
@@ -37,10 +37,10 @@ sdk::log "INF" "Генерирую requirements.lock через pip-compile"
 mv "$TMP_DIR/requirements.lock" "$LOCK_DST"
 
 if [[ ! -x "$SDK_ROOT/.venv/bin/python" ]]; then
-  sdk::die "update-lock: не найдено окружение .venv — выполните agentcall setup"
+  sdk::die "update-lock: .venv environment not found — run agentcall setup"
 fi
 
-sdk::log "INF" "Генерирую SBOM $SBOM_DST"
+sdk::log "INF" "Generating SBOM $SBOM_DST"
 "$SDK_ROOT/.venv/bin/python" "$SCRIPT_DIR/generate-sbom.py" --output "$SBOM_DST"
 
-sdk::log "INF" "Lock-файл и SBOM обновлены"
+sdk::log "INF" "Lock file and SBOM updated"

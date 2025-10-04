@@ -171,7 +171,7 @@ def short(path: str, missing: bool = False) -> str:
 
 def render_table(rows: List[AgentStatus]) -> str:
     if not rows:
-        return "Нет сконфигурированных агентов."
+        return "No configured agents."
     headers = ["Agent", "Auth", "Creds", "CLI", "Last"]
     data = []
     for row in rows:

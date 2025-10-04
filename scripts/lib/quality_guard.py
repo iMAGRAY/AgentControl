@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Realness и secrets-сканирование изменённых строк.
+"""Realness and secrets scanning of modified lines.
 
-Используется в agentcall verify / agentcall review для сигнализации о заглушках и
-секретах без жёсткой блокировки.
+Used in agentcall verify / agentcall review to signal stubs and
+secrets without strict blocking.
 """
 
 from __future__ import annotations
@@ -310,7 +310,7 @@ def build_report(
             errors.append(f"diff_failed:{rel}:{exc}")
             continue
         if not lines:
-            # for new files git diff --unified=0 может не дать строк; сканируем весь файл
+            # for new files git diff --unified=0 may not return lines; scan entire file
             rows = read_lines(path)
             lines = set(range(1, len(rows) + 1))
         for finding in scan_realness(path, lines):
@@ -336,14 +336,14 @@ def build_report(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Realness & secrets scanning helper")
-    parser.add_argument("--base", dest="base", help="Базовый ревизионный указатель", default=None)
-    parser.add_argument("--target", dest="target", help="Целевой ревизионный указатель", default=None)
+    parser.add_argument("--base", dest="base", help="Base revision reference", default=None)
+    parser.add_argument("--target", dest="target", help="Target revision reference", default=None)
     parser.add_argument(
         "--include-untracked",
         action="store_true",
-        help="Добавлять непроиндексированные файлы",
+        help="Include untracked files",
     )
-    parser.add_argument("--output", dest="output", help="Путь к JSON-отчёту", default=None)
+    parser.add_argument("--output", dest="output", help="Path to JSON report", default=None)
     args = parser.parse_args(argv)
 
     try:

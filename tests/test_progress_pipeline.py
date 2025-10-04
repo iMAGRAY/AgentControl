@@ -196,7 +196,7 @@ def test_progress_updates_manifest_and_todo(monkeypatch, tmp_path: Path, capsys)
 
     progress.run(dry_run=False)
     output = capsys.readouterr().out
-    assert "Программа" in output
+    assert "Program" in output
     assert "+" in output and "|" in output
 
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))

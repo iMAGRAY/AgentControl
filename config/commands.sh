@@ -1,5 +1,5 @@
-# Команды SDK для конкретного проекта.
-# Обновите массивы, чтобы привязать SDK к стеку разрабатываемого решения.
+# SDK commands tailored for this project.
+# Update the arrays to align the SDK with the target stack.
 
 _ensure_venv_cmd="[ -d .venv ] || python3 -m venv .venv"
 _upgrade_cmd=".venv/bin/pip install --upgrade pip"

@@ -101,7 +101,7 @@ def assign_only(task_id: str, workflow: Workflow) -> int:
 
 def review_only(task_id: str, workflow: Workflow) -> int:
     if not workflow.review_agent:
-        print("Review agent не задан в workflow", file=sys.stderr)
+        print("Review agent not configured in workflow", file=sys.stderr)
         return 1
     print_step(f"Review via {workflow.review_agent}")
     result = run_agent("analysis", workflow.review_agent, task_id, workflow.review_role)

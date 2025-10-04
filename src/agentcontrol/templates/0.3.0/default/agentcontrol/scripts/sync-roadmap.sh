@@ -9,14 +9,14 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 TODO_FILE="$SDK_ROOT/todo.machine.md"
 if [[ ! -f "$TODO_FILE" ]]; then
-  sdk::log "WRN" "todo.machine.md не найден — синхронизация пропущена"
+  sdk::log "WRN" "todo.machine.md not found — skipping sync"
   exit 0
 fi
 
 STATUS_JSON="$SDK_ROOT/reports/.sync-roadmap.json"
 mkdir -p "$SDK_ROOT/reports"
 if ! ROADMAP_SKIP_PROGRESS=1 "$SDK_ROOT/scripts/roadmap-status.sh" json > "$STATUS_JSON" 2>/dev/null; then
-  sdk::log "WRN" "roadmap-status json недоступен — синхронизация пропущена"
+  sdk::log "WRN" "roadmap-status json unavailable — skipping sync"
   rm -f "$STATUS_JSON"
   exit 0
 fi

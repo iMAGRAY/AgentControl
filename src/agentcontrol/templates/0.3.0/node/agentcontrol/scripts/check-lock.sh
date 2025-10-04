@@ -12,11 +12,11 @@ LOCK_SRC="$SDK_ROOT/requirements.txt"
 LOCK_FILE="$SDK_ROOT/requirements.lock"
 
 if [[ ! -x "$VENV_PIP" ]]; then
-  sdk::die "check-lock: отсутствует $VENV_PIP — выполните agentcall setup"
+  sdk::die "check-lock: missing $VENV_PIP — run agentcall setup"
 fi
 
 if [[ ! -f "$LOCK_FILE" ]]; then
-  sdk::die "check-lock: отсутствует requirements.lock"
+  sdk::die "check-lock: missing requirements.lock"
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -50,9 +50,9 @@ COMPILED_PLAIN="$TMP_DIR/requirements.nohash"
   "$LOCK_SRC"
 
 if ! cmp -s "$LOCK_FILE" "$COMPILED_HASH"; then
-  sdk::log "ERR" "requirements.lock рассинхронизирован"
+  sdk::log "ERR" "requirements.lock is out of sync"
   diff -u "$LOCK_FILE" "$COMPILED_HASH" || true
-  sdk::die "Обновите lock-файл: scripts/update-lock.sh"
+  sdk::die "Update the lock file: scripts/update-lock.sh"
 fi
 
 TMP_FREEZE="$(mktemp)"
@@ -131,18 +131,18 @@ dest.write_text("\n".join(entries) + "\n", encoding="utf-8")
 PY
 
 if ! cmp -s "$TMP_FREEZE" "$TMP_LOCK_NORMALIZED"; then
-  sdk::log "ERR" "Установленные зависимости не соответствуют requirements.lock"
+  sdk::log "ERR" "Installed dependencies do not match requirements.lock"
   diff -u "$TMP_LOCK_NORMALIZED" "$TMP_FREEZE" || true
-  sdk::die "Выполните agentcall setup или scripts/update-lock.sh"
+  sdk::die "Run agentcall setup or scripts/update-lock.sh"
 fi
 
-sdk::log "INF" "requirements.lock валиден и окружение синхронно"
+sdk::log "INF" "requirements.lock is valid and environment is in sync"
 
 SBOM_PATH="$SDK_ROOT/sbom/python.json"
 if [[ -f "$SBOM_PATH" ]]; then
   if ! "$SDK_ROOT/.venv/bin/python" "$SCRIPT_DIR/generate-sbom.py" --check --output "$SBOM_PATH"; then
-    sdk::die "SBOM не соответствует текущей среде — запустите scripts/update-lock.sh"
+    sdk::die "SBOM does not match the current environment — run scripts/update-lock.sh"
   fi
 else
-  sdk::log "WRN" "SBOM отсутствует (sbom/python.json)"
+  sdk::log "WRN" "SBOM missing (sbom/python.json)"
 fi

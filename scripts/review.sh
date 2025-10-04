@@ -37,11 +37,11 @@ BASE_COMMIT="${REVIEW_BASE_COMMIT:-$(determine_base_commit "$BASE_REF_DEFAULT")}
 TARGET_COMMIT="${REVIEW_TARGET_COMMIT:-HEAD}"
 
 if [[ -z "$BASE_COMMIT" ]]; then
-  sdk::die "Не удалось определить базовый коммит для diff"
+  sdk::die "Failed to determine base commit for diff"
 fi
 
-sdk::log "INF" "Базовый коммит: $BASE_COMMIT"
-sdk::log "INF" "Целевой коммит: $TARGET_COMMIT"
+sdk::log "INF" "Base commit: $BASE_COMMIT"
+sdk::log "INF" "Target commit: $TARGET_COMMIT"
 
 mapfile -t CHANGED_FILES < <( \
   { git diff --name-only "$BASE_COMMIT" || true; \
@@ -50,7 +50,7 @@ mapfile -t CHANGED_FILES < <( \
 )
 
 if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
-  sdk::log "INF" "Изменённых файлов нет — ревью пропущено"
+  sdk::log "INF" "No changed files — review skipped"
   printf '%s\n' >"$REVIEW_JSON" "$(printf '{"generated_at":"%s","base":"%s","target":"%s","changed_files":[],"steps":[],"quality":{},"exit_code":0}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$BASE_COMMIT" "$TARGET_COMMIT")"
   exit 0
 fi
@@ -60,7 +60,7 @@ REVIEW_CHANGED_FILES="$(printf '%s\n' "${CHANGED_FILES[@]}")"
 export REVIEW_CHANGED_FILES
 export REVIEW_CHANGED_FILES_PATH="$REVIEW_CHANGED_FILES_FILE"
 
-sdk::log "INF" "Изменённые файлы: ${#CHANGED_FILES[@]}"
+sdk::log "INF" "Changed files: ${#CHANGED_FILES[@]}"
 
 CHANGED_JSON=$(
   python3 - "$REVIEW_CHANGED_FILES_FILE" <<'PY'
@@ -128,13 +128,13 @@ declare -a REVIEW_STEPS
 # --- Quality scan ----------------------------------------------------------
 
 QUALITY_JSON="$REPORT_DIR/review_quality.json"
-sdk::log "INF" "Сканирование realness/secrets"
+sdk::log "INF" "Scanning for realness/secrets"
 run_command_capture "quality_guard" "python3 -m scripts.lib.quality_guard --base \"$BASE_COMMIT\" --include-untracked --output \"$QUALITY_JSON\""
 
 # --- Review linters -------------------------------------------------------
 
 if [[ ${#SDK_REVIEW_LINTERS[@]} -eq 0 ]]; then
-  sdk::log "INF" "SDK_REVIEW_LINTERS пуст — шаг пропущен"
+  sdk::log "INF" "SDK_REVIEW_LINTERS empty — step skipped"
 else
   local_index=0
   for cmd in "${SDK_REVIEW_LINTERS[@]}"; do
@@ -148,10 +148,10 @@ fi
 if [[ -n "${SDK_TEST_COMMAND:-}" ]]; then
   run_command_capture "test" "$SDK_TEST_COMMAND"
 else
-  sdk::log "INF" "SDK_TEST_COMMAND не задан — тесты пропущены"
+  sdk::log "INF" "SDK_TEST_COMMAND not configured — skipping tests"
 fi
 
-# diff-cover (опционально)
+# diff-cover (optional)
 DIFF_COVER_STATUS="skipped"
 if [[ -n "${SDK_COVERAGE_FILE:-}" && -f "$SDK_COVERAGE_FILE" ]]; then
   if command -v diff-cover >/dev/null 2>&1; then
@@ -167,11 +167,11 @@ if [[ -n "${SDK_COVERAGE_FILE:-}" && -f "$SDK_COVERAGE_FILE" ]]; then
     fi
     record_step "diff-cover" "$DIFF_COVER_STATUS" "$EXIT_CODE" "$DIFF_COVER_LOG"
   else
-    sdk::log "WRN" "diff-cover не найден — шаг пропущен"
+    sdk::log "WRN" "diff-cover not found — skipping step"
   fi
 fi
 
-# --- Итоговый отчёт -------------------------------------------------------
+# --- Final report -------------------------------------------------------
 
 EXIT_ON_FAIL=${EXIT_ON_FAIL:-0}
 OVERALL_EXIT=0
@@ -205,27 +205,27 @@ JSON
 )
 
 printf '%s\n' "$REVIEW_OUTPUT" >"$REVIEW_JSON"
-sdk::log "INF" "Отчёт сохранён: $REVIEW_JSON"
+sdk::log "INF" "Report saved: $REVIEW_JSON"
 
 HAS_FINDINGS=0
 if [[ -f "$QUALITY_JSON" ]]; then
   FINDINGS_COUNT=$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); print(len(data.get("findings",[])))' "$QUALITY_JSON" 2>/dev/null || printf 0)
   if [[ ${FINDINGS_COUNT:-0} -gt 0 ]]; then
-    sdk::log "WRN" "Найдены потенциальные заглушки/секреты: $FINDINGS_COUNT"
+    sdk::log "WRN" "Potential placeholders/secrets detected: $FINDINGS_COUNT"
     HAS_FINDINGS=1
   fi
 fi
 
 if [[ $EXIT_ON_FAIL == 1 ]]; then
   if [[ $OVERALL_EXIT -ne 0 || $HAS_FINDINGS -eq 1 ]]; then
-    sdk::die "review: есть проблемы — см. $REVIEW_JSON"
+    sdk::die "review: issues detected — see $REVIEW_JSON"
   fi
 fi
 
 if [[ $OVERALL_EXIT -ne 0 || $HAS_FINDINGS -eq 1 ]]; then
-  sdk::log "WRN" "Ревью завершено с предупреждениями; см. $REVIEW_JSON"
+  sdk::log "WRN" "Review finished with warnings; see $REVIEW_JSON"
   exit 0
 fi
 
-sdk::log "INF" "Ревью завершено без критичных проблем"
+sdk::log "INF" "Review finished without critical issues"
 exit 0

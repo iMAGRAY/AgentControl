@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Пересчёт прогресса программы/эпиков/Big Tasks."""
+"""Recalculate progress for program, epics, and big tasks."""
 from __future__ import annotations
 
 import argparse
@@ -29,26 +29,26 @@ TODO_PATH = ROOT / "todo.machine.md"
 
 def load_manifest() -> dict:
     if not MANIFEST_PATH.exists():
-        raise SystemExit(f"Файл не найден: {MANIFEST_PATH}")
+        raise SystemExit(f"File not found: {MANIFEST_PATH}")
     with MANIFEST_PATH.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
 
 def load_todo_sections() -> tuple[str, dict, list[dict], list[dict]]:
     if not TODO_PATH.exists():
-        raise SystemExit(f"Файл не найден: {TODO_PATH}")
+        raise SystemExit(f"File not found: {TODO_PATH}")
     text = TODO_PATH.read_text(encoding="utf-8")
 
     def extract(section: str) -> tuple[dict | list[dict], tuple[int, int]]:
         marker = f"## {section}\n```yaml\n"
         start = text.find(marker)
         if start == -1:
-            raise SystemExit(f"Секция '{section}' не найдена в todo.machine.md")
+            raise SystemExit(f"Section '{section}' not found in todo.machine.md")
         block_start = start + len(marker)
         end_marker = "\n```"
         block_end = text.find(end_marker, block_start)
         if block_end == -1:
-            raise SystemExit(f"Секция '{section}' оформлена некорректно")
+            raise SystemExit(f"Section '{section}' is malformed")
         body = text[block_start:block_end]
         data = yaml.safe_load(body)
         return data, (start, block_end + len(end_marker))
@@ -68,12 +68,12 @@ def replace_block(text: str, section: str, new_yaml: str) -> str:
     marker = f"## {section}\n```yaml\n"
     start = text.find(marker)
     if start == -1:
-        raise SystemExit(f"Секция '{section}' не найдена при перезаписи")
+        raise SystemExit(f"Section '{section}' not found during replacement")
     block_start = start + len(marker)
     end_marker = "\n```"
     block_end = text.find(end_marker, block_start)
     if block_end == -1:
-        raise SystemExit(f"Секция '{section}' оформлена некорректно")
+        raise SystemExit(f"Section '{section}' is malformed")
     return text[:block_start] + new_yaml + end_marker + text[block_end + len(end_marker):]
 
 
@@ -211,27 +211,27 @@ def run(dry_run: bool = False) -> None:
 
     # Update todo.machine.md blocks
     if not isinstance(program_block, dict):
-        raise SystemExit("Секция Program должна быть YAML-объектом")
+        raise SystemExit("Section Program must be a YAML mapping")
     program_block["progress_pct"] = program_progress
     program_block["phase_progress"] = phase_progress
     program_block["updated_at"] = manifest["program"]["meta"].get("updated_at", utc_now_iso())
     program_block["milestones"] = manifest["program"].get("milestones", [])
 
     if not isinstance(epics_block, list):
-        raise SystemExit("Секция Epics должна быть YAML-списком")
+        raise SystemExit("Section Epics must be a YAML list")
     for epic in epics_block:
         epic_id = epic["id"]
         if epic_id not in epic_progress:
-            raise SystemExit(f"Эпик '{epic_id}' отсутствует в manifest.yaml")
+            raise SystemExit(f"Epic '{epic_id}' is missing from manifest.yaml")
         epic["progress_pct"] = epic_progress[epic_id]
         epic["status"] = epic_index.get(epic_id, {}).get("status", epic.get("status", "planned"))
 
     if not isinstance(big_tasks_block, list):
-        raise SystemExit("Секция Big Tasks должна быть YAML-списком")
+        raise SystemExit("Section Big Tasks must be a YAML list")
     for big in big_tasks_block:
         big_id = big["id"]
         if big_id not in big_progress:
-            raise SystemExit(f"Big Task '{big_id}' отсутствует в manifest.yaml")
+            raise SystemExit(f"Big Task '{big_id}' is missing from manifest.yaml")
         big["progress_pct"] = big_progress[big_id]
         big["status"] = big_task_index.get(big_id, {}).get("status", big.get("status", "planned"))
 
@@ -250,18 +250,18 @@ def run(dry_run: bool = False) -> None:
 
     if new_todo_text != todo_text:
         TODO_PATH.write_text(new_todo_text, encoding="utf-8")
-        print("Обновлён todo.machine.md")
+        print("Updated todo.machine.md")
     else:
-        print("todo.machine.md уже актуален")
+        print("todo.machine.md already up to date")
 
     if manifest_changed:
         manifest["updated_at"] = utc_now_iso()
         program_meta = manifest.setdefault("program", {}).setdefault("meta", {})
         program_meta["updated_at"] = manifest["updated_at"]
         persist_manifest(manifest)
-        print("Обновлён architecture/manifest.yaml")
+        print("Updated architecture/manifest.yaml")
     else:
-        print("manifest.yaml без изменений")
+        print("manifest.yaml unchanged")
 
     print(render_progress_tables(program_progress, epic_progress, big_progress, manifest))
 
@@ -290,12 +290,12 @@ def render_progress_tables(program_progress: int, epic_progress: Dict[str, int],
         return "\n".join(table_lines)
 
     program_rows = [[
-        manifest["program"]["meta"].get("name", "Программа"),
+        manifest["program"]["meta"].get("name", "Program"),
         manifest["program"].get("progress", {}).get("health", "n/a"),
         f"{program_progress}%",
         manifest["program"]["meta"].get("updated_at", "n/a"),
     ]]
-    lines.append(render_table("Программа", ["Название", "Состояние", "Прогресс", "Обновлено"], program_rows))
+    lines.append(render_table("Program", ["Name", "Health", "Progress", "Updated"], program_rows))
 
     epic_rows: list[list[str]] = []
     for epic in manifest.get("epics", []):
@@ -307,7 +307,7 @@ def render_progress_tables(program_progress: int, epic_progress: Dict[str, int],
             str(epic.get("size_points", 0)),
         ])
     if epic_rows:
-        lines.append(render_table("Эпики", ["ID", "Название", "Статус", "Прогресс", "Размер"], epic_rows))
+        lines.append(render_table("Epics", ["ID", "Title", "Status", "Progress", "Size"], epic_rows))
 
     big_rows: list[list[str]] = []
     for big in manifest.get("big_tasks", []):
@@ -323,7 +323,7 @@ def render_progress_tables(program_progress: int, epic_progress: Dict[str, int],
         lines.append(
             render_table(
                 "Big Tasks",
-                ["ID", "Название", "Статус", "Прогресс", "Эпик", "Размер"],
+                ["ID", "Title", "Status", "Progress", "Epic", "Size"],
                 big_rows,
             )
         )
@@ -388,8 +388,8 @@ def collect_progress_state() -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Пересчитать прогресс программы и задач")
-    parser.add_argument("--dry-run", action="store_true", help="Только показать вычисленные значения")
+    parser = argparse.ArgumentParser(description="Recalculate program and task progress")
+    parser.add_argument("--dry-run", action="store_true", help="Display computed values only")
     args = parser.parse_args(argv)
     run(dry_run=args.dry_run)
     return 0

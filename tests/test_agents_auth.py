@@ -53,7 +53,7 @@ printf '{"token":"abc123"}\n' > \"${AGENT_AUTH_DIR}/token.json\"
     entry = data["agents"]["sample"]
     assert entry["status"] == "ok"
     stored_paths = entry["stored_paths"]
-    assert stored_paths, "ожидался хотя бы один сохранённый артефакт"
+    assert stored_paths, "expected at least one stored artefact"
     stored_file = Path(stored_paths[0])
     assert stored_file.exists()
     assert stored_file.read_text(encoding="utf-8").strip() == '{"token":"abc123"}'
@@ -162,7 +162,7 @@ def test_agents_auth_skips_when_credentials_present(tmp_path, monkeypatch):
 
     exit_code = auth.main()
     assert exit_code == 0
-    # Состояние не меняется
+    # State should remain unchanged
     data = json.loads(state_file.read_text(encoding="utf-8"))
     assert data["agents"]["sample"]["status"] == "ok"
 
@@ -252,10 +252,10 @@ printf '{"token":"xyz"}\n' > \"${AGENT_AUTH_DIR}/token.json\"
     finally:
         primary_state.chmod(0o755)
     assert exit_code == 0
-    assert chosen, "ожидалось, что resolve_state_dir будет вызван"
+    assert chosen, "expected resolve_state_dir to be invoked"
     state_dir = chosen[0]
     state_file = state_dir / auth.STATE_FILENAME
-    assert state_file.exists(), f"не найден state-файл в {state_dir}"
+    assert state_file.exists(), f"state file not found in {state_dir}"
     data = json.loads(state_file.read_text(encoding="utf-8"))
     entry = data["agents"]["sample"]
     assert entry["status"] == "ok"

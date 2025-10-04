@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Автоматическое определение команд для разных стеков.
+"""Automatic command detection for different stacks.
 
-Скрипт печатает shell-скрипт, который дополняет переменные SDK_*_COMMANDS,
-если в config/commands.sh оставлены значения по умолчанию.
+Script prints a shell script that supplements SDK_*_COMMANDS variables
+if config/commands.sh contains default values.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ __all__ = ["build_snippet"]
 
 
 def wrap(condition: str, command: str, skip: str) -> str:
-    """Сформировать безопасную конструкцию if/else."""
+    """Generate safe if/else construct."""
 
     skip_quoted = shlex.quote(skip)
     return f"if {condition}; then {command}; else echo {skip_quoted}; fi"

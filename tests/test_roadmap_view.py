@@ -15,6 +15,6 @@ def test_roadmap_status_compact_outputs_table() -> None:
         text=True,
     )
     stdout = result.stdout
-    assert "Программа" in stdout
+    assert "Program" in stdout
     assert stdout.count("+") >= 4
-    assert "Фазы" in stdout
+    assert "Phases" in stdout

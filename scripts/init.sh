@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/common.sh"
 
-sdk::log "INF" "Инициализация SDK рабочего окружения"
+sdk::log "INF" "Initialising SDK workspace"
 
 CONFIG_FILE="$SDK_ROOT/config/commands.sh"
 BOARD_FILE="$SDK_ROOT/data/tasks.board.json"
@@ -21,10 +21,10 @@ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 mkdir -p "$SDK_ROOT/config" "$SDK_ROOT/data" "$SDK_ROOT/state" "$SDK_ROOT/journal" "$REPORTS_DIR"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
-  sdk::log "INF" "Создаю config/commands.sh"
+  sdk::log "INF" "Creating config/commands.sh"
   cat <<'CFG' >"$CONFIG_FILE"
-# Определите наборы команд под ваш стек.
-# Примеры:
+# Define command sets for your stack.
+# Examples:
 # SDK_DEV_COMMANDS=("npm install" "npm run dev")
 # SDK_VERIFY_COMMANDS=("npm run lint" "npm test")
 # SDK_FIX_COMMANDS=("npm run lint -- --fix")
@@ -33,20 +33,20 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 # SDK_TEST_COMMAND="pytest --maxfail=1 --disable-warnings --cov"
 # SDK_COVERAGE_FILE="coverage.xml"
 
-SDK_DEV_COMMANDS=("echo 'configure SDK_DEV_COMMANDS в config/commands.sh'")
-SDK_VERIFY_COMMANDS=("echo 'configure SDK_VERIFY_COMMANDS в config/commands.sh'")
-SDK_FIX_COMMANDS=("echo 'configure SDK_FIX_COMMANDS в config/commands.sh'")
-SDK_SHIP_COMMANDS=("echo 'configure SDK_SHIP_COMMANDS в config/commands.sh'")
+SDK_DEV_COMMANDS=("echo 'configure SDK_DEV_COMMANDS in config/commands.sh'")
+SDK_VERIFY_COMMANDS=("echo 'configure SDK_VERIFY_COMMANDS in config/commands.sh'")
+SDK_FIX_COMMANDS=("echo 'configure SDK_FIX_COMMANDS in config/commands.sh'")
+SDK_SHIP_COMMANDS=("echo 'configure SDK_SHIP_COMMANDS in config/commands.sh'")
 SDK_REVIEW_LINTERS=()
 SDK_TEST_COMMAND=""
 SDK_COVERAGE_FILE=""
 CFG
 else
-  sdk::log "INF" "config/commands.sh уже существует — пропускаю"
+  sdk::log "INF" "config/commands.sh already exists — skipping"
 fi
 
 if [[ ! -f "$BOARD_FILE" ]]; then
-  sdk::log "INF" "Создаю data/tasks.board.json"
+  sdk::log "INF" "Creating data/tasks.board.json"
   cat <<BOARD >"$BOARD_FILE"
 {
   "version": "v1",
@@ -61,11 +61,11 @@ if [[ ! -f "$BOARD_FILE" ]]; then
       "size_points": 8,
       "owner": "unassigned",
       "success_criteria": [
-        "Среда проходит agentcall verify.",
-        "Документация обновлена после init."
+        "Environment passes agentcall verify.",
+        "Documentation refreshed after init."
       ],
       "failure_criteria": [
-        "Команда status падает или даёт пустой отчёт."
+        "Status command fails or produces an empty report."
       ],
       "blockers": [],
       "dependencies": [],
@@ -76,11 +76,11 @@ if [[ ! -f "$BOARD_FILE" ]]; then
 }
 BOARD
 else
-  sdk::log "INF" "tasks.board.json уже существует — пропускаю"
+  sdk::log "INF" "tasks.board.json already exists — skipping"
 fi
 
 if [[ -f "$LEGACY_STATE_FILE" && ! -f "$STATE_FILE" ]]; then
-  sdk::log "INF" "Конвертирую legacy state/task_selection.json"
+  sdk::log "INF" "Converting legacy state/task_selection.json"
   python3 - "$SDK_ROOT" <<'PY'
 import json, sys
 from pathlib import Path
@@ -102,7 +102,7 @@ PY
 fi
 
 if [[ ! -f "$STATE_FILE" ]]; then
-  sdk::log "INF" "Создаю state/task_state.json"
+  sdk::log "INF" "Creating state/task_state.json"
   cat <<'STATE' >"$STATE_FILE"
 {
   "assignments": {}
@@ -111,12 +111,12 @@ STATE
 fi
 
 if [[ ! -f "$JOURNAL_FILE" ]]; then
-  sdk::log "INF" "Создаю journal/task_events.jsonl"
+  sdk::log "INF" "Creating journal/task_events.jsonl"
   : > "$JOURNAL_FILE"
 fi
 
 if [[ ! -f "$TODO_FILE" ]]; then
-  sdk::log "INF" "Создаю базовый todo.machine.md"
+  sdk::log "INF" "Creating baseline todo.machine.md"
   # shellcheck disable=SC2215,SC2006,SC2086,SC1130,SC1083
   cat <<TODO >"$TODO_FILE"
 ## Program
@@ -126,9 +126,9 @@ updated_at: $NOW
 program_id: default-program
 name: AgentControl Universal Agent SDK Project
 objectives:
-  - Запустить init и базовые проверки.
-  - Настроить agentcall status и task board.
-  - Определить следующий эпик.
+  - Run init and baseline checks.
+  - Configure agentcall status and the task board.
+  - Define the next epic.
 kpis: { uptime_pct: 99.9, tti_ms: 1500, error_rate_pct: 0.3 }
 progress_pct: 0
 health: green
@@ -160,10 +160,10 @@ scope_paths:
   - data/**
   - docs/**
 spec: |
-  Intent: определить и реализовать первую поставку.
-  Given: пустой проект.
-  When: агент заполняет планы и задачи.
-  Then: roadmap и task board синхронизированы.
+  Intent: define and deliver the first milestone.
+  Given: empty project.
+  When: agent fills in plans and tasks.
+  Then: roadmap and task board are synchronised.
 budgets: { latency_ms: 0, memory_mb: 0, bundle_kb: 0 }
 risks: []
 dependencies: []
@@ -187,7 +187,7 @@ audit:
 ## Big Tasks
 ```yaml
 id: task-bootstrap
-title: "Заполнение плана и задач"
+title: "Plan and task population"
 type: planning
 status: planned
 priority: P1
@@ -197,16 +197,16 @@ scope_paths:
   - todo.machine.md
   - data/tasks.board.json
 spec: |
-  When: агент выполнит agentcall init.
-  Then: roadmap и task board заполнены и готовы к работе.
+  When: the agent runs agentcall init.
+  Then: roadmap and task board are populated and ready.
 budgets: { latency_ms: 0, memory_mb: 0, bundle_kb: 0 }
 risks: []
 dependencies: []
 progress_pct: 0
 health: green
 acceptance:
-  - agentcall status выводит осмысленные данные.
-  - task board содержит минимум одну задачу.
+  - agentcall status outputs meaningful data.
+  - task board contains at least one task.
 tests_required:
   - agentcall status
 verify_commands:
@@ -219,11 +219,11 @@ artifacts:
 TODO
 fi
 
-sdk::log "INF" "Генерация статус-отчёта"
+sdk::log "INF" "Generating status report"
 if "$SDK_ROOT/scripts/status.sh" >/dev/null; then
-  sdk::log "INF" "reports/status.json обновлён"
+  sdk::log "INF" "reports/status.json updated"
 else
-  sdk::log "WRN" "Не удалось сгенерировать status.json на этапе init"
+  sdk::log "WRN" "Failed to generate status.json during init"
 fi
 
-sdk::log "INF" "Инициализация завершена"
+sdk::log "INF" "Initialization complete"

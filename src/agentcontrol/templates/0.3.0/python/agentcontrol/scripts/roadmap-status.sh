@@ -19,11 +19,11 @@ esac
 
 TODO_FILE="$SDK_ROOT/todo.machine.md"
 if [[ ! -f "$TODO_FILE" ]]; then
-  sdk::die "todo.machine.md не найден — дорожная карта недоступна"
+  sdk::die "todo.machine.md not found — roadmap unavailable"
 fi
 
 if [[ -z "${ROADMAP_SKIP_PROGRESS:-}" ]]; then
-  "$SDK_ROOT/scripts/progress.py" || sdk::log "WRN" "progress завершился с предупреждением"
+  "$SDK_ROOT/scripts/progress.py" || sdk::log "WRN" "progress finished with warnings"
   printf '\n'
 fi
 
@@ -56,7 +56,7 @@ def extract_section(name: str) -> List[str]:
     pattern = rf"## {re.escape(name)}\n```yaml\n(.*?)\n```"
     blocks = re.findall(pattern, text, re.S)
     if not blocks:
-        raise SystemExit(f"Раздел '{name}' отсутствует в todo.machine.md")
+        raise SystemExit(f"Section '{name}' absent in todo.machine.md")
     return blocks
 
 
@@ -66,7 +66,7 @@ def parse_scalar(block: str, field: str, cast=str, default=None):
     if not match:
         if default is not None:
             return default
-        raise SystemExit(f"Поле '{field}' отсутствует в блоке:\n{block}")
+        raise SystemExit(f"Field '{field}' absent in block:\n{block}")
     value = match.group(1).strip()
     if value.startswith('"') and value.endswith('"'):
         value = value[1:-1]
@@ -78,7 +78,7 @@ def parse_scalar(block: str, field: str, cast=str, default=None):
 def parse_phase_progress(block: str) -> Dict[str, int]:
     match = re.search(r"phase_progress:\n((?:\s{2,}.+\n)+)", block)
     if not match:
-        raise SystemExit("Отсутствует блок phase_progress в Program")
+        raise SystemExit("phase_progress block absent in Program")
     data = {}
     for line in match.group(1).splitlines():
         stripped = line.strip()
@@ -104,7 +104,7 @@ def parse_milestones(block: str) -> List[dict]:
 
     section_match = re.search(r"milestones:\n((?:\s*- .+\n(?:\s{1,}.+\n)*)+)", block)
     if not section_match:
-        raise SystemExit("Не удалось разобрать milestones для Program")
+        raise SystemExit("Failed to parse milestones for Program")
     current = {}
     for raw_line in section_match.group(1).splitlines():
         line = raw_line.rstrip()
@@ -125,7 +125,7 @@ def parse_milestones(block: str) -> List[dict]:
     if current:
         items.append(current)
     if not items:
-        raise SystemExit("Не удалось разобрать milestones для Program")
+        raise SystemExit("Failed to parse milestones for Program")
     return items
 
 
@@ -201,9 +201,9 @@ if board_path.exists():
         board = json.loads(board_path.read_text(encoding="utf-8"))
         board_tasks = board.get("tasks", [])
     except Exception as exc:
-        warnings.append(f"Не удалось прочитать tasks.board.json: {exc}")
+        warnings.append(f"Failed to read tasks.board.json: {exc}")
 else:
-    warnings.append("tasks.board.json отсутствует")
+    warnings.append("tasks.board.json is missing")
 
 for task in board_tasks:
     task.setdefault("epic", "default")
@@ -212,11 +212,11 @@ for task in board_tasks:
     task.setdefault("big_task", None)
 
 if not epics:
-    raise SystemExit("Не заданы эпики для дорожной карты")
+    raise SystemExit("No epics defined for the roadmap")
 if not big_tasks:
-    raise SystemExit("Не заданы Big Tasks для дорожной карты")
+    raise SystemExit("No Big Tasks defined for the roadmap")
 
-# Aggregation из task board
+# Aggregation from task board
 epic_totals = defaultdict(float)
 epic_progress = defaultdict(float)
 big_totals = defaultdict(float)
@@ -244,18 +244,18 @@ for epic in epics:
         derived = int(round(100 * epic_progress[epic["id"]] / total))
         epic["computed_progress_pct"] = derived
     else:
-        warnings.append(f"Для эпика {epic['id']} нет задач на доске")
+        warnings.append(f"For epic {epic['id']} no tasks on the board")
 
 for bt in big_tasks:
     total = big_totals.get(bt["id"])
     if total:
         bt["computed_progress_pct"] = int(round(100 * big_progress[bt["id"]] / total))
     else:
-        warnings.append(f"Для Big Task {bt['id']} нет связанных задач")
+        warnings.append(f"For Big Task {bt['id']} no linked tasks")
 
 if program.get("computed_progress_pct") is not None and abs(program["computed_progress_pct"] - program["progress_pct"]) > 1:
     warnings.append(
-        f"Program progress_pct {program['progress_pct']}% расходится с вычисленным {program['computed_progress_pct']}%"
+        f"Program progress_pct {program['progress_pct']}% differs from computed {program['computed_progress_pct']}%"
     )
 
 for epic in epics:
@@ -278,7 +278,7 @@ if phase_progress:
     phase_avg = round(sum(phase_progress.values()) / len(phase_progress))
     if program.get("computed_progress_pct") is not None and abs(phase_avg - program["computed_progress_pct"]) > 5:
         warnings.append(
-            f"Среднее phase_progress {phase_avg}% не согласовано с вычисленным прогрессом {program['computed_progress_pct']}%"
+            f"Average phase_progress {phase_avg}% is not aligned with computed progress {program['computed_progress_pct']}%"
         )
 
 effective_pct = int(round(program.get("computed_progress_pct", program["progress_pct"])))
@@ -344,35 +344,35 @@ big_table_rows = [
 ]
 
 if mode == "compact":
-    print(format_table("Программа", ["Название", "Прогресс", "Состояние"], summary_rows))
+    print(format_table("Program", ["Title", "Progress", "Status"], summary_rows))
     print()
     if warnings:
-        print("Предупреждения:")
+        print("Warnings:")
         for msg in warnings:
             print(f"- {msg}")
         print()
-    print(format_table("Фазы", ["Фаза", "Прогресс"], phase_rows))
+    print(format_table("Phases", ["Phase", "Progress"], phase_rows))
     if focus_rows:
         print()
-        print(format_table("Активные эпики", ["ID", "Название", "Прогресс"], focus_rows))
+        print(format_table("Active Epics", ["ID", "Title", "Progress"], focus_rows))
     if next_milestone:
         next_table = [[next_milestone.get("title", ""), next_milestone.get("due", "n/a"), next_milestone.get("status", "unknown")]]
         print()
-        print(format_table("Ближайшая веха", ["Веха", "Срок", "Статус"], next_table))
+        print(format_table("Next milestone", ["Milestone", "Due", "Status"], next_table))
     sys.exit(0)
 
-print(format_table("Программа", ["Название", "Прогресс", "Состояние"], summary_rows))
+print(format_table("Program", ["Title", "Progress", "Status"], summary_rows))
 print()
-print(format_table("Фазы", ["Фаза", "Прогресс"], phase_rows))
+print(format_table("Phases", ["Phase", "Progress"], phase_rows))
 print()
-print(format_table("Вехи", ["Веха", "Срок", "Статус"], milestone_rows))
+print(format_table("Milestones", ["Milestone", "Due", "Status"], milestone_rows))
 print()
-print(format_table("Эпики", ["ID", "Название", "Статус", "Прогресс", "Размер"], epic_table_rows))
+print(format_table("Epics", ["ID", "Title", "Status", "Progress", "Size"], epic_table_rows))
 print()
-print(format_table("Big Tasks", ["ID", "Название", "Статус", "Прогресс", "Эпик", "Размер"], big_table_rows))
+print(format_table("Big Tasks", ["ID", "Title", "Status", "Progress", "Epic", "Size"], big_table_rows))
 if warnings:
     print()
-    print("Предупреждения:")
+    print("Warnings:")
     for msg in warnings:
         print(f"- {msg}")
 PY

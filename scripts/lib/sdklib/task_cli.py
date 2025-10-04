@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Высокопроизводительный CLI для управления доской задач SDK.
+"""High-performance CLI for SDK task board management.
 
-Переосмысленная реализация task.sh: добавляет блокировки, кэширование,
-расширенные метрики и устойчивость для работы с десятками и сотнями агентов.
+Redesigned implementation of task.sh: adds locking, caching,
+extended metrics and resilience for working with dozens and hundreds of agents.
 """
 
 from __future__ import annotations
@@ -18,13 +18,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-try:  # POSIX-ориентированная блокировка файлов
+try:  # POSIX-oriented file locking
     import fcntl  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - ожидаемо на non-POSIX
+except ModuleNotFoundError:  # pragma: no cover - expected on non-POSIX systems
     fcntl = None  # type: ignore
 
 
-# --- Путь окружения -----------------------------------------------------
+# --- Environment Path -----------------------------------------------------
 
 def detect_sdk_root() -> Path:
     env = os.environ.get("SDK_ROOT")
@@ -40,7 +40,7 @@ LOG_PATH = SDK_ROOT / "journal" / "task_events.jsonl"
 LOCK_PATH = SDK_ROOT / "state" / ".sdk.lock"
 
 
-# --- Константы -----------------------------------------------------------
+# --- Constants -----------------------------------------------------------
 
 STATUS_ORDER = [
     "in_progress",
@@ -70,7 +70,7 @@ STATUS_PROGRESS = {
 DEFAULT_OWNER = "unassigned"
 
 
-# --- Вспомогательные структуры -----------------------------------------
+# --- Utility Structures -----------------------------------------
 
 
 def now_iso() -> str:
@@ -99,9 +99,9 @@ def status_rank(task: dict) -> int:
 
 @contextmanager
 def global_lock(*, exclusive: bool) -> Iterable[None]:
-    """Глобальная блокировка для синхронизации сотен агентов."""
+    """Global lock for synchronizing hundreds of agents."""
 
-    if fcntl is None:  # pragma: no cover - fallback без блокировок
+    if fcntl is None:  # pragma: no cover - fallback without locks
         yield
         return
 
@@ -147,7 +147,7 @@ def normalize_task(task: dict) -> None:
 
 @dataclass(slots=True)
 class TaskSession:
-    """Снимок доски задач внутри заблокированного контекста."""
+    """Snapshot of the task board within a locked context."""
 
     root: Path
     board_path: Path = field(default=BOARD_PATH, init=False)
@@ -173,7 +173,7 @@ class TaskSession:
             task_id: owner for task_id, owner in assignments.items() if task_id in valid_ids
         }
 
-    # -- внутренняя механика -------------------------------------------------
+    # -- internal mechanics -------------------------------------------------
 
     def mapping(self) -> dict[str, dict]:
         if not self._tasks_map:
@@ -201,12 +201,12 @@ class TaskSession:
                 for event in self._events:
                     fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
-    # -- операции ------------------------------------------------------------
+    # -- operations ------------------------------------------------------------
 
     def ensure_task(self, task_id: str) -> dict:
         task = self.mapping().get(task_id)
         if not task:
-            raise SystemExit(f"Задача {task_id} не найдена")
+            raise SystemExit(f"Task {task_id} not found")
         return task
 
     def update_assignment(self, task_id: str, owner: str) -> None:
@@ -464,23 +464,23 @@ def print_conflicts(session: TaskSession) -> None:
 def validate_board(session: TaskSession) -> None:
     ids = [t.get("id") for t in session.board.get("tasks", [])]
     if len(ids) != len(set(ids)):
-        raise SystemExit("Обнаружены дублирующиеся идентификаторы задач")
+        raise SystemExit("Duplicate task identifiers detected")
     tasks_map = session.mapping()
     for task in session.board.get("tasks", []):
         task_id = task.get("id")
         for dep in task.get("dependencies", []):
             if dep == task_id:
-                raise SystemExit(f"Задача {task_id} зависит сама от себя")
+                raise SystemExit(f"Task {task_id} depends on itself")
             if dep not in tasks_map:
-                raise SystemExit(f"Задача {task_id} зависит от отсутствующей задачи {dep}")
+                raise SystemExit(f"Task {task_id} depends on missing task {dep}")
         for blocker in task.get("blockers", []):
             if blocker not in tasks_map:
-                raise SystemExit(f"Задача {task_id} ссылается на отсутствующий blocker {blocker}")
+                raise SystemExit(f"Task {task_id} references missing blocker {blocker}")
         for conflict in task.get("conflicts", []):
             if conflict not in tasks_map:
-                raise SystemExit(f"Задача {task_id} конфликтует с отсутствующей задачей {conflict}")
+                raise SystemExit(f"Task {task_id} conflicts with missing task {conflict}")
         if task.get("status") == "blocked" and not task.get("blockers"):
-            raise SystemExit(f"Задача {task_id} помечена blocked без blockers")
+            raise SystemExit(f"Task {task_id} marked as blocked without blockers")
     print("Task board validation passed")
 
 
@@ -488,7 +488,7 @@ def assign_task(session: TaskSession, task_id: str, agent: str, note: str, *, ac
     task = session.ensure_task(task_id)
     tasks_map = session.mapping()
     if task.get("status") == "done" and not force:
-        raise SystemExit(f"Задача {task_id} уже завершена; используйте FORCE=1")
+        raise SystemExit(f"Task {task_id} already completed; use FORCE=1")
     conflicts = []
     for conflict_id in task.get("conflicts", []):
         conflict = tasks_map.get(conflict_id)
@@ -497,13 +497,13 @@ def assign_task(session: TaskSession, task_id: str, agent: str, note: str, *, ac
             if owner not in {None, DEFAULT_OWNER, agent}:
                 conflicts.append(f"{conflict_id} ({owner})")
     if conflicts and not force:
-        raise SystemExit(f"Конфликты: {', '.join(conflicts)} — укажите FORCE=1")
+        raise SystemExit(f"Conflicts: {', '.join(conflicts)} - specify FORCE=1")
     for dep_id in task.get("dependencies", []):
         dep = tasks_map.get(dep_id)
         if not dep:
-            raise SystemExit(f"Несуществующая зависимость {dep_id}")
+            raise SystemExit(f"Non-existent dependency {dep_id}")
         if dep.get("status") not in {"done", "review"} and session.assignments.get(dep_id) not in {agent} and not force:
-            raise SystemExit(f"Зависимость {dep_id} ещё не готова (status {dep.get('status')})")
+            raise SystemExit(f"Dependency {dep_id} is not ready yet (status {dep.get('status')})")
     previous_owner = session.assignments.get(task_id, task.get("owner", DEFAULT_OWNER))
     session.update_assignment(task_id, agent)
     task["owner"] = agent
@@ -511,7 +511,7 @@ def assign_task(session: TaskSession, task_id: str, agent: str, note: str, *, ac
         task["status"] = "in_progress"
     session.mark_board_dirty()
     session.append_log_event(action, task=task_id, agent=agent, note=note, previous_owner=previous_owner)
-    print(f"Задача {task_id} назначена на {agent}. Предыдущий владелец: {previous_owner}")
+    print(f"Task {task_id} assigned to {agent}. Previous owner: {previous_owner}")
 
 
 def release_task(session: TaskSession, task_id: str, note: str) -> None:
@@ -523,7 +523,7 @@ def release_task(session: TaskSession, task_id: str, note: str) -> None:
         task["status"] = "ready"
     session.mark_board_dirty()
     session.append_log_event("release", task=task_id, agent=previous_owner or DEFAULT_OWNER, note=note)
-    print(f"Задача {task_id} освобождена (owner -> {DEFAULT_OWNER})")
+    print(f"Task {task_id} released (owner -> {DEFAULT_OWNER})")
 
 
 def complete_task(session: TaskSession, task_id: str, agent: str, note: str) -> None:
@@ -534,7 +534,7 @@ def complete_task(session: TaskSession, task_id: str, agent: str, note: str) -> 
     task["status"] = "done"
     session.mark_board_dirty()
     session.append_log_event("complete", task=task_id, agent=agent, note=note, previous_owner=previous_owner)
-    print(f"Задача {task_id} отмечена как завершённая")
+    print(f"Task {task_id} marked as completed")
 
 
 def comment_task(session: TaskSession, task_id: str, author: str, message: str) -> None:
@@ -547,7 +547,7 @@ def comment_task(session: TaskSession, task_id: str, author: str, message: str) 
     task.setdefault("comments", []).append(entry)
     session.mark_board_dirty()
     session.append_log_event("comment", task=task_id, agent=author, note=message)
-    print(f"Комментарий добавлен к {task_id}")
+    print(f"Comment added to {task_id}")
 
 
 def grab_task(session: TaskSession, agent: str, note: str, *, force: bool) -> None:
@@ -567,7 +567,7 @@ def grab_task(session: TaskSession, agent: str, note: str, *, force: bool) -> No
             continue
         assign_task(session, task.get("id"), agent, note, action="grab", force=force)
         return
-    print("Нет доступных задач для захвата")
+    print("No available tasks to grab")
 
 
 def add_task(session: TaskSession, args: argparse.Namespace) -> None:
@@ -583,7 +583,7 @@ def add_task(session: TaskSession, args: argparse.Namespace) -> None:
                 continue
         next_id = f"T-{max_num + 1:03d}"
     if any(t.get("id") == next_id for t in tasks):
-        raise SystemExit(f"Задача {next_id} уже существует")
+        raise SystemExit(f"Task {next_id} already exists")
     new_task = {
         "id": next_id,
         "title": args.title,
@@ -602,16 +602,16 @@ def add_task(session: TaskSession, args: argparse.Namespace) -> None:
     }
     normalize_task(new_task)
     tasks.append(new_task)
-    session._tasks_map = {}  # сброс кэша
+    session._tasks_map = {}  # cache reset
     session.mark_board_dirty()
     session.append_log_event("add", task=next_id, agent=args.agent, note=args.note)
-    print(f"Добавлена задача {next_id}: {args.title}")
+    print(f"Task {next_id} added: {args.title}")
 
 
 def ensure_task_arg(value: str | None) -> str:
     task_id = value or os.environ.get("TASK")
     if not task_id:
-        raise SystemExit("Укажите TASK=<id> или аргумент --task")
+        raise SystemExit("Specify TASK=<id> or --task argument")
     return task_id
 
 
@@ -697,59 +697,59 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="task", description="Task board control plane")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    list_parser = sub.add_parser("list", help="Показать доску задач")
+    list_parser = sub.add_parser("list", help="Display task board")
     list_parser.add_argument("--compact", action="store_true")
 
-    status_parser = sub.add_parser("status", help="Синоним list")
+    status_parser = sub.add_parser("status", help="Synonym for list")
     status_parser.add_argument("--compact", action="store_true")
 
-    summary_parser = sub.add_parser("summary", help="Краткое резюме доски")
+    summary_parser = sub.add_parser("summary", help="Brief board summary")
     summary_parser.add_argument("--json", action="store_true")
 
-    metrics_parser = sub.add_parser("metrics", help="Метрики эффективности")
+    metrics_parser = sub.add_parser("metrics", help="Performance metrics")
     metrics_parser.add_argument("--json", action="store_true")
 
-    sub.add_parser("conflicts", help="Карта конфликтов")
+    sub.add_parser("conflicts", help="Conflicts map")
 
-    assign_parser = sub.add_parser("assign", help="Назначить задачу агенту")
+    assign_parser = sub.add_parser("assign", help="Assign task to agent")
     assign_parser.add_argument("--task")
     assign_parser.add_argument("--agent")
     assign_parser.add_argument("--note")
     assign_parser.add_argument("--force", action="store_true")
 
-    select_parser = sub.add_parser("select", help="Алиас assign")
+    select_parser = sub.add_parser("select", help="Alias for assign")
     select_parser.add_argument("--task")
     select_parser.add_argument("--agent")
     select_parser.add_argument("--note")
     select_parser.add_argument("--force", action="store_true")
 
-    grab_parser = sub.add_parser("grab", help="Автозахват доступной задачи")
+    grab_parser = sub.add_parser("grab", help="Auto-grab available task")
     grab_parser.add_argument("--agent")
     grab_parser.add_argument("--note")
     grab_parser.add_argument("--force", action="store_true")
 
-    release_parser = sub.add_parser("release", help="Освободить задачу")
+    release_parser = sub.add_parser("release", help="Release task")
     release_parser.add_argument("--task")
     release_parser.add_argument("--note")
 
-    complete_parser = sub.add_parser("complete", help="Завершить задачу")
+    complete_parser = sub.add_parser("complete", help="Complete task")
     complete_parser.add_argument("--task")
     complete_parser.add_argument("--agent")
     complete_parser.add_argument("--note")
 
-    comment_parser = sub.add_parser("comment", help="Добавить комментарий")
+    comment_parser = sub.add_parser("comment", help="Add comment")
     comment_parser.add_argument("--task")
     comment_parser.add_argument("--author")
     comment_parser.add_argument("--message")
 
-    validate_parser = sub.add_parser("validate", help="Проверить целостность")
+    validate_parser = sub.add_parser("validate", help="Validate integrity")
     validate_parser.set_defaults()
 
-    history_parser = sub.add_parser("history", help="История событий")
+    history_parser = sub.add_parser("history", help="Event history")
     history_parser.add_argument("--limit", type=int, default=int(os.environ.get("LIMIT", "10")))
     history_parser.add_argument("--json", action="store_true")
 
-    add_parser = sub.add_parser("add", help="Добавить задачу")
+    add_parser = sub.add_parser("add", help="Add task")
     add_parser.add_argument("--title")
     add_parser.add_argument("--epic")
     add_parser.add_argument("--priority")
@@ -821,13 +821,13 @@ def main(argv: list[str] | None = None) -> int:
                 task_id = ensure_task_arg(args.task)
                 message = args.message or os.environ.get("MESSAGE")
                 if not message:
-                    raise SystemExit("Укажите MESSAGE=... или аргумент --message")
+                    raise SystemExit("Specify MESSAGE=... or --message argument")
                 author = args.author or os.environ.get("AUTHOR") or "gpt-5-codex"
                 comment_task(session, task_id, author, message)
             elif command == "add":
                 title = args.title or os.environ.get("TITLE")
                 if not title:
-                    raise SystemExit("Укажите --title или переменную TITLE для новой задачи")
+                    raise SystemExit("Specify --title or TITLE variable for new task")
                 args.title = title
                 args.epic = args.epic or os.environ.get("EPIC", "default")
                 args.priority = args.priority or os.environ.get("PRIORITY", "P1")
@@ -835,8 +835,8 @@ def main(argv: list[str] | None = None) -> int:
                 if isinstance(size_value, str):
                     try:
                         size_value = float(size_value)
-                    except ValueError as exc:  # pragma: no cover - простая валидация
-                        raise SystemExit("SIZE должен быть числом") from exc
+                    except ValueError as exc:  # pragma: no cover - simple validation
+                        raise SystemExit("SIZE must be a number") from exc
                 if size_value is None:
                     size_value = 5
                 args.size = int(round(size_value))
@@ -852,8 +852,8 @@ def main(argv: list[str] | None = None) -> int:
                 add_task(session, args)
         return 0
 
-    raise SystemExit(f"Неизвестная команда task: {command}")
+    raise SystemExit(f"Unknown task command: {command}")
 
 
-if __name__ == "__main__":  # pragma: no cover - точка входа
+if __name__ == "__main__":  # pragma: no cover - entry point
     sys.exit(main())

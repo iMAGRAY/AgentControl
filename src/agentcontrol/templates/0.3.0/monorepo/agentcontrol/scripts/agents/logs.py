@@ -62,7 +62,7 @@ def discover_logs(log_dir: Path, agent: str | None = None) -> List[LogEntry]:
 def format_list(entries: Iterable[LogEntry]) -> str:
     rows = list(entries)
     if not rows:
-        return "Логи не найдены."
+        return "Logs not found."
 
     widths = [8, 10, 10, 40]
     header = "{:<8}  {:<10}  {:<10}  {}".format("#", "Timestamp", "Agent", "Command")
@@ -109,7 +109,7 @@ def main() -> int:
 
     subset = logs[-last:]
     if not subset:
-        print("Логи не найдены.")
+        print("Logs not found.")
         return 0
 
     for entry in subset:

@@ -21,7 +21,7 @@ warn() {
 
 ensure_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    warn "требуется команда '$1'"
+    warn "command required '$1'"
     return 1
   fi
   return 0
@@ -29,20 +29,20 @@ ensure_cmd() {
 
 setup_codex() {
   if [[ ! -d "$CODEX_SRC" ]]; then
-    warn "codex-rs не найден в vendor/codex — выполните git submodule update"
+    warn "codex-rs not found in vendor/codex — run git submodule update"
     return 1
   fi
   ensure_cmd cargo || return 1
   local build_log
   build_log="$(mktemp -t codex-build.XXXXXX.log)"
-  log "Собираю Codex CLI (cargo build --release -p codex-cli)"
+  log "Building Codex CLI (cargo build --release -p codex-cli)"
   if ! cargo build --manifest-path "$CODEX_SRC/Cargo.toml" --release --locked -p codex-cli >"$build_log" 2>&1; then
-    warn "cargo build не удалось; лог: $build_log"
+    warn "cargo build failed; log: $build_log"
     return 1
   fi
   local built_bin="$CODEX_SRC/target/release/codex"
   if [[ ! -f "$built_bin" ]]; then
-    warn "после сборки не найден бинарь codex"
+    warn "codex binary not found after build"
     return 1
   fi
   install -m 0755 "$built_bin" "$BIN_DIR/codex.bin"
@@ -54,7 +54,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BIN="$ROOT_DIR/scripts/bin/codex.bin"
 CODEX_HOME_DEFAULT="$ROOT_DIR/state/agents/codex-home"
 if [[ ! -x "$BIN" ]]; then
-  echo "codex CLI не установлен — выполните agentcall agents install" >&2
+  echo "codex CLI not installed — run agentcall agents install" >&2
   exit 1
 fi
 if [[ -z "${CODEX_HOME:-}" ]]; then
@@ -65,7 +65,7 @@ export CODEX_HOME
 exec "$BIN" "$@"
 WRAP
   chmod +x "$BIN_DIR/codex"
-  log "codex CLI собран и размещён: scripts/bin/codex"
+  log "codex CLI built and installed: scripts/bin/codex"
   return 0
 }
 
@@ -79,11 +79,11 @@ setup_claude() {
   mkdir -p "$CLAUDE_DIST"
   local install_log
   install_log="$(mktemp -t claude-install.XXXXXX.log)"
-  log "Устанавливаю @anthropic-ai/claude-code в sandbox"
+  log "Installing @anthropic-ai/claude-code into sandbox"
   if ! npm install --prefix "$CLAUDE_DIST" --no-save --no-package-lock @anthropic-ai/claude-code >"$install_log" 2>&1; then
-    warn "npm install claude-code не удалось; лог: $install_log"
+    warn "npm install claude-code failed; log: $install_log"
     if command -v claude >/dev/null 2>&1; then
-      warn "перехожу на системный claude"
+      warn "falling back to system claude"
       cat <<'WRAP' > "$target"
 #!/usr/bin/env bash
 exec claude "$@"
@@ -95,9 +95,9 @@ WRAP
   fi
   local entry="$CLAUDE_DIST/node_modules/@anthropic-ai/claude-code/cli.js"
   if [[ ! -f "$entry" ]]; then
-    warn "npm установка завершилась без cli.js"
+    warn "npm installation finished without cli.js"
     if command -v claude >/dev/null 2>&1; then
-      warn "перехожу на системный claude"
+      warn "falling back to system claude"
       cat <<'WRAP' > "$target"
 #!/usr/bin/env bash
 exec claude "$@"
@@ -116,7 +116,7 @@ DIST_DIR="$ROOT_DIR/scripts/bin/claude-dist"
 ENTRY="$DIST_DIR/node_modules/@anthropic-ai/claude-code/cli.js"
 CONFIG_DIR_DEFAULT="$ROOT_DIR/state/agents/claude-config"
 if [[ ! -f "$ENTRY" ]]; then
-  echo "claude CLI не установлен — выполните agentcall agents install" >&2
+  echo "claude CLI not installed — run agentcall agents install" >&2
   exit 1
 fi
 if [[ -z "${CLAUDE_CONFIG_DIR:-}" ]]; then
@@ -127,12 +127,12 @@ export CLAUDE_CONFIG_DIR
 exec node "$ENTRY" "$@"
 WRAP
   chmod +x "$target"
-  log "claude CLI установлен локально: scripts/bin/claude"
+  log "claude CLI installed locally: scripts/bin/claude"
   return 0
 }
 
-setup_codex || warn "codex CLI не настроен"
-setup_claude || warn "claude CLI не настроен"
+setup_codex || warn "codex CLI not configured"
+setup_claude || warn "claude CLI not configured"
 
 SANDBOX_BIN="$BIN_DIR/sandbox_exec"
 if [[ ! -f "$SANDBOX_BIN" ]]; then
@@ -140,8 +140,8 @@ if [[ ! -f "$SANDBOX_BIN" ]]; then
 #!/usr/bin/env bash
 set -Eeuo pipefail
 IFS=$'\n\t'
-# Простая обёртка: если доступен bubblewrap, используем его для изоляции,
-# иначе запускаем команду напрямую.
+# Simple wrapper: if bubblewrap is available, use it for isolation,
+# otherwise run the command directly.
 if command -v bwrap >/dev/null 2>&1; then
   WORK_DIR="${SANDBOX_WORK:-/tmp/sandbox-work}"
   mkdir -p "$WORK_DIR"
@@ -157,8 +157,8 @@ else
 fi
 SANDBOX
   chmod +x "$SANDBOX_BIN"
-  log "sandbox_exec настроен"
+  log "sandbox_exec configured"
 fi
 
 printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LOG_DIR/install.timestamp"
-log "Установка CLI агентов завершена"
+log "Agent CLI installation completed"

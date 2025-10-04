@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Проверка окружения и зависимостей для AgentControl Universal Agent SDK."""
+"""Environment and dependencies check for AgentControl Universal Agent SDK."""
 
 from __future__ import annotations
 

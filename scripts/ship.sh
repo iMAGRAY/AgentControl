@@ -9,12 +9,12 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 sdk::load_commands
 
-sdk::log "INF" "Запуск agentcall verify перед ship"
+sdk::log "INF" "Running agentcall verify before ship"
 "$SDK_ROOT/scripts/verify.sh"
 
 VERIFY_REPORT="$SDK_ROOT/reports/verify.json"
 if [[ ! -f "$VERIFY_REPORT" ]]; then
-  sdk::die "ship: отсутствует reports/verify.json после verify"
+  sdk::die "ship: reports/verify.json missing after verify"
 fi
 
 python3 <<'PY' "$VERIFY_REPORT"
@@ -34,7 +34,7 @@ if failed:
 if findings:
     messages.append(f"quality_guard findings: {findings}")
 if messages:
-    print("ship: блокировано — " + "; ".join(messages))
+    print("ship: blocked — " + "; ".join(messages))
     sys.exit(1)
 sys.exit(0)
 PY

@@ -448,7 +448,7 @@ def sync_outputs() -> None:
             if existing != content:
                 skipped.append(rel_path)
                 continue
-            # пользовательский файл: не трогаем, не берём под управление
+            # user file: do not touch, do not manage
             continue
 
         changed = write_if_changed(target, content)
