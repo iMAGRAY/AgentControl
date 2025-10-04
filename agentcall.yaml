@@ -63,3 +63,7 @@ commands:
     steps:
       - name: task
         exec: ["./scripts/task.sh"]
+  cache:
+    steps:
+      - name: cache
+        exec: ["./scripts/cache.py"]

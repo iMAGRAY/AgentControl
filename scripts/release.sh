@@ -5,7 +5,6 @@ LC_ALL=C.UTF-8
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/dist"
-REPORT_DIR="$PROJECT_ROOT/reports"
 if [[ -z "${PYTHON:-}" ]]; then
   if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
     PYTHON="$PROJECT_ROOT/.venv/bin/python"
@@ -43,7 +42,7 @@ rm -rf "$DIST_DIR" "$PROJECT_ROOT"/*.egg-info
 log "Building wheel and sdist via python -m build"
 $PYTHON -m build
 
-VERSION=$($PYTHON - <<'PY'
+VERSION=$(PYTHONPATH="$PROJECT_ROOT/src" $PYTHON - <<'PY'
 from agentcontrol import __version__
 print(__version__)
 PY

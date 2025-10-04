@@ -28,3 +28,4 @@ state/
 context/
 
 scripts/bin/
+.env

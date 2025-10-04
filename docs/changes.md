@@ -1,7 +1,20 @@
+## 0.3.2 — 2025-10-04
+- Added `agentcall cache` helper (`download`, `add`, `list`, `verify`) to simplify подготовку оффлайн-колеса перед запуском в закрытых контурах.
+- Persisted auto-update telemetry summary into `reports/status.json` и `context/auto-update-summary.json`, что делает события fallback/succeeded доступными в Memory Heart.
+- Ввели флаги `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` и `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` для безопасного моделирования отказов PyPI при локальной отладке.
+
+## 0.3.1 — 2025-10-04
+- Added automatic self-update before command execution with telemetry, configurable modes (`AGENTCONTROL_AUTO_UPDATE_MODE`), and environment-based overrides (`AGENTCONTROL_DISABLE_AUTO_UPDATE`, `AGENTCONTROL_AUTO_UPDATE=0`).
+- Introduced offline auto-update fallback via `AGENTCONTROL_AUTO_UPDATE_CACHE`, selecting the newest cached wheel when the network is unreachable and surfacing dedicated telemetry statuses.
+- Added developer overrides `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` and `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` to validate fallback without leaving the repository.
+- Updated documentation and templates to describe the auto-update experience and exit-on-upgrade behaviour.
+- Dependency alignment: pinned `packaging>=25.0` across CLI and lockfiles.
+
 ## 0.3.0 — 2025-10-04
 - Rebranded to *AgentControl Universal Agent SDK* with corporate documentation (README, AGENTS charter, architecture brief).
-- Auto-initialises the capsule on first `agentcall`, keeping all SDK assets inside `./agentcontrol/`.
-- Refreshed 0.3.0 templates (dot files packaged, pipelines executed from the capsule, graceful handling of `pytest` exit code 5).
+- Auto-initialisation now opt-in (`AGENTCONTROL_AUTO_INIT=1`) with explicit disable override (`AGENTCONTROL_NO_AUTO_INIT=1`) and improved onboarding hints when no capsule is detected.
+- Roadmap/status scripts now tolerate empty epics, big tasks, and milestones, emitting actionable warnings without failing pipelines.
+- Templates 0.3.0 provide nested capsule layout, packaged dotfiles, Memory Heart guards, and `PYTHONPATH` injection under `./agentcontrol/`.
 
 ## 0.2.1 — 2025-10-04
 - Improved project detection errors with guidance (`agentcall status` outside project).

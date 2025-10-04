@@ -11,6 +11,13 @@
    ./scripts/release.sh
    ```
    Produces wheel + sdist in `dist/`, generates `agentcontrol.sha256`, and writes `release-manifest.json`.
+4. **Prime the auto-update cache (optional but recommended for restricted networks)**
+   ```bash
+   export AGENTCONTROL_AUTO_UPDATE_CACHE=${AGENTCONTROL_AUTO_UPDATE_CACHE:-~/.agentcontrol/cache}
+   agentcall cache add dist/agentcontrol-<version>-py3-none-any.whl
+   agentcall cache list
+   ```
+   The fallback mechanism consumes the newest cached wheel with a version greater than the installed CLI when PyPI is unavailable.
 4. **Changelog tooling (optional)**
    ```bash
    ./scripts/changelog.py "Short summary"

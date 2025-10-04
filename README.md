@@ -27,11 +27,10 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    Templates are placed under `~/.agentcontrol/templates/<channel>/<version>` and `agentcall` is published to `PATH`.
 3. **Bootstrap a project capsule.**
    ```bash
-   agentcall status ~/workspace/project        # auto-initialises default@stable
-   # or explicitly
    agentcall init --template python ~/workspace/project
    ```
    All SDK artefacts live inside `project/agentcontrol/`; the host repository remains untouched.
+   (Set `AGENTCONTROL_AUTO_INIT=1` if you prefer `agentcall status` to bootstrap automatically.)
 4. **Authenticate agents.**
    ```bash
    cd ~/workspace/project
@@ -45,10 +44,18 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    ```
    The pipeline runs formatting, tests, security checks, SBOM, architecture sync, Memory Heart, and emits `reports/verify.json`.
 
+## 3.1 Automatic Updates
+- `agentcall` checks PyPI for newer public releases on first invocation (default interval: 6h) and upgrades itself automatically before executing the command.
+- Disable on air-gapped hosts via `AGENTCONTROL_DISABLE_AUTO_UPDATE=1` or `AGENTCONTROL_AUTO_UPDATE=0`.
+- Choose the updater (`pip` default, `pipx` alternative) with `AGENTCONTROL_AUTO_UPDATE_MODE`.
+- Provide an offline fallback by pointing `AGENTCONTROL_AUTO_UPDATE_CACHE` to a directory with cached wheels (e.g. `agentcontrol-<version>-py3-none-any.whl`); when PyPI is unreachable the newest cached version greater than the current install is applied and logged as a `fallback_*` telemetry event.
+- For local development or testing you can bypass the dev-environment guard via `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` and simulate network failures with `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1`.
+- All update attempts are logged as telemetry events (`auto-update`) with mode, versions, and exit status; after a successful upgrade CLI exits so you can re-run the original command.
+
 ## 4. Command Portfolio
 | Command | Purpose | Notes |
 | --- | --- | --- |
-| `agentcall status [PATH]` | Dashboard plus capsule auto-bootstrap. | Controlled via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`. |
+| `agentcall status [PATH]` | Dashboard (auto-bootstrap optional). | Enable auto-bootstrap with `AGENTCONTROL_AUTO_INIT=1`; also honour `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`. |
 | `agentcall init / upgrade` | Template provisioning or migration. | Templates: `default`, `python`, `node`, `monorepo`. |
 | `agentcall setup` | Install project dependencies and agent CLIs. | Respect `SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`. |
 | `agentcall verify` | Gold standard quality gate (fmt/lint/tests/coverage/security/docs/SBOM). | Options: `VERIFY_MODE`, `CHANGED_ONLY`, `JSON=1`. |
@@ -60,6 +67,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report`, `tail --limit`, `clear`. |
 | `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |
+| `agentcall cache …` | Manage offline auto-update cache. | `list`, `add <wheel>`, `download <version>`, `verify`. |
 
 ## 5. Capsule Templates
 | Template | Use case | Highlights |

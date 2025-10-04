@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentcontrol"
-version = "0.3.0"
+version = "0.3.2"
 description = "AgentControl SDK global CLI"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "AgentControl Core"}]
 dependencies = [
     "PyYAML>=6.0.3",
+    "packaging>=25.0",
 ]
 
 [project.optional-dependencies]

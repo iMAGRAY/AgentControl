@@ -24,6 +24,11 @@ from agentcontrol.utils.telemetry import record_event, summarize as telemetry_su
 from agentcontrol.plugins import PluginContext
 from agentcontrol import __version__
 from agentcontrol.plugins.loader import load_plugins
+from agentcontrol.utils.updater import maybe_auto_update
+
+
+def _truthy_env(var: str) -> bool:
+    return os.environ.get(var, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _default_project_path(path_arg: str | None) -> Path:
@@ -79,14 +84,19 @@ def _compute_template_checksum(target: Path) -> str:
 
 
 def _print_project_hint(project_path: Path, command: str) -> None:
-    print(f"Path {project_path} is not an AgentControl project.", file=sys.stderr)
-    print('Run `agentcall init [--template ...]` in this directory or pass the project path explicitly.', file=sys.stderr)
+    print(f"Path {project_path} does not contain an AgentControl capsule.", file=sys.stderr)
+    print('Run `agentcall init [--template ...]` here, or pass the project path explicitly.', file=sys.stderr)
     print('Example: `agentcall status /path/to/project`', file=sys.stderr)
+    print('Auto-initialisation is disabled by default. Set `AGENTCONTROL_AUTO_INIT=1` to enable it explicitly, or `AGENTCONTROL_NO_AUTO_INIT=1` to force-disable in wrappers.', file=sys.stderr)
     record_event(SETTINGS, 'error.project_missing', {'command': command, 'cwd': str(project_path)})
 
 
 def _auto_bootstrap_project(bootstrap: BootstrapService, project_path: Path, command: str) -> ProjectId | None:
-    auto_enabled = os.environ.get('AGENTCONTROL_NO_AUTO_INIT', '').lower() not in {'1', 'true', 'yes'}
+    if _truthy_env('AGENTCONTROL_NO_AUTO_INIT'):
+        record_event(SETTINGS, 'autobootstrap.disabled', {'command': command, 'cwd': str(project_path)})
+        return None
+
+    auto_enabled = _truthy_env('AGENTCONTROL_AUTO_INIT')
     if not auto_enabled:
         return None
     capsule_dir = project_path / PROJECT_DIR
@@ -455,6 +465,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    command = getattr(args, "command", None)
+    pipeline = getattr(args, "command_name", None)
+    maybe_auto_update(SETTINGS, __version__, command=command, pipeline=pipeline)
     return args.func(args)
 
 

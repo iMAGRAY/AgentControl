@@ -57,7 +57,12 @@ def extract_section(name: str) -> List[str]:
     blocks = re.findall(pattern, text, re.S)
     if not blocks:
         raise SystemExit(f"Section '{name}' missing in todo.machine.md")
-    return blocks
+    trimmed = []
+    for block in blocks:
+        if block.strip() in {'[]', 'null', ''}:
+            continue
+        trimmed.append(block)
+    return trimmed
 
 
 def parse_scalar(block: str, field: str, cast=str, default=None):
@@ -78,7 +83,7 @@ def parse_scalar(block: str, field: str, cast=str, default=None):
 def parse_phase_progress(block: str) -> Dict[str, int]:
     match = re.search(r"phase_progress:\n((?:\s{2,}.+\n)+)", block)
     if not match:
-        raise SystemExit("Missing phase_progress block in Program")
+        return {}
     data = {}
     for line in match.group(1).splitlines():
         stripped = line.strip()
@@ -104,7 +109,7 @@ def parse_milestones(block: str) -> List[dict]:
 
     section_match = re.search(r"milestones:\n((?:\s*- .+\n(?:\s{1,}.+\n)*)+)", block)
     if not section_match:
-        raise SystemExit("Failed to parse milestones for Program")
+        return []
     current = {}
     for raw_line in section_match.group(1).splitlines():
         line = raw_line.rstrip()
@@ -125,7 +130,7 @@ def parse_milestones(block: str) -> List[dict]:
     if current:
         items.append(current)
     if not items:
-        raise SystemExit("Failed to parse milestones for Program")
+        return []
     return items
 
 
@@ -189,8 +194,8 @@ program = {
     "milestones": parse_milestones(program_block),
 }
 
-epics = [parse_epic(block) for block in epic_blocks]
-big_tasks = [parse_big_task(block) for block in big_task_blocks]
+epics = [parse_epic(block) for block in epic_blocks] if epic_blocks else []
+big_tasks = [parse_big_task(block) for block in big_task_blocks] if big_task_blocks else []
 
 warnings: List[str] = []
 
@@ -212,9 +217,11 @@ for task in board_tasks:
     task.setdefault("big_task", None)
 
 if not epics:
-    raise SystemExit("No epics defined for the roadmap")
+    warnings.append('No epics defined for the roadmap')
+    epics = []
 if not big_tasks:
-    raise SystemExit("No Big Tasks defined for the roadmap")
+    warnings.append('No Big Tasks defined for the roadmap')
+    big_tasks = []
 
 # Aggregation from task board
 epic_totals = defaultdict(float)
@@ -297,8 +304,13 @@ for milestone in milestones:
             milestone["status"] = "in_progress"
         else:
             milestone["status"] = "planned"
+    if "due" not in milestone or not milestone["due"]:
+        warnings.append(
+            f"Milestone {milestone.get('id', milestone.get('title', 'unknown'))} missing due date"
+        )
+        milestone["due"] = "9999-12-31"
 upcoming = [m for m in milestones if m.get("status") != "done"]
-upcoming.sort(key=lambda m: m["due"])
+upcoming.sort(key=lambda m: m.get("due", "9999-12-31"))
 next_milestone = upcoming[0] if upcoming else None
 
 if mode == "json":
@@ -367,9 +379,13 @@ print(format_table("Phases", ["Phase", "Progress"], phase_rows))
 print()
 print(format_table("Milestones", ["Milestone", "Due", "Status"], milestone_rows))
 print()
-print(format_table("Epics", ["ID", "Title", "Status", "Progress", "Size"], epic_table_rows))
+out = format_table("Epics", ["ID", "Title", "Status", "Progress", "Size"], epic_table_rows)
+if out:
+    print(out)
 print()
-print(format_table("Big Tasks", ["ID", "Title", "Status", "Progress", "Epic", "Size"], big_table_rows))
+out = format_table("Big Tasks", ["ID", "Title", "Status", "Progress", "Epic", "Size"], big_table_rows)
+if out:
+    print(out)
 if warnings:
     print()
     print("Warnings:")

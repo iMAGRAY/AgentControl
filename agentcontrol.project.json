@@ -1,11 +1,11 @@
 {
   "channel": "stable",
-  "checksum": "d702163e76265dc5389a3de8260c993e68ff580364bac445ea404b7597fede30",
+  "checksum": "c6c6c1177c1d1860a56dadfcf7841f730c848a864be0f4d654db6eef6ffa1588",
   "metadata": {
-    "created_with": "0.3.0"
+    "created_with": "0.3.2"
   },
   "registry_version": 1,
-  "settings_hash": "70a3dde98b2557470a3696e2ccb7696398064146689f260062ba39a85901e637",
+  "settings_hash": "e5fc6260a73d6d2ddba5e514c947ca0a8ba502c51aa4d573a815c859d0bc123f",
   "template": "default",
   "template_version": "0.3.0"
 }

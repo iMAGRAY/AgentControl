@@ -12,6 +12,7 @@ teach: true
 
 ## 1. Command Surface
 - `agentcall status [PATH]` — dashboard plus capsule auto-bootstrap (tuned via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`).
+- `agentcall self-update --mode <print|pip|pipx>` — manual override for updating the CLI (auto-update runs by default on launch and exits once an upgrade is applied).
 - `agentcall init / upgrade [PATH]` — template provisioning or migration.
 - `agentcall verify` — canonical quality gate (fmt/tests/security/docs/SBOM/Memory Heart).
 - `agentcall fix` / `agentcall review` / `agentcall ship` — remediation, diff review, release gate.
@@ -20,6 +21,7 @@ teach: true
 - `agentcall templates` — list installed templates.
 - `agentcall telemetry <report|tail|clear>` — local telemetry management.
 - `agentcall plugins <list|install|remove|info>` — plugin control via entry points.
+- `agentcall cache <list|add|download>` — curate offline update wheels used by auto-update fallback.
 - `scripts/install_agentcontrol.sh` — one-time template installation on the workstation.
 
 ## 2. Workflow Governance
@@ -39,6 +41,20 @@ teach: true
 - Emergency reset: restore `config/commands.sh` from the template, run `agentcall verify`.
 - Task board recovery: restore `data/tasks.board.json`, clear `state/task_selection.json`, archive `journal/task_events.jsonl`.
 - Agent credentials: remove `state/agents/` or run `agentcall agents logout`.
+
+## 7. Offline Update Cache Runbook
+1. Build or obtain the target wheel (see `docs/release.md`).
+2. Stage the artefact via:
+   ```bash
+   agentcall cache add ~/dist/agentcontrol-<version>-py3-none-any.whl
+   ```
+3. Export `AGENTCONTROL_AUTO_UPDATE_CACHE=/path/to/cache` (or rely on default `~/.agentcontrol/cache`).
+4. Validate inventory:
+   ```bash
+   agentcall cache list
+   ```
+5. Monitor fallback telemetry under `auto-update` events (`fallback_attempt`, `fallback_succeeded`, `fallback_failed`).
+6. For dry-runs inside the repository, export `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` and `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` to simulate PyPI outages; reset `~/.agentcontrol/state/update.json` between runs as needed.
 
 ## 5. References
 - Architecture manifest: `architecture/manifest.yaml`.
