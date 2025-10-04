@@ -34,14 +34,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y shellcheck
 
-      - name: make setup
-        run: make setup
+      - name: Install agentcall CLI
+        run: |
+          pip install .
+          ./scripts/install_agentcontrol.sh
 
-      - name: make lock
-        run: make lock
+      - name: agentcall setup
+        run: agentcall setup
 
-      - name: make verify
-        run: make verify
+      - name: agentcall lock
+        run: agentcall lock
+
+      - name: agentcall verify
+        run: agentcall verify
 
       - name: Upload reports
         if: ${{ always() }}

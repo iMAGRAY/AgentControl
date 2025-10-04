@@ -3,8 +3,8 @@ updated_at: '2025-10-01T05:17:22Z'
 program:
   meta:
     program: v1
-    program_id: codex-sdk
-    name: GPT-5 Codex SDK Toolkit
+    program_id: agentcontrol-sdk
+    name: AgentControl Universal Agent SDK
     objectives:
     - Centralize architectural decisions and roadmaps in a single source of truth.
     - Automate generation of documentation, ADR/RFC indices, and the task board from the architecture manifest.
@@ -15,7 +15,7 @@ program:
       error_rate_pct: 0.1
     owners:
     - vibe-coder
-    - gpt-5-codex
+    - agentcontrol-core
     policies:
       task_min_points: 5
     teach: true
@@ -71,7 +71,7 @@ systems:
   purpose: Govern architecture, documentation, and tasks from one manifest-driven pipeline.
   adr: ADR-0001
   rfc: RFC-0001
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   status: active
   roadmap_phase: m_q1
   dependencies: []
@@ -84,7 +84,7 @@ systems:
   purpose: Assemble the architecture overview and ADR/RFC indices automatically from the manifest.
   adr: ADR-0002
   rfc: null
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   status: planned
   roadmap_phase: m_q1
   dependencies:
@@ -97,7 +97,7 @@ systems:
   purpose: Generate decomposed tasks and keep them aligned with architecture intent.
   adr: ADR-0003
   rfc: null
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   status: planned
   roadmap_phase: m_q1
   dependencies:
@@ -125,7 +125,7 @@ epics:
     Given: a clean repository with the SDK installed.
 
 
-    When: an agent runs make init/dev/verify/ship.
+    When: an agent runs agentcall init/verify/fix/ship/status.
 
 
     Then: every artefact regenerates from manifest.yaml and stays consistent.
@@ -154,14 +154,14 @@ epics:
   progress_pct: 100
   health: green
   tests_required:
-  - make verify
+  - agentcall verify
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
   metrics:
     progress_pct: 100
 big_tasks:
@@ -179,7 +179,7 @@ big_tasks:
   spec: 'Given: manifest.yaml describes the system.
 
 
-    When: make architecture-sync runs.
+    When: agentcall run architecture-sync runs.
 
 
     Then: documentation, todo.machine.md, and the task board are synchronised automatically.
@@ -199,16 +199,16 @@ big_tasks:
   - scripts/lib/architecture_tool.py
   acceptance:
   - All derivative documents depend solely on manifest.yaml.
-  - make verify fails when inconsistencies are detected.
+  - agentcall verify fails when inconsistencies are detected.
   tests_required:
-  - make architecture-sync
+  - agentcall run architecture-sync
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
   metrics:
     progress_pct: 100
 - id: bigtask-doc-ops
@@ -224,7 +224,7 @@ big_tasks:
   spec: 'Given: manifest.yaml changes.
 
 
-    When: make architecture-sync executes.
+    When: agentcall run architecture-sync executes.
 
 
     Then: the central overview, ADR index, and RFC index rebuild deterministically.
@@ -247,14 +247,14 @@ big_tasks:
   acceptance:
   - Generation is idempotent and covers the entire architecture scope.
   tests_required:
-  - make architecture-sync
+  - agentcall run architecture-sync
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
   metrics:
     progress_pct: 100
 - id: bigtask-test-pytest
@@ -275,7 +275,7 @@ big_tasks:
     Given: a clean repository.
 
 
-    When: make verify or make ship runs.
+    When: agentcall verify or agentcall ship runs.
 
 
     Then: pytest executes from .venv and fails the build on test errors.
@@ -294,21 +294,21 @@ big_tasks:
   - config/commands.sh
   - requirements.txt
   acceptance:
-  - make verify creates .venv and runs pytest -q.
+  - agentcall verify creates .venv and runs pytest -q.
   - README documents local test execution steps.
   tests_required:
-  - make verify
+  - agentcall verify
   verify_commands:
-  - make verify
+  - agentcall verify
   audit:
     created_at: '2025-09-30T05:20:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T06:05:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
   metrics:
     progress_pct: 100
 - id: bigtask-doctor-ux
-  title: Improved make doctor output
+  title: Improved agentcall doctor output
   type: ops
   status: done
   priority: P1
@@ -317,10 +317,10 @@ big_tasks:
   scope_paths:
   - scripts/doctor.sh
   - scripts/lib/deps_checker.py
-  spec: 'Intent: make doctor reports easy to scan.
+  spec: 'Intent: agentcall doctor reports easy to scan.
 
 
-    Given: an operator runs make doctor.
+    Given: an operator runs agentcall doctor.
 
 
     When: the environment checks complete.
@@ -342,17 +342,17 @@ big_tasks:
   - scripts/doctor.sh
   - scripts/lib/deps_checker.py
   acceptance:
-  - make doctor prints a status table with details and links.
+  - agentcall doctor prints a status table with details and links.
   - reports/doctor.json remains backward compatible.
   tests_required:
-  - make doctor
+  - agentcall doctor
   verify_commands:
-  - make doctor || true
+  - agentcall doctor || true
   audit:
     created_at: '2025-09-30T05:20:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T06:05:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
   metrics:
     progress_pct: 100
 tasks:
@@ -363,20 +363,20 @@ tasks:
   roadmap_phase: m_q1
   status: done
   priority: P0
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   size_points: 8
   success_criteria:
   - manifest.yaml acts as the sole data source.
-  - make architecture-sync regenerates todo.machine.md and the task board without manual edits.
+  - agentcall run architecture-sync regenerates todo.machine.md and the task board without manual edits.
   failure_criteria:
   - Documentation changes without corresponding manifest.yaml updates.
   blockers: []
   dependencies: []
   comments:
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-29T18:00:00Z'
     message: Sync engine implementation started.
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-30T13:20:00Z'
     message: Sync engine now updates todo.machine.md, task board, and docs from manifest.yaml.
 - id: ARCH-002
@@ -386,7 +386,7 @@ tasks:
   roadmap_phase: m_q1
   status: done
   priority: P1
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   size_points: 8
   success_criteria:
   - docs/architecture/overview.md and ADR/RFC indices generate automatically.
@@ -398,7 +398,7 @@ tasks:
   dependencies:
   - ARCH-001
   comments:
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-30T13:20:00Z'
     message: Overview/ADR/RFC documents now rebuild from manifest.yaml.
 - id: ARCH-003
@@ -408,11 +408,11 @@ tasks:
   roadmap_phase: m_q1
   status: done
   priority: P0
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   size_points: 5
   success_criteria:
   - Every task appears in data/tasks.board.json and links to a system.
-  - make verify validates status consistency.
+  - agentcall verify validates status consistency.
   failure_criteria:
   - Status drift between manifest.yaml and the task board.
   blockers:
@@ -420,27 +420,27 @@ tasks:
   dependencies:
   - ARCH-001
   comments:
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-30T13:20:00Z'
-    message: Task board is now fully generated and validated by make verify.
+    message: Task board is now fully generated and validated by agentcall verify.
 - id: TEST-001
-  title: Pytest in make verify
+  title: Pytest in agentcall verify
   big_task: bigtask-test-pytest
   system: control-plane
   roadmap_phase: m_q1
   status: done
   priority: P0
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   size_points: 5
   success_criteria:
-  - make verify creates .venv and runs pytest -q.
+  - agentcall verify creates .venv and runs pytest -q.
   - README describes the steps for local test execution.
   failure_criteria:
-  - pytest fails to start from make verify.
+  - pytest fails to start from agentcall verify.
   blockers: []
   dependencies: []
   comments:
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-30T05:20:00Z'
     message: Pytest integration completed.
 - id: OPS-001
@@ -450,17 +450,17 @@ tasks:
   roadmap_phase: m_q1
   status: done
   priority: P1
-  owner: gpt-5-codex
+  owner: agentcontrol-core
   size_points: 5
   success_criteria:
-  - make doctor outputs a tabular report with commands and links.
+  - agentcall doctor outputs a tabular report with commands and links.
   - reports/doctor.json preserves the previous schema.
   failure_criteria:
-  - make doctor produces unreadable output.
+  - agentcall doctor produces unreadable output.
   blockers: []
   dependencies: []
   comments:
-  - author: gpt-5-codex
+  - author: agentcontrol-core
     timestamp: '2025-09-30T05:20:00Z'
     message: Doctor formatting upgraded.
 adr:
@@ -469,7 +469,7 @@ adr:
   status: accepted
   date: 2025-09-29
   authors:
-  - gpt-5-codex
+  - agentcontrol-core
   context: The project needs a single source of truth for architecture, documentation, and work orchestration.
   decision: Introduce manifest.yaml describing program structure, epics, tasks, systems, documents, and milestones.
   consequences: All artefacts regenerate automatically; manual edits are disallowed.
@@ -482,7 +482,7 @@ adr:
   status: accepted
   date: 2025-09-29
   authors:
-  - gpt-5-codex
+  - agentcontrol-core
   context: Architecture documentation regularly drifted because Markdown files were edited manually.
   decision: Generate documentation from templates powered by manifest.yaml.
   consequences: Updates land instantly after manifest changes; direct edits are overwritten.
@@ -495,7 +495,7 @@ adr:
   status: accepted
   date: 2025-09-29
   authors:
-  - gpt-5-codex
+  - agentcontrol-core
   context: Tasks were losing traceability to architecture and systems.
   decision: Drive the task board and roadmap from manifest.yaml with mandatory traceability fields.
   consequences: Drift is detected automatically; sync jobs align statuses through generators.
@@ -508,11 +508,11 @@ rfc:
   title: Agent Cycle Interface
   status: draft
   authors:
-  - gpt-5-codex
+  - agentcontrol-core
   date: 2025-09-29
-  summary: Define the entrypoint for make agent-cycle and the mirror REST API consumed by external agents.
+  summary: Define the entrypoint for agentcall run agent-cycle and the mirror REST API consumed by external agents.
   motivation: Hybrid-H pipelines require a unified workflow that orchestrates sync, verification, and reporting.
-  proposal: make agent-cycle runs the generator, validates manifest.yaml, and publishes a report. Offer the same lifecycle through POST /agent-cycle.
+  proposal: agentcall run agent-cycle runs the generator, validates manifest.yaml, and publishes a report. Offer the same lifecycle through POST /agent-cycle.
   related_systems:
   - control-plane
   - doc-sync

@@ -6,18 +6,18 @@
   - vendor/codex (https://github.com/openai/codex)
   - vendor/claude-code (https://github.com/anthropics/claude-code)
 - Update .gitmodules and document `git submodule update --init --recursive`
-- New Make target: `make vendor-update`
+- New Make target: `agentcall run vendor-update`
 
 ## 1. Agents Install
 - Script `scripts/agents/install.sh` builds/copies binaries -> scripts/bin/
-- Make target `make agents-install`
+- Make target `agentcall agents install`
 - Update deps_checker/setup to warn if binaries missing
 
 ## 2. Memory Heart Integration
 - Wrapper `scripts/agents/heart.sh` calling vendor/memory-heart
 - Config `config/heart.yaml`
 - Make targets: `heart-sync`, `heart-query`, `heart-serve`, `heart-update`
-- `make verify` includes `heart-check`
+- `agentcall verify` includes `heart-check`
 
 ## 3. Context & Agent Wrapper
 - `scripts/agents/context.py` generates prompt (progress tables, diff, heart query)
@@ -28,16 +28,16 @@
 ## 4. Memory Heart Pipeline
 - Ensure incremental chunking & embedding using Memory-Heart
 - Folders: context/heart/{vectorstore,chunks,summaries}
-- `make heart-sync` executed during setup (optional `SKIP_HEART`)
+- `agentcall heart sync` executed during setup (optional `SKIP_HEART`)
 - Use heart query for prompts fetch
 
 ## 5. UX Integration
-- `make status` and `make progress` display tables (already done)
+- `agentcall status` and `agentcall progress` display tables (already done)
 - After this plan: integrate agent logs summary
 - README/AGENTS: Document new commands and flows
 
 ## 6. One-Button Flow
-- Update `make setup`: run agents-install, heart-sync
+- Update `agentcall setup`: run agents-install, heart-sync
 - Pre-commit/CI ensures heart/agents available
 
 ## 7. Sandbox & Security

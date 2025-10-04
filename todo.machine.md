@@ -2,11 +2,10 @@
 ```yaml
 program: v1
 program_id: codex-sdk
-name: GPT-5 Codex SDK Toolkit
+name: AgentControl Universal Agent SDK
 objectives:
 - Centralize architectural decisions and roadmaps in a single source of truth.
-- Automate generation of documentation, ADR/RFC indices, and the task board from the
-  architecture manifest.
+- Automate generation of documentation, ADR/RFC indices, and the task board from the architecture manifest.
 - Guarantee reproducible agent decision and delivery cycles end to end.
 kpis:
   uptime_pct: 99.9
@@ -85,7 +84,7 @@ milestones:
     Given: a clean repository with the SDK installed.
 
 
-    When: an agent runs make init/dev/verify/ship.
+    When: an agent runs agentcall init/verify/fix/ship/status.
 
 
     Then: every artefact regenerates from manifest.yaml and stays consistent.
@@ -114,9 +113,9 @@ milestones:
   progress_pct: 100
   health: green
   tests_required:
-  - make verify
+  - agentcall verify
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   audit:
     created_at: '2025-09-29T18:00:00Z'
     created_by: gpt-5-codex
@@ -140,7 +139,7 @@ milestones:
   spec: 'Given: manifest.yaml describes the system.
 
 
-    When: make architecture-sync runs.
+    When: agentcall run architecture-sync runs.
 
 
     Then: documentation, todo.machine.md, and the task board are synchronised automatically.
@@ -157,11 +156,11 @@ milestones:
   health: green
   acceptance:
   - All derivative documents depend solely on manifest.yaml.
-  - make verify fails when inconsistencies are detected.
+  - agentcall verify fails when inconsistencies are detected.
   tests_required:
-  - make architecture-sync
+  - agentcall run architecture-sync
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   docs_updates:
   - docs/architecture/overview.md
   - docs/adr/index.md
@@ -185,7 +184,7 @@ milestones:
   spec: 'Given: manifest.yaml changes.
 
 
-    When: make architecture-sync executes.
+    When: agentcall run architecture-sync executes.
 
 
     Then: the central overview, ADR index, and RFC index rebuild deterministically.
@@ -204,9 +203,9 @@ milestones:
   acceptance:
   - Generation is idempotent and covers the entire architecture scope.
   tests_required:
-  - make architecture-sync
+  - agentcall run architecture-sync
   verify_commands:
-  - make architecture-sync
+  - agentcall run architecture-sync
   docs_updates:
   - docs/architecture/overview.md
   - docs/adr/index.md
@@ -236,7 +235,7 @@ milestones:
     Given: a clean repository.
 
 
-    When: make verify or make ship runs.
+    When: agentcall verify or agentcall ship runs.
 
 
     Then: pytest executes from .venv and fails the build on test errors.
@@ -252,12 +251,12 @@ milestones:
   progress_pct: 100
   health: green
   acceptance:
-  - make verify creates .venv and runs pytest -q.
+  - agentcall verify creates .venv and runs pytest -q.
   - README documents local test execution steps.
   tests_required:
-  - make verify
+  - agentcall verify
   verify_commands:
-  - make verify
+  - agentcall verify
   docs_updates:
   - README.md
   artifacts:
@@ -269,7 +268,7 @@ milestones:
     updated_at: '2025-09-30T06:05:00Z'
     updated_by: gpt-5-codex
 - id: bigtask-doctor-ux
-  title: Improved make doctor output
+  title: Improved agentcall doctor output
   type: ops
   status: done
   priority: P1
@@ -278,10 +277,10 @@ milestones:
   scope_paths:
   - scripts/doctor.sh
   - scripts/lib/deps_checker.py
-  spec: 'Intent: make doctor reports easy to scan.
+  spec: 'Intent: agentcall doctor reports easy to scan.
 
 
-    Given: an operator runs make doctor.
+    Given: an operator runs agentcall doctor.
 
 
     When: the environment checks complete.
@@ -301,12 +300,12 @@ milestones:
   progress_pct: 100
   health: green
   acceptance:
-  - make doctor prints a status table with details and links.
+  - agentcall doctor prints a status table with details and links.
   - reports/doctor.json remains backward compatible.
   tests_required:
-  - make doctor
+  - agentcall doctor
   verify_commands:
-  - make doctor || true
+  - agentcall doctor || true
   docs_updates: []
   artifacts:
   - scripts/doctor.sh

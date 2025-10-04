@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentcontrol"
+version = "0.3.0"
+description = "AgentControl SDK global CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "AgentControl Core"}]
+dependencies = [
+    "PyYAML>=6.0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "diff-cover", "detect-secrets", "pip-audit"]
+
+[project.scripts]
+agentcall = "agentcontrol.cli.main:main"
+agentcontrol = "agentcontrol.cli.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"agentcontrol" = ["templates/**/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+norecursedirs = ["src/agentcontrol/templates"]

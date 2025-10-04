@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentcontrol-hello-plugin"
+version = "0.1.0"
+description = "Sample AgentControl plugin"
+requires-python = ">=3.10"
+
+[project.entry-points."agentcontrol.plugins"]
+hello = "agentcontrol_hello_plugin.plugin:HelloPlugin"

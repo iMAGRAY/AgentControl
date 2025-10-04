@@ -1,87 +1,52 @@
-# AGENTS.md — Project Control Surface (Linux)
+# AgentControl — Operations Charter (Linux)
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-10-01T04:50:00Z
-owners: [ "vibe-coder", "gpt-5-codex" ]
+updated_at: 2025-10-04T09:50:00Z
+owners: [ "vibe-coder", "agentcontrol-core" ]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
-stacks: { runtime: "bash@5", build: "make@4" }
+stacks: { runtime: "bash@5", build: "agentcall@0.3" }
 teach: true
 ```
-## Command Quick Reference
-- `make setup` — one-time bootstrap for system tooling, virtualenv, primary dependencies, Codex/Claude CLIs, and Memory Heart index (opt-out via `SKIP_AGENT_INSTALL=1`, `SKIP_HEART_SYNC=1`).
-- `make vendor-update` — refresh git submodules for bundled agent CLIs and Memory Heart.
-- `make agents-install` — rebuild Codex CLI (Cargo, `vendor/codex`) and install Claude CLI into `scripts/bin/`; falls back to system binaries on failure.
-- `make agents auth` — authenticate all registered CLIs, persist tokens under `state/agents/<name>/`, skip if credentials already valid; reminder: `make agents auth-logout` to rotate accounts.
-- `make agents auth-logout` — purge stored tokens/configuration for every agent.
-- `make agents status` — health snapshot (auth state, credential freshness, CLI availability).
-- `make agents logs [AGENT=...] [LAST=N]` — tail recent agent exchanges directly in the terminal.
-- `make agents workflow pipeline --task=<ID> [--workflow=<name>]` — execute the configured assign→review workflow; aliases exist for direct commands (`make agents-status`, etc.).
-- `make heart-sync` / `make heart-query` / `make heart-serve` — maintain and consume Memory Heart embeddings.
-- `make init` — auto-configure command hooks, roadmap, task board, state files, and status report.
-- `make dev` — print this quick reference and launch dev commands from `config/commands.sh`.
-- `make verify` — comprehensive QA gate (`SDK_VERIFY_COMMANDS`, roadmap/task board validation, architecture sync, Memory Heart freshness, reports generation).
-- `make review` — diff-centred review (`SDK_REVIEW_LINTERS`, `SDK_TEST_COMMAND`, diff-cover, quality_guard) with `reports/review.json` output.
-- `make doctor` — environment and dependency diagnostics saved to `reports/doctor.json`.
-- `make fix` — run autofixes defined in `SDK_FIX_COMMANDS`.
-- `make ship` — run `make verify` (`VERIFY_MODE=prepush`), then release choreography defined in `SDK_SHIP_COMMANDS`.
-- `python3 scripts/sdk.py {verify|review|doctor|status|summary|task|qa}` — CLI alternative to Make targets.
-- `make lock` — regenerate `requirements.lock` with hashes and update SBOM (`sbom/python.json`).
-- `make status` — dashboard view (program, epics, big tasks, roadmap phases, task board) with automatic `make progress` sync.
-- `make roadmap` — phase-by-phase progress report.
-- `make progress` — recompute weighted progress from `architecture/manifest.yaml` and `todo.machine.md`, synchronise YAML blocks.
-- `make agent-assign`, `make agent-plan`, `make agent-analysis` — delegate work to agents with sandboxed execution.
-- `make arch-edit` / `make arch-apply` — stage and safely apply changes to `architecture/manifest.yaml`.
-- `make agent-cycle` — full Hybrid-H automation: sync → quality gates → agent summary (`reports/agent_runs/<timestamp>.yaml`).
-- Task board commands: `make task add/take/drop/done/status/summary/conflicts/metrics/history validate` (aliases without hyphen also available).
 
-## Agent Workflows
-- Configuration resides in `config/agents.json`. Example:
-```jsonc
-{
-  "workflows": {
-    "default": {
-      "assign_agent": "codex",
-      "assign_role": "Implementation Lead",
-      "review_agent": "claude",
-      "review_role": "Staff Reviewer"
-    }
-  }
-}
-```
-- Override on the fly via `ASSIGN_AGENT`, `ASSIGN_ROLE`, `REVIEW_AGENT`, `REVIEW_ROLE`.
-- Logs for each agent run are written under `reports/agents/` together with execution metadata.
+## 1. Command Surface (для агентов и инженеров)
+- `agentcall status [PATH]` — дашборд и автоинициализация капсулы (`AGENTCONTROL_DEFAULT_TEMPLATE/CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`).
+- `agentcall init|upgrade [PATH]` — управление шаблонами и миграциями.
+- `agentcall verify` — стандарт качества (fmt/tests/security/docs/SBOM/Heart).
+- `agentcall fix` / `agentcall review` / `agentcall ship` — коррекция, код-ревью и релизный гейт.
+- `agentcall agents <install|auth|status|logs|workflow>` — управление CLI агентов.
+- `agentcall heart <sync|query|serve>` — Memory Heart.
+- `agentcall templates` — перечень пакетов шаблонов.
+- `agentcall telemetry <report|tail|clear>` — телеметрия.
+- `agentcall plugins <list|install|remove|info>` — расширения через entry points.
+- Скрипт `scripts/install_agentcontrol.sh` — первичное размещение шаблонов.
 
-## Planning Model
-- **Global plan:** Program → Epics → Big Tasks live in `todo.machine.md` and are regenerated by `make progress` / `make architecture-sync`.
-- **Micro tasks:** managed exclusively via the Update Plan Tool (UPT) inside Codex CLI; the queue must be empty for `make ship`.
-- **Task board:** persisted in `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
-- **Default agent:** `gpt-5-codex`, override per command through `AGENT` or workflow variables.
+## 2. Управление рабочим процессом
+- **Workflow registry:** `config/agents.json`, override через `ASSIGN_AGENT`, `REVIEW_AGENT` и т.д.
+- **Логи:** `reports/agents/<timestamp>.log` + метаданные.
+- **Микрозадачи:** ведутся только через Update Plan Tool; перед `agentcall ship` очередь должна быть пустой.
+- **Task board:** `data/tasks.board.json`, `journal/task_events.jsonl`, `state/task_state.json`.
 
-## Quality Gates
-- Structural integrity: `AGENTS.md`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
-- Shell scripts: `shellcheck` when available.
-- Custom commands from `config/commands.sh` (verify/fix/review/ship pipelines).
-- Quality guard: secret/placeholder detection (warnings by default, promote to errors with `EXIT_ON_FAIL=1`).
-- Reports: `reports/verify.json`, `reports/review.json`, `reports/status.json`, `reports/doctor.json`.
-- Memory Heart freshness enforced via `scripts/agents/heart_check.sh` inside `make verify`.
-- Release guard: `make ship` blocks on any failing gate or open micro tasks (UPT).
+## 3. Контроль качества
+- Обязательные артефакты: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
+- Проверки: `agentcall verify` (shellcheck, quality_guard, sbom, lock, heart_check).
+- Отчёты: `reports/verify.json`, `reports/review.json`, `reports/status.json`, `reports/doctor.json`.
+- Release gate: `agentcall ship` прерывается на любых красных шагах или открытых micro tasks.
 
-## Rollback & Recovery
-- Feature toggles: environment variables `SDK_*_COMMANDS` in `config/commands.sh`.
-- Emergency procedure: restore `config/commands.sh` from template and rerun `make verify`.
-- Task board reset: restore `data/tasks.board.json`, clear `state/task_selection.json`, archive `journal/task_events.jsonl`.
-- Agent state: remove `state/agents/` or run `make agents auth-logout` to rebuild clean credentials.
+## 4. Восстановление
+- Настройка пайплайнов: переменные `SDK_*_COMMANDS` в `config/commands.sh`.
+- Срочный откат: восстановить `config/commands.sh` из шаблона, выполнить `agentcall verify`.
+- Очистка task board: восстановить `data/tasks.board.json`, обнулить `state/task_selection.json`, архивировать `journal/task_events.jsonl`.
+- Агентские токены: удалить `state/agents/` или `agentcall agents logout`.
 
-## Reference Links
-- Architectural manifest: `architecture/manifest.yaml`.
-- ADRs: `docs/adr/`; RFCs: `docs/rfc/`.
-- Architecture overview: `docs/architecture/overview.md`.
-- Change log seed: `docs/changes.md`.
-- Scripts: `scripts/`; Git hooks (if configured): `scripts/git-hooks/`.
-- Roadmap sync automation: `scripts/sync-roadmap.sh`.
-- Architecture sync automation: `scripts/sync-architecture.sh`.
-- Agent binaries: `scripts/bin/` (populated by `make agents-install`).
-- Status snapshots: `reports/status.json`, `reports/architecture-dashboard.json`.
-- Agent auth state: `state/agents/auth_status.json`.
+## 5. Справочные материалы
+- Архитектура: `architecture/manifest.yaml`, `docs/architecture/overview.md`.
+- Управление изменениями: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
+- Скрипты: `scripts/` (включая `scripts/agents/*.sh`, `scripts/lib/*.py`).
+- Снапшоты статуса: `reports/status.json`, `reports/architecture-dashboard.json`.
+- Авторизация агентов: `state/agents/auth_status.json`.
+
+## 6. Контакты и эскалация
+- Владелец: команда AgentControl Core (см. `owners` в YAML блоке).
+- Эскалация: `agentcall agents workflow --task=<ID>` с указанием SLA; при критических инцидентах — прямой контакт владельца.

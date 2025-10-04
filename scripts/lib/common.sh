@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Общие утилиты SDK GPT-5 Codex.
+# Общие утилиты AgentControl Universal Agent SDK.
 
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly SDK_ROOT

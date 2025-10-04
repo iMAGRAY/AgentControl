@@ -1,0 +1,2 @@
+recursive-include src/agentcontrol/templates *
+recursive-include src/agentcontrol/templates .*
