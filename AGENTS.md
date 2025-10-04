@@ -2,51 +2,51 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-10-04T09:50:00Z
-owners: [ "vibe-coder", "agentcontrol-core" ]
+updated_at: 2025-10-04T10:05:00Z
+owners: ["vibe-coder", "agentcontrol-core"]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
 stacks: { runtime: "bash@5", build: "agentcall@0.3" }
 teach: true
 ```
 
-## 1. Command Surface (для агентов и инженеров)
-- `agentcall status [PATH]` — дашборд и автоинициализация капсулы (`AGENTCONTROL_DEFAULT_TEMPLATE/CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`).
-- `agentcall init|upgrade [PATH]` — управление шаблонами и миграциями.
-- `agentcall verify` — стандарт качества (fmt/tests/security/docs/SBOM/Heart).
-- `agentcall fix` / `agentcall review` / `agentcall ship` — коррекция, код-ревью и релизный гейт.
-- `agentcall agents <install|auth|status|logs|workflow>` — управление CLI агентов.
-- `agentcall heart <sync|query|serve>` — Memory Heart.
-- `agentcall templates` — перечень пакетов шаблонов.
-- `agentcall telemetry <report|tail|clear>` — телеметрия.
-- `agentcall plugins <list|install|remove|info>` — расширения через entry points.
-- Скрипт `scripts/install_agentcontrol.sh` — первичное размещение шаблонов.
+## 1. Command Surface
+- `agentcall status [PATH]` — dashboard plus capsule auto-bootstrap (tuned via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`).
+- `agentcall init / upgrade [PATH]` — template provisioning or migration.
+- `agentcall verify` — canonical quality gate (fmt/tests/security/docs/SBOM/Memory Heart).
+- `agentcall fix` / `agentcall review` / `agentcall ship` — remediation, diff review, release gate.
+- `agentcall agents <install|auth|status|logs|workflow>` — agent CLI lifecycle management.
+- `agentcall heart <sync|query|serve>` — Memory Heart operations.
+- `agentcall templates` — list installed templates.
+- `agentcall telemetry <report|tail|clear>` — local telemetry management.
+- `agentcall plugins <list|install|remove|info>` — plugin control via entry points.
+- `scripts/install_agentcontrol.sh` — one-time template installation on the workstation.
 
-## 2. Управление рабочим процессом
-- **Workflow registry:** `config/agents.json`, override через `ASSIGN_AGENT`, `REVIEW_AGENT` и т.д.
-- **Логи:** `reports/agents/<timestamp>.log` + метаданные.
-- **Микрозадачи:** ведутся только через Update Plan Tool; перед `agentcall ship` очередь должна быть пустой.
-- **Task board:** `data/tasks.board.json`, `journal/task_events.jsonl`, `state/task_state.json`.
+## 2. Workflow Governance
+- **Workflow registry:** `config/agents.json`, overridable through env (`ASSIGN_AGENT`, `REVIEW_AGENT`, etc.).
+- **Agent logs:** stored under `reports/agents/` with metadata for each run.
+- **Micro tasks:** managed exclusively via the Update Plan Tool; must be empty before `agentcall ship`.
+- **Task board:** synchronised across `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
 
-## 3. Контроль качества
-- Обязательные артефакты: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
-- Проверки: `agentcall verify` (shellcheck, quality_guard, sbom, lock, heart_check).
-- Отчёты: `reports/verify.json`, `reports/review.json`, `reports/status.json`, `reports/doctor.json`.
-- Release gate: `agentcall ship` прерывается на любых красных шагах или открытых micro tasks.
+## 3. Quality Controls
+- Mandatory artefacts: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
+- Core checks: `agentcall verify` (shellcheck, quality_guard, SBOM, lock validation, heart_check).
+- Reports: `reports/verify.json`, `reports/review.json`, `reports/status.json`, `reports/doctor.json`.
+- Release guard: `agentcall ship` blocks on failed checks or open micro tasks.
 
-## 4. Восстановление
-- Настройка пайплайнов: переменные `SDK_*_COMMANDS` в `config/commands.sh`.
-- Срочный откат: восстановить `config/commands.sh` из шаблона, выполнить `agentcall verify`.
-- Очистка task board: восстановить `data/tasks.board.json`, обнулить `state/task_selection.json`, архивировать `journal/task_events.jsonl`.
-- Агентские токены: удалить `state/agents/` или `agentcall agents logout`.
+## 4. Recovery Playbook
+- Pipeline tuning: adjust `SDK_*_COMMANDS` within `agentcontrol/config/commands.sh`.
+- Emergency reset: restore `config/commands.sh` from the template, run `agentcall verify`.
+- Task board recovery: restore `data/tasks.board.json`, clear `state/task_selection.json`, archive `journal/task_events.jsonl`.
+- Agent credentials: remove `state/agents/` or run `agentcall agents logout`.
 
-## 5. Справочные материалы
-- Архитектура: `architecture/manifest.yaml`, `docs/architecture/overview.md`.
-- Управление изменениями: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
-- Скрипты: `scripts/` (включая `scripts/agents/*.sh`, `scripts/lib/*.py`).
-- Снапшоты статуса: `reports/status.json`, `reports/architecture-dashboard.json`.
-- Авторизация агентов: `state/agents/auth_status.json`.
+## 5. References
+- Architecture manifest: `architecture/manifest.yaml`.
+- Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
+- Script inventory: `scripts/` (including `scripts/agents/*.sh`, `scripts/lib/*.py`).
+- Status snapshots: `reports/status.json`, `reports/architecture-dashboard.json`.
+- Agent authentication state: `state/agents/auth_status.json`.
 
-## 6. Контакты и эскалация
-- Владелец: команда AgentControl Core (см. `owners` в YAML блоке).
-- Эскалация: `agentcall agents workflow --task=<ID>` с указанием SLA; при критических инцидентах — прямой контакт владельца.
+## 6. Escalation
+- Owners: AgentControl Core (see YAML header).
+- Raise issues via `agentcall agents workflow --task=<ID>` with SLA context; escalate directly to owners for critical incidents.

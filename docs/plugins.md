@@ -1,13 +1,13 @@
-# AgentControl — Руководство по плагинам
+# AgentControl Plugin Guide
 
-## 1. Контур
-- Entry point: `agentcontrol.plugins`.
-- Контракт: объект с методом `register(registrar, context)`.
-- Регистратор предоставляет `add_subparser(name, help_text, builder)` для добавления верхнеуровневой команды `agentcall`.
-- Builder принимает `(argparse_parser, PluginContext)` и возвращает обработчик `Callable[[Namespace], int]`.
+## Overview
+- Entry point group: `agentcontrol.plugins`.
+- Contract: expose `register(registrar, context)`.
+- Use `registrar.add_subparser(name, help_text, builder)` to add top-level `agentcall` commands.
+- The builder receives `(argparse_parser, PluginContext)` and must return a handler accepting `argparse.Namespace`.
 
-## 2. Минимальный пример
-Репозиторий: `examples/plugins/agentcontrol-hello-plugin`
+## Minimal Example
+Reference implementation: `examples/plugins/agentcontrol-hello-plugin`
 ```python
 from agentcontrol.plugins import PluginRegistrar, PluginContext
 
@@ -18,18 +18,18 @@ def register(registrar: PluginRegistrar, context: PluginContext) -> None:
             print(f"Hello, {args.name}!")
             return 0
         return handler
-    registrar.add_subparser("hello-plugin", "Приветствие", builder)
+    registrar.add_subparser("hello-plugin", "Greets the caller", builder)
 ```
 
-## 3. Поток использования
+## Usage Flow
 ```bash
 pip install -e examples/plugins/agentcontrol-hello-plugin
 agentcall plugins list
 agentcall hello-plugin --name Agent
 ```
 
-## 4. Рекомендации
-- Поддерживайте идемпотентность и явные побочные эффекты.
-- Используйте `record_event` для телеметрии, если важна наблюдаемость.
-- Изменяемые настройки публикуйте через переменные `AGENTCONTROL_<PLUGIN>`.
-- Покрывайте команды тестами и документируйте аргументы в README плагина.
+## Best Practices
+- Keep commands idempotent; clearly document side effects.
+- Emit telemetry via `record_event` when observability matters.
+- Read configuration from `AGENTCONTROL_<PLUGIN>` environment variables.
+- Provide automated tests and concise README documentation with every plugin.

@@ -1,7 +1,7 @@
 ## Program
 ```yaml
 program: v1
-program_id: codex-sdk
+program_id: agentcontrol-sdk
 name: AgentControl Universal Agent SDK
 objectives:
 - Centralize architectural decisions and roadmaps in a single source of truth.
@@ -13,7 +13,7 @@ kpis:
   error_rate_pct: 0.1
 owners:
 - vibe-coder
-- gpt-5-codex
+- agentcontrol-core
 policies:
   task_min_points: 5
 teach: true

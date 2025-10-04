@@ -1,35 +1,35 @@
-# AgentControl — Корпоративный регламент выпуска
+# AgentControl Release Playbook
 
-1. **Предрелизная проверка.**
+1. **Pre-flight checks**
    ```bash
    .venv/bin/python -m pytest
    ```
-   Рабочее дерево должно быть чистым, тесты — зелёные.
-2. **Версионирование.** Обновите `src/agentcontrol/__init__.py`, `pyproject.toml`, добавьте запись в `docs/changes.md`.
-3. **Сборка артефактов.**
+   Ensure a clean working tree and a fully green test suite.
+2. **Version bump**: update `src/agentcontrol/__init__.py`, `pyproject.toml`, and add a changelog entry.
+3. **Build artefacts**
    ```bash
    ./scripts/release.sh
    ```
-   Скрипт создаёт wheel и sdist в `dist/`, считает SHA256 (`agentcontrol.sha256`) и формирует `release-manifest.json`.
-4. **Актуализация changelog (опционально).**
+   Produces wheel + sdist in `dist/`, generates `agentcontrol.sha256`, and writes `release-manifest.json`.
+4. **Changelog tooling (optional)**
    ```bash
-   ./scripts/changelog.py "Краткое описание изменений"
+   ./scripts/changelog.py "Short summary"
    git add docs/changes.md
    ```
-5. **Публикация (если требуется PyPI).**
+5. **Publish to PyPI (optional)**
    ```bash
    python -m twine upload dist/*
    ```
-6. **Тэгирование и пуш.**
+6. **Tag and push**
    ```bash
    git tag -s vX.Y.Z -m "agentcontrol vX.Y.Z"
    git push origin main --tags
    ```
-7. **Коммуникация.** Обновите README (секция «Быстрый старт»), отправьте релиз-заметки заинтересованным сторонам.
-8. **Пострелизный контроль.**
+7. **Communications**: refresh README quick-start and circulate release notes.
+8. **Post-release validation**
    ```bash
    pipx install agentcontrol==X.Y.Z
    agentcall init ~/tmp/demo
    agentcall verify
    ```
-   Фиксируйте результаты в `reports/release-validation.json` (при необходимости).
+   Capture results in `reports/release-validation.json` if required.

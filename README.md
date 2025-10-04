@@ -1,101 +1,101 @@
 # AgentControl Universal Agent SDK
 
-Корпоративный SDK для автономных инженеров и агентных команд. Платформа обеспечивает единый операционный контур, надежный набор команд и готовую инфраструктуру, превращая любую кодовую базу в управляемую среду разработки с нулевым временем запуска.
+AgentControl is an enterprise-grade toolkit that standardises how autonomous engineers and human teams operate on any codebase. The SDK provisions a consistent command surface, deterministic governance assets, and ready-to-use agent runtimes, so delivery begins immediately without bespoke project bootstrapping.
 
-## 1. Ценность и позиционирование
-- **Единая точка входа.** Команды и агенты работают через CLI `agentcall`, получая согласованные пайплайны, отчёты и статусы независимо от стека.
-- **Гарантированная управляемость.** Артефакты архитектуры, дорожная карта и статус борда синхронизируются автоматически, исключая ручной дрейф.
-- **Готовность для ИИ-агентов.** Авторизация Codex/Claude, Memory Heart и пакет инструментов разворачиваются без ручных шагов, что минимизирует когнитивную нагрузку.
-- **Комплаенс по умолчанию.** Локфайлы, SBOM, аудит качества и выпуска интегрированы в стандартный пайплайн.
+## 1. Value Proposition
+- **Single operational entrypoint.** The `agentcall` CLI aligns humans and agents on the same verified pipelines (`init`, `verify`, `ship`, `status`, and more).
+- **Integrated governance.** Roadmaps, task boards, and architecture manifests remain in sync through automated status and progress commands.
+- **Agent-first runtime.** Codex/Claude CLIs, Memory Heart, and supporting scripts install without manual steps, keeping cognitive load low for automated contributors.
+- **Compliance by default.** Lockfiles, SBOM generation, audit artefacts, and release gates are embedded into the workflow.
 
-## 2. Архитектура решения
-| Слой | Ответственность | Основные артефакты |
+## 2. Solution Architecture
+| Layer | Responsibility | Key artefacts |
 | --- | --- | --- |
-| **CLI & Pipelines** | Управление жизненным циклом команд (`init`, `verify`, `ship`, `status`). | `src/agentcontrol/cli`, `src/agentcontrol/app` |
-| **Domain & Governance** | Модели капсулы, шаблонов и команд, гарантия инвариантов. | `src/agentcontrol/domain`, `src/agentcontrol/ports` |
-| **Шаблоны** | Готовые капсулы (`default`, `python`, `node`, `monorepo`) с инфраструктурой внутри `./agentcontrol/`. | `src/agentcontrol/templates/<version>/<template>` |
-| **Плагины** | Расширение CLI через entry point `agentcontrol.plugins`. | `src/agentcontrol/plugins`, `examples/plugins/` |
-| **Наблюдаемость и телеметрия** | Структурированные события в `~/.agentcontrol/logs/`, Memory Heart, отчёты. | `src/agentcontrol/utils/telemetry`, `reports/` |
+| **CLI & Pipelines** | Lifecycle orchestration (`init`, `verify`, `ship`, `status`). | `src/agentcontrol/cli`, `src/agentcontrol/app` |
+| **Domain & Governance** | Capsule, template, and command models with explicit invariants. | `src/agentcontrol/domain`, `src/agentcontrol/ports` |
+| **Templates** | Project capsules (`default`, `python`, `node`, `monorepo`) fully contained inside `./agentcontrol/`. | `src/agentcontrol/templates/<version>/<template>` |
+| **Plugin framework** | Extensible CLI via the `agentcontrol.plugins` entry point group. | `src/agentcontrol/plugins`, `examples/plugins/` |
+| **Observability** | Telemetry, Memory Heart, status artefacts. | `src/agentcontrol/utils/telemetry`, `reports/` |
 
-## 3. Быстрый старт (на новой машине)
-1. **Предпосылки.** Bash ≥ 5.0, Python ≥ 3.10, Node.js ≥ 18, Cargo ≥ 1.75. Для CI фиксируйте версии инструментов.
-2. **Глобальная установка SDK.**
+## 3. Quick Start (fresh machine)
+1. **Prerequisites.** Bash ≥ 5.0, Python ≥ 3.10, Node.js ≥ 18, Cargo ≥ 1.75. Pin versions in CI for reproducibility.
+2. **Install the SDK globally.**
    ```bash
    ./scripts/install_agentcontrol.sh
-   pipx install agentcontrol  # либо python3 -m pip install agentcontrol
+   pipx install agentcontrol  # alternatively: python3 -m pip install agentcontrol
    ```
-   Шаблоны размещаются в `~/.agentcontrol/templates/<channel>/<version>`, CLI доступен как `agentcall`.
-3. **Развёртывание капсулы проекта.**
+   Templates are placed under `~/.agentcontrol/templates/<channel>/<version>` and `agentcall` is published to `PATH`.
+3. **Bootstrap a project capsule.**
    ```bash
-   agentcall status ~/workspace/project   # автоинициализация капсулы default@stable
-   # или явное управление
+   agentcall status ~/workspace/project        # auto-initialises default@stable
+   # or explicitly
    agentcall init --template python ~/workspace/project
    ```
-   Все артефакты SDK размещаются в каталоге `project/agentcontrol/`, основная кодовая база остаётся нетронутой.
-4. **Аутентификация агентов.**
+   All SDK artefacts live inside `project/agentcontrol/`; the host repository remains untouched.
+4. **Authenticate agents.**
    ```bash
    cd ~/workspace/project
    agentcall agents auth
    agentcall agents status
    ```
-   Токены сохраняются под `~/.agentcontrol/state/`.
-5. **Квалификация окружения.**
+   Credentials are stored beneath `~/.agentcontrol/state/`.
+5. **Qualify the environment.**
    ```bash
    agentcall verify
    ```
-   Пайплайн выполняет форматирование, тесты, безопасность, синхронизацию архитектуры, Memory Heart и формирует `reports/verify.json`.
+   The pipeline runs formatting, tests, security checks, SBOM, architecture sync, Memory Heart, and emits `reports/verify.json`.
 
-## 4. Командный справочник
-| Команда | Назначение | Параметры/заметки |
+## 4. Command Portfolio
+| Command | Purpose | Notes |
 | --- | --- | --- |
-| `agentcall status [PATH]` | Дашборд программы, автоинициализация капсулы. | Переменные `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT` |
-| `agentcall init/upgrade` | Первичная инициализация или миграция шаблона. | Шаблоны `default`, `python`, `node`, `monorepo` |
-| `agentcall setup` | Системные и проектные зависимости, установка CLI агентов. | `SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC` |
-| `agentcall verify` | Стандарт качества: fmt/lint/tests/coverage/security/docs/SBOM. | `VERIFY_MODE`, `CHANGED_ONLY`, `JSON=1` |
-| `agentcall fix` | Автопочинки из `config/commands.sh`. | Используйте после локальных правок |
-| `agentcall review` | Дифф-ревью с отчётом и diff-cover. | `REVIEW_BASE_REF`, `REVIEW_SAVE` |
-| `agentcall ship` | Релизный гейт (verify → релиз-хореография). | Блокирует при открытых микрозадачах или красных проверках |
-| `agentcall agents …` | Управление CLI агентов (install/auth/status/logs/workflow). | Конфиг `config/agents.json` |
-| `agentcall heart …` | Обслуживание Memory Heart (`sync`, `query`, `serve`). | Настройки в `config/heart.json` |
-| `agentcall templates` | Перечень установленных шаблонов. | Каналы `stable`, `nightly` |
-| `agentcall telemetry …` | Работа с локальной телеметрией. | `report`, `tail --limit`, `clear` |
-| `agentcall plugins …` | Управление плагинами (`list`, `install`, `remove`, `info`). | Entry point `agentcontrol.plugins` |
+| `agentcall status [PATH]` | Dashboard plus capsule auto-bootstrap. | Controlled via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`. |
+| `agentcall init / upgrade` | Template provisioning or migration. | Templates: `default`, `python`, `node`, `monorepo`. |
+| `agentcall setup` | Install project dependencies and agent CLIs. | Respect `SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`. |
+| `agentcall verify` | Gold standard quality gate (fmt/lint/tests/coverage/security/docs/SBOM). | Options: `VERIFY_MODE`, `CHANGED_ONLY`, `JSON=1`. |
+| `agentcall fix` | Execute safe autofixes from `config/commands.sh`. | Re-run `verify` afterwards. |
+| `agentcall review` | Diff-focused review workflow with diff-cover support. | Options: `REVIEW_BASE_REF`, `REVIEW_SAVE`. |
+| `agentcall ship` | Release gate (verify → release choreography). | Blocks on failing checks or open micro tasks. |
+| `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
+| `agentcall heart …` | Memory Heart lifecycle (`sync`, `query`, `serve`). | Settings in `config/heart.json`. |
+| `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
+| `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report`, `tail --limit`, `clear`. |
+| `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |
 
-## 5. Шаблоны капсул
-| Шаблон | Сценарий | Особенности |
+## 5. Capsule Templates
+| Template | Use case | Highlights |
 | --- | --- | --- |
-| `default` | Полный контур управления (архитектура, дорожная карта, отчёты). | Готовые скрипты `verify/fix/ship`, документация, Memory Heart |
-| `python` | Backend на Python + pytest. | Автоматическая работа в `agentcontrol/.venv`, sample tests |
-| `node` | Node.js сервисы с ESLint и `node --test`. | Сценарии npm завернуты в капсулу |
-| `monorepo` | Python backend + Node фронтенд. | Сквозные пайплайны для обоих пакетов |
+| `default` | Full governance skeleton with architecture and documentation. | Turnkey `verify/fix/ship` scripts, Memory Heart integration. |
+| `python` | Python backend with pytest. | Isolated virtualenv inside `agentcontrol/.venv`, sample tests included. |
+| `node` | Node.js service with ESLint and `node --test`. | npm workflows encapsulated within the capsule. |
+| `monorepo` | Python backend + Node front-end. | Coordinated pipelines across both packages. |
 
-Шаблоны содержат всю инфраструктуру внутри `agentcontrol/`; собственные шаблоны добавляйте в `src/agentcontrol/templates/<version>/<name>` и обновляйте `template.json`.
+Custom templates live under `src/agentcontrol/templates/<version>/<name>`; update `template.json` accordingly.
 
-## 6. Релиз и поставка
-1. Обновите версию: `src/agentcontrol/__init__.py`, `pyproject.toml`, changelog.
-2. Соберите выпуск: `./scripts/release.sh` (wheel, sdist, SHA256, manifest).
-3. Публикация (опционально): `python -m twine upload dist/*`.
-4. Для офлайн-установки передайте `.whl` и `agentcontrol.sha256`, затем `pipx install --force <wheel>`.
+## 6. Release Procedure
+1. Update version metadata (`src/agentcontrol/__init__.py`, `pyproject.toml`) and changelog.
+2. Build artefacts with `./scripts/release.sh` (wheel, sdist, SHA256, manifest).
+3. Optional publication via `python -m twine upload dist/*`.
+4. Offline install: distribute the `.whl` and `agentcontrol.sha256`, then run `pipx install --force <wheel>`.
 
-## 7. Наблюдаемость и телеметрия
-- Все события локальные, хранятся в `~/.agentcontrol/logs/telemetry.jsonl`. Опция `AGENTCONTROL_TELEMETRY=0` отключает сбор.
-- Memory Heart размещается в `agentcontrol/state/heart/`, доступ через `agentcall heart query` и `agentcall heart serve`.
-- Отчёты: `reports/verify.json`, `reports/status.json`, `reports/review.json`, `reports/doctor.json`.
+## 7. Observability
+- Telemetry is local, stored in `~/.agentcontrol/logs/telemetry.jsonl`. Disable with `AGENTCONTROL_TELEMETRY=0`.
+- Memory Heart resides in `agentcontrol/state/heart/`; query using `agentcall heart query` or serve via `agentcall heart serve`.
+- Key artefacts: `reports/verify.json`, `reports/status.json`, `reports/review.json`, `reports/doctor.json`.
 
-## 8. Сервисная модель
-- Владелец продукта: архитектурная группа (см. `AGENTS.md`).
-- Операционное окно: 24/7, SLA на ответы агентов определяется программой эксплуатации.
-- Канал поддержки: задачи через `agentcall agents workflow --task=<ID>` либо direct ping владельца из `AGENTS.md`.
+## 8. Service Model
+- Product owner: AgentControl Core team (see `AGENTS.md`).
+- Operational coverage: 24/7, with programme-level SLA for agent responses.
+- Escalation: raise tasks via `agentcall agents workflow --task=<ID>` or contact the listed owner directly.
 
-## 9. Часто задаваемые вопросы
-**В:** Можно ли отключить автоинициализацию?
-**О:** Да, экспортируйте `AGENTCONTROL_NO_AUTO_INIT=1` перед запуском `agentcall`.
+## 9. FAQ
+**Q:** How do I disable automatic bootstrap?
+**A:** Export `AGENTCONTROL_NO_AUTO_INIT=1` before running `agentcall`.
 
-**В:** Как добавить собственный пайплайн?
-**О:** Дополните `agentcontrol/agentcall.yaml` и `config/commands.sh`; команда появится в `agentcall commands`.
+**Q:** How do I add a custom pipeline?
+**A:** Extend `agentcontrol/agentcall.yaml` and `config/commands.sh`. The command will appear in `agentcall commands`.
 
-**В:** Где хранится состояние?
-**О:** В каталоге капсулы `agentcontrol/state/` (проект) и в `~/.agentcontrol/state/` (глобальные настройки, registry).
+**Q:** Where is state stored?
+**A:** Project-level artefacts live in `agentcontrol/state/`; global state (registry, credentials) lives under `~/.agentcontrol/state/`.
 
 ---
-© AgentControl — универсальный SDK для агентных команд.
+© AgentControl — Universal Agent SDK.
