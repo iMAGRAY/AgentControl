@@ -38,20 +38,68 @@
 - [x] Developer sandbox (`agentcall sandbox start`) for agent experimentation.
 - [x] Mission dashboard polish (filters, timeline, drill-down).
 
-## Phase 5 (In Progress)
+## Phase 5 (Complete)
 - [x] `agentcall mission exec` auto-executes топовый плейбук и логирует результат в telemetry.
 - [x] Ship verify hook library (`.agentcontrol/config/automation.sh`) + программу for templates/Docs.
 - [x] Nightly perf comparisons (history vs baseline) с алертами при превышении порога.
 - [x] Расширить timeline hints (links/guides) и документацию по ремедиациям.
-
 - [x] Mission UI command palette для быстрого запуска playbooks и automation hooks.
 - [x] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
-- [x] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
+- [x] Расширить `mission exec` (quality/mcp/tasks/runtime/perf) + ack telemetry.
 - [x] Привязать timeline hints к разделам документации (knowledge base identifiers).
-- [x] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
-- [x] Integrate perf regression alerts with mission timeline (auto `perf.regression` event + followup payload).
-- [x] Mission analytics командой `agentcall mission analytics` собирает activity/ack/perf overview.
-- [x] Mission analytics visualization: обновлять `reports/architecture-dashboard.json` миссионными сводками.
-- [ ] Perf regression remediation workflow: автоматизировать создание follow-up task и закрытие playbook после устранения.
+- [x] Mission UI palette → `mission-actions.json` + telemetry `mission.ui.action`.
+- [x] Perf regression alerts + follow-up payload + automatic tasks (`perf_tasks.json`, `reports/tasks/PERF-*.json`).
+- [x] Mission analytics (`agentcall mission analytics`) + dashboard sync.
+- [x] Шаблоны 0.4.4 с актуальными скриптами и governance.
+
+## Phase 6 — Bootstrap & Profiles
+- [ ] `agentcall bootstrap` wizard (опрос стека, CICD, MCP, repo scale) → `.agentcontrol/state/profile.json`, `reports/bootstrap_summary.json`.
+- [ ] Профили по умолчанию (`profiles/python.yaml`, `profiles/monorepo.yaml`, `profiles/meta.yaml`).
+- [ ] Onboarding checklist `docs/getting_started.md` + update README/AGENTS с ссылкой.
+- [ ] Doctor enhancements: `agentcall doctor --bootstrap` (проверка версий, MCP доступности, hints).
+
+## Phase 7 — Extension Ecosystem
+- [ ] Extension SDK: `agentcall extension init|add|list|remove` с каталогом `extensions/`.
+  - [ ] Поддержка кастомных playbooks (YAML/py), automation hooks, MCP адаптеров, CLI команд.
+  - [ ] Schema + валидация + тестовые фикстуры (`tests/extensions`).
+- [ ] Extension registry (`reports/extensions.json`) + marketplace docs.
+- [ ] Tutorial `docs/tutorials/extensions.md` и примеры (hook, playbook, MCP). 
+
+## Phase 8 — Mission Dashboard UX
+- [ ] TUI dashboard `agentcall mission dashboard` (панели: docs/quality/tasks/perf/mcp/timeline, hotkeys, ack indicators).
+- [ ] Web UI (`agentcall mission dashboard --serve`) с авторизацией (read-only vs control), построено на twin + analytics JSON.
+- [ ] Snapshot экспорт (`reports/mission/dashboard-<ts>.html`) для статусов.
+
+## Phase 9 — Automation Watcher & Notifications
+- [ ] Демон `agentcall mission watch` (follow-up: автозапуск playbooks при событиях `perf.regression`, `docs_drift`, `verify_failed`).
+- [ ] Notification adapters (Slack, email, generic webhook) с конфигом `.agentcontrol/config/alerts.yaml`.
+- [ ] SLA policies: эскалация при просрочке perf follow-up (N часов) и docs drift.
+- [ ] Telemetry enrichment: actor, remediation outcome, auto-tagging задач.
+
+## Phase 10 — Task Ecosystem Integration
+- [ ] Sync perf tasks ↔ `data/tasks.board.json` (создание, обновление, закрытие, ссылки на playbooks).
+- [ ] Внешние коннекторы (Jira/GitHub Issues) — CLI `agentcall tasks sync --jira` с конфигом `config/tasks.yaml`.
+- [ ] Backfeed: изменение статуса во внешней системе → обновление `mission_ack.json`/follow-up.
+- [ ] Интеграционные тесты (mock Jira API, GitHub). 
+
+## Phase 11 — Knowledge & Documentation DX
+- [ ] Docs portal генератор (`agentcall docs portal`) → статический HTML/MD из tutorials/guides.
+- [ ] Knowledge lint расширить: проверка устаревших ссылок, orphan tutorials, coverage отчёт (`reports/docs_coverage.json`).
+- [ ] Автоматический changelog/релиз-ноты (`agentcall release notes`).
+- [ ] Sample gallery: mono, poly, meta-repo (100+ реп), включая CI wiring.
+
+## Phase 12 — Meta-Repo & Scale Readiness
+- [ ] Meta workspace descriptor (`workspace.yaml`) с поддержкой сотен реп → `agentcall mission summary --workspace` агрегирует статусы.
+- [ ] Distributed agents: конфиг роли/квоты, scheduler задач (`agentcall mission assign`).
+- [ ] Шардированные perf бенчмарки (parallel docs_benchmark + отчет per shard).
+- [ ] Stress/fuzz tests для meta workflows и massive documentation trees.
+
+## Phase 13 — Install/Distribution UX
+- [ ] Упаковать bootstrap installer (`agentcontrol-install.sh`, pipx recipe) с проверкой зависимостей.
+- [ ] Кэш management (`agentcall cache doctor`) для шаблонов/скриптов.
+- [ ] Binary bundle/standalone? исследование + PoC.
+- [ ] Telemetry opt-in/out wizard.
+
+> Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.
 
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.
