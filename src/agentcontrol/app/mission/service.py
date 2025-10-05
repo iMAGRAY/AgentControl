@@ -35,6 +35,43 @@ class MissionExecResult:
     message: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class MissionPaletteEntry:
+    """Interactive mission action descriptor."""
+
+    id: str
+    label: str
+    command: str
+    category: str
+    type: str
+    hotkey: Optional[str] = None
+    summary: Optional[str] = None
+    action: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            "id": self.id,
+            "label": self.label,
+            "command": self.command,
+            "category": self.category,
+            "type": self.type,
+        }
+        if self.hotkey:
+            data["hotkey"] = self.hotkey
+        if self.summary:
+            data["summary"] = self.summary
+        if self.action:
+            data["action"] = self.action
+        return data
+
+
+@dataclass(frozen=True)
+class TimelineHint:
+    text: str
+    hint_id: str
+    doc_path: Optional[str] = None
+
+
 class MissionService:
     """Aggregates project telemetry into a mission twin."""
 
@@ -54,6 +91,7 @@ class MissionService:
         mcp_summary = self._mcp_summary(project_root)
         playbooks = self._playbooks(docs_bridge, quality_summary, mcp_summary)
         drilldown = self._build_drilldown(docs_bridge, program_summary, quality_summary, mcp_summary, timeline)
+        palette = self._palette(playbooks, docs_bridge, quality_summary, mcp_summary)
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -65,6 +103,7 @@ class MissionService:
             "mcp": mcp_summary,
             "filters": list(MISSION_FILTERS),
             "drilldown": drilldown,
+            "palette": [entry.to_dict() for entry in palette],
         }
 
     def persist_twin(self, project_root: Path) -> TwinBuildResult:
@@ -75,6 +114,89 @@ class MissionService:
         path.write_text(json.dumps(twin, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return TwinBuildResult(twin=twin, path=path)
 
+    def persist_palette(self, project_root: Path, palette: List[MissionPaletteEntry] | List[Dict[str, Any]]) -> Path:
+        state_dir = self._state_dir(project_root)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        path = state_dir / "mission_palette.json"
+        entries: List[Dict[str, Any]] = []
+        for entry in palette:
+            if isinstance(entry, MissionPaletteEntry):
+                entries.append(entry.to_dict())
+            else:
+                entries.append(dict(entry))
+        payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "entries": entries,
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return path
+
+    def execute_playbook_by_issue(self, project_root: Path, issue: str) -> MissionExecResult:
+        project_root = project_root.resolve()
+        twin = self.build_twin(project_root)
+        playbooks: List[Dict[str, Any]] = twin.get("playbooks", []) or []
+        selected = next((item for item in playbooks if item.get("issue") == issue), None)
+        if selected is None:
+            return MissionExecResult(
+                status="noop",
+                playbook=None,
+                action=None,
+                twin=twin,
+                message=f"playbook '{issue}' not available",
+            )
+        return self._execute_playbook(project_root, selected, twin)
+
+    def execute_action(self, project_root: Path, action: Dict[str, Any]) -> MissionExecResult:
+        project_root = project_root.resolve()
+        twin = self.build_twin(project_root)
+        kind = action.get("kind")
+        if kind == "playbook":
+            issue = action.get("issue")
+            if not issue:
+                return MissionExecResult(status="error", playbook=None, action=None, twin=twin, message="missing playbook issue")
+            playbooks: List[Dict[str, Any]] = twin.get("playbooks", []) or []
+            selected = next((item for item in playbooks if item.get("issue") == issue), None)
+            if selected is None:
+                return MissionExecResult(status="noop", playbook=None, action=None, twin=twin, message=f"playbook '{issue}' not available")
+            return self._execute_playbook(project_root, selected, twin)
+
+        if kind == "mission_exec_top":
+            return self.execute_top_playbook(project_root)
+
+        if kind == "docs_sync":
+            payload = self._docs_command_service.sync_sections(project_root, mode="repair")
+            return MissionExecResult(
+                status="success",
+                playbook=None,
+                action={"type": "docs_sync", "payload": payload},
+                twin=twin,
+            )
+
+        if kind == "auto_tests":
+            project_id = ProjectId.from_existing(project_root)
+            exit_code = self._command_service.run(project_id, "verify", [])
+            status = "success" if exit_code == 0 else "warning"
+            message = None if exit_code == 0 else "verify pipeline returned non-zero exit code"
+            return MissionExecResult(
+                status=status,
+                playbook=None,
+                action={"type": "verify_pipeline", "exit_code": exit_code},
+                twin=twin,
+                message=message,
+            )
+
+        if kind == "mcp_status":
+            status, action_payload, message = self._mcp_diagnostics(project_root)
+            return MissionExecResult(
+                status=status,
+                playbook=None,
+                action=action_payload,
+                twin=twin,
+                message=message,
+            )
+
+        return MissionExecResult(status="noop", playbook=None, action=None, twin=twin, message="unsupported action")
+
     def execute_top_playbook(self, project_root: Path) -> MissionExecResult:
         project_root = project_root.resolve()
         twin = self.build_twin(project_root)
@@ -83,6 +205,17 @@ class MissionService:
             return MissionExecResult(status="noop", playbook=None, action=None, twin=twin, message="no playbooks available")
 
         playbook = playbooks[0]
+        return self._execute_playbook(project_root, playbook, twin)
+
+    def _state_dir(self, project_root: Path) -> Path:
+        return project_root.resolve() / ".agentcontrol" / "state"
+
+    def _execute_playbook(
+        self,
+        project_root: Path,
+        playbook: Dict[str, Any],
+        twin: Dict[str, Any],
+    ) -> MissionExecResult:
         category = playbook.get("category")
         try:
             if category == "docs":
@@ -105,12 +238,13 @@ class MissionService:
                     message=None if exit_code == 0 else "verify pipeline returned non-zero exit code",
                 )
             if category == "mcp":
+                status, action_payload, message = self._mcp_diagnostics(project_root)
                 return MissionExecResult(
-                    status="noop",
+                    status=status,
                     playbook=playbook,
-                    action=None,
+                    action=action_payload,
                     twin=twin,
-                    message="no automated handler for MCP playbooks",
+                    message=message,
                 )
         except Exception as exc:  # pragma: no cover - defensive path
             return MissionExecResult(status="error", playbook=playbook, action=None, twin=twin, message=str(exc))
@@ -122,9 +256,6 @@ class MissionService:
             twin=twin,
             message="unsupported playbook category",
         )
-
-    def _state_dir(self, project_root: Path) -> Path:
-        return project_root.resolve() / ".agentcontrol" / "state"
 
     def _program_summary(
         self,
@@ -191,15 +322,19 @@ class MissionService:
             event = record.get("event") or record.get("type")
             payload = record.get("payload") or record.get("data") or {}
             category = payload.get("category") or self._categorize_event(event, payload)
-            entries.append(
-                {
-                    "timestamp": timestamp,
-                    "event": event,
-                    "category": category,
-                    "details": payload,
-                    "hint": self._timeline_hint(category, payload),
-                }
-            )
+            hint = self._timeline_hint(category, payload)
+            entry = {
+                "timestamp": timestamp,
+                "event": event,
+                "category": category,
+                "details": payload,
+            }
+            if hint:
+                entry["hint"] = hint.text
+                entry["hintId"] = hint.hint_id
+                if hint.doc_path:
+                    entry["docPath"] = hint.doc_path
+            entries.append(entry)
         entries.sort(key=lambda item: item.get("timestamp") or "", reverse=True)
         return entries[:limit]
 
@@ -304,6 +439,77 @@ class MissionService:
         suggestions.sort(key=lambda item: (-item.get("priority", 0), item.get("issue")))
         return suggestions
 
+    def _palette(
+        self,
+        playbooks: List[Dict[str, Any]],
+        docs_bridge: Dict[str, Any] | Any,
+        quality: Dict[str, Any] | Any,
+        mcp_summary: Dict[str, Any] | Any,
+    ) -> List[MissionPaletteEntry]:
+        entries: List[MissionPaletteEntry] = []
+        for idx, playbook in enumerate(playbooks[:9], start=1):
+            issue = playbook.get("issue") or f"playbook-{idx}"
+            label = playbook.get("summary") or playbook.get("command") or issue
+            entries.append(
+                MissionPaletteEntry(
+                    id=f"playbook:{issue}",
+                    label=label,
+                    command=playbook.get("command") or "",
+                    category=playbook.get("category", "playbook"),
+                    type="playbook",
+                    hotkey=str(idx),
+                    summary=playbook.get("hint"),
+                    action={"kind": "playbook", "issue": issue},
+                )
+            )
+
+        entries.extend(
+            [
+                MissionPaletteEntry(
+                    id="mission:exec",
+                    label="Execute top playbook",
+                    command="agentcall mission exec",
+                    category="mission",
+                    type="mission",
+                    hotkey="e",
+                    summary="Runs the highest-priority playbook",
+                    action={"kind": "mission_exec_top"},
+                ),
+                MissionPaletteEntry(
+                    id="docs:sync",
+                    label="Docs sync (repair)",
+                    command="agentcall docs sync --json",
+                    category="docs",
+                    type="automation",
+                    hotkey="a",
+                    summary="Repair managed regions via docs bridge",
+                    action={"kind": "docs_sync"},
+                ),
+                MissionPaletteEntry(
+                    id="quality:verify",
+                    label="Run verify pipeline",
+                    command="agentcall auto tests --apply",
+                    category="quality",
+                    type="automation",
+                    hotkey="v",
+                    summary="Execute QA guardrail",
+                    action={"kind": "auto_tests"},
+                ),
+                MissionPaletteEntry(
+                    id="mcp:status",
+                    label="Inspect MCP registry",
+                    command="agentcall mcp status --json",
+                    category="mcp",
+                    type="inspection",
+                    hotkey="m",
+                    summary="List configured MCP servers",
+                    action={"kind": "mcp_status"},
+                ),
+            ]
+        )
+
+        return entries
+
     def _playbook_entry(
         self,
         *,
@@ -323,10 +529,10 @@ class MissionService:
             "hint": hint,
         }
 
-    def _timeline_hint(self, category: str, payload: Dict[str, Any]) -> Optional[str]:
+    def _timeline_hint(self, category: str, payload: Dict[str, Any]) -> Optional[TimelineHint]:
         remediation = payload.get("remediation") or payload.get("remediation_hint") or payload.get("hint")
         if remediation:
-            return remediation
+            return TimelineHint(text=str(remediation), hint_id="custom.remediation")
 
         if category == "docs":
             section = payload.get("section") or payload.get("marker")
@@ -337,31 +543,63 @@ class MissionService:
             else:
                 scope = ""
             target_segment = f" (target: {target})" if target else ""
-            return (
+            text = (
                 f"Docs drift{label}{target_segment}; run `agentcall docs sync{scope} --json` "
                 "and review reports/automation/docs-diff.json"
             )
+            hint_id = "docs.drift"
+            if section:
+                hint_id = f"docs.drift.{section}"
+            return TimelineHint(text=text, hint_id=hint_id, doc_path="docs/tutorials/automation_hooks.md")
 
         if category == "quality":
             status = str(payload.get("status") or payload.get("result") or "unknown").lower()
             if status in {"fail", "failed", "error", "warning", "degraded", "blocked"}:
-                return "QA degraded; run `agentcall auto tests --apply` and inspect reports/verify.json"
-            return "QA update logged; refresh `agentcall mission summary --filter quality`"
+                text = "QA degraded; run `agentcall auto tests --apply` and inspect reports/verify.json"
+                hint_id = "quality.degraded"
+            else:
+                text = "QA update logged; refresh `agentcall mission summary --filter quality`"
+                hint_id = "quality.update"
+            return TimelineHint(text=text, hint_id=hint_id, doc_path="docs/tutorials/perf_nightly.md")
 
         if category == "mcp":
-            return "MCP registry change; run `agentcall mcp status --json` (see reports/automation/mcp-status.json)"
+            return TimelineHint(
+                text="MCP registry change; run `agentcall mcp status --json` (see reports/automation/mcp-status.json)",
+                hint_id="mcp.registry",
+                doc_path="docs/tutorials/mcp_integration.md",
+            )
 
         if category == "tasks":
             task_ref = payload.get("task") or payload.get("id") or payload.get("summary")
             label = f" `{task_ref}`" if task_ref else ""
-            return (
-                f"Task event{label}; sync architecture_plan.md & todo.md, then run `agentcall mission detail tasks --json`"
-            )
+            text = f"Task event{label}; sync architecture_plan.md & todo.md, then run `agentcall mission detail tasks --json`"
+            return TimelineHint(text=text, hint_id="tasks.sync", doc_path="architecture_plan.md")
 
         if category == "timeline":
-            return "Check `agentcall mission detail timeline --json` for expanded context"
+            return TimelineHint(
+                text="Check `agentcall mission detail timeline --json` for expanded context",
+                hint_id="timeline.inspect",
+                doc_path="docs/tutorials/mission_control_walkthrough.md",
+            )
 
         return None
+
+    def _mcp_diagnostics(self, project_root: Path) -> tuple[str, Dict[str, Any], Optional[str]]:
+        repo = MCPConfigRepository(project_root)
+        servers = [server.to_dict() for server in repo.list()]
+        if not servers:
+            return (
+                "warning",
+                {"type": "mcp_status", "servers": servers},
+                "no MCP servers registered",
+            )
+        degraded = [server for server in servers if not server.get("endpoint")]
+        status = "warning" if degraded else "success"
+        message = None
+        if degraded:
+            missing_names = ", ".join(server.get("name", "unknown") for server in degraded)
+            message = f"MCP servers missing endpoint configuration: {missing_names}"
+        return status, {"type": "mcp_status", "servers": servers}, message
 
     @staticmethod
     def _load_json(path: Path) -> Optional[Dict[str, Any]]:

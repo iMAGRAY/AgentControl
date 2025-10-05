@@ -45,9 +45,11 @@
 - [x] Расширить timeline hints (links/guides) и документацию по ремедиациям.
 
 ## Phase 6 (Backlog)
-- [ ] Mission UI command palette для быстрого запуска playbooks и automation hooks.
-- [ ] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
-- [ ] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
-- [ ] Привязать timeline hints к разделам документации (knowledge base identifiers).
+- [x] Mission UI command palette для быстрого запуска playbooks и automation hooks.
+- [x] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
+- [x] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
+- [x] Привязать timeline hints к разделам документации (knowledge base identifiers).
+- [ ] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
+- [ ] Integrate perf regression alerts with mission timeline (auto `perf.regression` event).
 
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.

@@ -70,6 +70,7 @@ teach: true
 - Architecture manifest: `architecture/manifest.yaml`.
 - Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
 - Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration, automation hooks).
+- Performance guard: `docs/tutorials/perf_nightly.md` + `examples/github/perf-nightly.yaml` — nightly benchmark pipeline (`PERF_HISTORY_UPDATE=1`, diff history artefacts).
 - Troubleshooting: `docs/troubleshooting/docs_bridge.md`.
 - Planning artefacts: `architecture_plan.md`, `todo.md` — поддерживаются строго актуальными и полными (см. §2).
 - Docs bridge: `agentcall docs diagnose|info|list|diff|repair|adopt|rollback --json` работают поверх `.agentcontrol/config/docs.bridge.yaml`, управляя маркерами непосредственно в боевой документации; managed регионы находятся в исходных `docs/` файлах — дублирующих деревьев нет. Анкоры (`insert_after_heading`, `insert_before_marker`) управляют первой вставкой; адаптеры поддерживают MkDocs/Docusaurus/Confluence через `mode: external`.

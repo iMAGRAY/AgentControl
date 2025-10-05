@@ -1,3 +1,9 @@
+## 0.4.0 — 2025-10-05
+- Mission UI command palette с hotkeys (`mission ui` ↔ `mission_palette.json`), интерактивным запуском playbooks/automation hooks и телеметрией `mission.ui.action`.
+- `mission exec --issue` и расширенные playbook экшены: quality reruns (`verify`) и MCP диагностика (warning при незаполненных endpoint), новые JSON telemetry поля (`category`, `action`).
+- Timeline events получили `hintId`/`docPath`, ведут к tutorials/architecture_plan; tutorials дополнены `perf_nightly` гайдом и GitHub Actions шаблоном (`examples/github/perf-nightly.yaml`).
+- Verify pipeline включает `perf-history` шаг и nightly workflow инструкции; automation hooks + palette сохраняются в `mission_palette.json`/`reports/automation` для агентов.
+
 ## 0.3.31 — 2025-10-05
 - Governance: AGENTS charter закрепляет обязательное обновление версий (`pyproject.toml` + `agentcontrol/__init__.py`) и мгновенный git commit/push; введена шкала — major для крупных изменений, десятичные для функциональных, сотые для точечных корректировок.
 

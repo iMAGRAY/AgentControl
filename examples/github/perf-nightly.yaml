@@ -1,0 +1,40 @@
+name: Perf Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs-perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run AgentControl verify with perf history
+        env:
+          PERF_HISTORY_UPDATE: "1"
+          PERF_HISTORY_KEEP: "60"
+          PERF_HISTORY_MAX_PCT: "12"
+          PERF_HISTORY_MAX_MS: "2500"
+        run: |
+          . .venv/bin/activate
+          agentcall verify --json
+      - name: Upload perf history artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-perf-history
+          path: reports/perf/history

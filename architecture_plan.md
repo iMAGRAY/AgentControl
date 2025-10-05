@@ -139,7 +139,7 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 - Continuous perf guard: `perf-docs` выносится в nightly + сравнение с историей.
 - Agent UX polish: command palette / cheatsheet для основных автоматизаций.
 
-**Phase update (2025-10-05):** mission exec CLI фиксирует шорткаты и логирует playbook/action, verify hooks подгружаются автоматически через `.agentcontrol/config/automation.sh`, nightly perf сравнивается скриптом `scripts/perf/compare_history.py` (история+diff), а timeline hints / туториалы теперь сразу предлагают команды (`docs sync --json`, `auto tests --apply`, `mcp status --json`, синхронизацию architecture_plan/todo).
+**Phase update (2025-10-05):** mission exec CLI фиксирует шорткаты и логирует playbook/action, verify hooks подгружаются автоматически через `.agentcontrol/config/automation.sh`, nightly perf сравнивается скриптом `scripts/perf/compare_history.py` (история+diff), mission UI получила command palette (hotkeys + JSON API `mission_palette.json`), а timeline hints теперь включают `hintId`/`docPath` и ведут в tutorials (`docs/tutorials/auto…`, `perf_nightly`, `mcp_integration`). Референс workflow (`examples/github/perf-nightly.yaml`) закрепляет nightly perf guard.
 
 ---
 ## 6. Risk Register
@@ -182,9 +182,9 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 ---
 ## 11. Immediate Next Steps
-- Mission UI command palette: быстрый запуск плейбуков/automation hooks прямо из `mission ui` (hotkeys + JSON API).
-- Nightly perf workflow: эталонный `perf-nightly` pipeline (GitHub Actions + local script) на базе `compare_history.py` с уведомлениями.
-- Mission exec extension: автоматизировать quality/mcp playbooks (QA reruns, MCP connectivity diagnostics) с расширенным телеметрийным статусом.
-- Mission knowledge base: привязать timeline hints к конкретным разделам документации (`docs/tutorials/...`) через ссылочные идентификаторы.
+- Palette telemetry sink: экспорт действий (`mission.ui.action`) в `reports/automation/mission-actions.json` и визуализация в dashboards.
+- Perf regressions → timeline: автоматическая генерация события `perf.regression` при срабатывании `perf-history` + remediation playbook.
+- Autopilot breadth: mission exec покрывает docs/quality/mcp — расширить до tasks/runtime (pipeline orchestration) с подтверждением отклонений.
+- Agent knowledge loop: lint `hintId` ↔ docs/tutorials, гарантировать существование целей и обновлять cross-links.
 
 > **Self-hosting constraint:** development tracked via `architecture_plan.md` + `todo.md`; no recursive usage of agentcall automation on the SDK itself.

@@ -150,15 +150,25 @@ def test_mission_command_generates_twin(project: Path, runtime_settings: Runtime
     assert output["quality"]["verify"]["available"] is False
     assert output["mcp"]["count"] == 1
     assert output["timeline"]
+    first_timeline = output["timeline"][0]
+    assert first_timeline.get("hint")
+    assert first_timeline.get("hintId")
     assert output["filters"] == ["docs", "quality", "tasks", "timeline", "mcp"]
     assert {"docs", "quality", "tasks", "timeline", "mcp"}.issubset(output["drilldown"].keys())
     assert output["playbooks"]
+    assert output["palette"]
     first_playbook = output["playbooks"][0]
     assert "priority" in first_playbook and "hint" in first_playbook
     twin_path = project / ".agentcontrol" / "state" / "twin.json"
     assert twin_path.exists()
     stored = json.loads(twin_path.read_text(encoding="utf-8"))
     assert stored["program"]["source"] in {"status_report", "manifest", "missing"}
+    palette_path = project / ".agentcontrol" / "state" / "mission_palette.json"
+    assert palette_path.exists()
+    palette_payload = json.loads(palette_path.read_text(encoding="utf-8"))
+    assert palette_payload["entries"]
+    assert any(entry.get("hotkey") == "e" for entry in palette_payload["entries"])
+    assert all("action" in entry for entry in palette_payload["entries"] if entry.get("type") == "playbook")
     events = [evt for evt in _load_events(runtime_settings) if evt.get("event") == "mission.summary"]
     assert events[-1].get("status") == "success"
 
@@ -187,6 +197,7 @@ def test_mission_detail_timeline_json(project: Path, capsys: pytest.CaptureFixtu
     assert payload["section"] == "timeline"
     assert len(payload["detail"]) == 1
     assert payload["detail"][0].get("hint")
+    assert payload["detail"][0].get("hintId")
 
 
 def test_mission_summary_filter_limits_output(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -219,3 +230,14 @@ def test_mission_exec_runs_docs_sync(
     final = events[-1]
     assert final.get('status') == 'success'
     assert final.get('payload', {}).get('playbook') == 'docs_drift'
+
+
+def test_mission_exec_with_issue(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _prepare_docs(project)
+    overview = project / 'docs' / 'architecture' / 'overview.md'
+    overview.write_text('# Architecture Overview\n\nManual drift\n', encoding='utf-8')
+
+    exit_code = cli_main.main(['mission', 'exec', str(project), '--json', '--issue', 'docs_drift'])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload['playbook']['issue'] == 'docs_drift'

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import shutil
+import select
 import subprocess
 import sys
 import time
@@ -723,6 +724,7 @@ def _render_mission_dashboard(
     timeline_limit: int = 5,
     interactive: bool = True,
     title: str | None = None,
+    palette: Iterable[dict[str, Any]] | None = None,
 ) -> None:
     active_filters = {item.lower() for item in (filters or MISSION_FILTER_CHOICES)}
     header_label = title or "Mission Control"
@@ -819,7 +821,16 @@ def _render_mission_dashboard(
                 print(f"      hint: {playbook['hint']}")
 
     if interactive:
-        print("\nPress Ctrl+C to exit")
+        if palette:
+            hotkeys = []
+            for entry in palette:
+                hotkey = entry.get("hotkey")
+                label = entry.get("label") or entry.get("command")
+                if hotkey and label:
+                    hotkeys.append(f"{hotkey}:{label}")
+            if hotkeys:
+                print("\nPalette hotkeys: " + " | ".join(hotkeys))
+        print("Press Ctrl+C or 'q' to exit, 'r' to refresh now")
 
 
 def _mission_cmd(args: argparse.Namespace) -> int:
@@ -858,6 +869,8 @@ def _mission_cmd(args: argparse.Namespace) -> int:
     if command == "summary":
         result = service.persist_twin(project_path)
         payload = result.twin
+        if payload.get("palette"):
+            service.persist_palette(project_path, payload.get("palette"))
         as_json = getattr(args, "json", False)
         if as_json:
             summary_payload = dict(payload)
@@ -934,8 +947,14 @@ def _mission_exec_cmd(args: argparse.Namespace) -> int:
         component="mission",
         payload=event_context,
     )
+    issue = getattr(args, "issue", None)
+    if issue:
+        event_context["issue"] = issue
     start = time.perf_counter()
-    result = service.execute_top_playbook(project_path)
+    if issue:
+        result = service.execute_playbook_by_issue(project_path, issue)
+    else:
+        result = service.execute_top_playbook(project_path)
     duration = (time.perf_counter() - start) * 1000
     telemetry_status = "success"
     if result.status == "error":
@@ -944,7 +963,7 @@ def _mission_exec_cmd(args: argparse.Namespace) -> int:
         telemetry_status = "warning"
 
     payload: dict[str, Any] = {
-        "playbook": result.playbook.get("issue") if result.playbook else None,
+        "playbook": result.playbook.get("issue") if result.playbook else issue,
         "category": result.playbook.get("category") if result.playbook else None,
         "action": result.action.get("type") if result.action else None,
     }
@@ -1528,11 +1547,14 @@ def _mission_ui(
     timeline_limit: int,
 ) -> int:
     display_filters = filters or []
+    interactive = sys.stdin.isatty()
     try:
         while True:
             cycle_start = time.perf_counter()
             result = service.persist_twin(project_path)
             payload = result.twin
+            palette_entries = payload.get("palette") or []
+            service.persist_palette(project_path, palette_entries)
             _clear_terminal()
             _render_mission_dashboard(
                 payload,
@@ -1540,6 +1562,7 @@ def _mission_ui(
                 filters=display_filters or None,
                 timeline_limit=timeline_limit,
                 interactive=True,
+                palette=palette_entries,
             )
             docs_status = payload.get("docsBridge", {}).get("status", "unknown")
             duration_ms = (time.perf_counter() - cycle_start) * 1000
@@ -1556,8 +1579,43 @@ def _mission_ui(
                     "timeline_limit": timeline_limit,
                 },
             )
-            remaining = max(interval - (time.perf_counter() - cycle_start), 0.2)
-            time.sleep(remaining)
+            if not interactive:
+                remaining = max(interval - (time.perf_counter() - cycle_start), 0.2)
+                time.sleep(remaining)
+                continue
+
+            action = _await_mission_palette_action(interval, cycle_start, palette_entries)
+            if action is None:
+                continue
+            if action == "exit":
+                record_structured_event(
+                    SETTINGS,
+                    "mission.ui",
+                    component="mission",
+                    status="stopped",
+                    payload={"path": str(project_path), "filters": display_filters},
+                )
+                return 0
+            if action == "refresh":
+                continue
+
+            entry = _resolve_palette_action(action, palette_entries)
+            if entry is None:
+                continue
+            result_exec = service.execute_action(project_path, entry.get("action", {}))
+            _print_mission_exec(result_exec, as_json=False)
+            record_structured_event(
+                SETTINGS,
+                "mission.ui.action",
+                status=result_exec.status,
+                component="mission",
+                payload={
+                    "path": str(project_path),
+                    "action_id": entry.get("id"),
+                    "action_type": (entry.get("action") or {}).get("kind"),
+                },
+            )
+            time.sleep(1.0)
     except KeyboardInterrupt:
         record_structured_event(
             SETTINGS,
@@ -1567,6 +1625,50 @@ def _mission_ui(
             payload={"path": str(project_path), "filters": display_filters},
         )
         return 0
+
+
+def _await_mission_palette_action(interval: float, cycle_start: float, entries: list[dict[str, Any]]) -> str | None:
+    remaining = interval - (time.perf_counter() - cycle_start)
+    if remaining <= 0:
+        return None
+    try:
+        import select  # type: ignore
+
+        while True:
+            remaining = interval - (time.perf_counter() - cycle_start)
+            if remaining <= 0:
+                return None
+            readable, _, _ = select.select([sys.stdin], [], [], max(remaining, 0.1))
+            if not readable:
+                return None
+            raw = sys.stdin.readline().strip()
+            if not raw:
+                return None
+            normalized = raw.lower()
+            if normalized in {"q", "quit"}:
+                return "exit"
+            if normalized in {"r", "refresh"}:
+                return "refresh"
+            return normalized
+    except (ImportError, OSError):  # pragma: no cover - fallback path
+        time.sleep(remaining)
+        return None
+
+
+def _resolve_palette_action(action_key: str, entries: list[dict[str, Any]]) -> dict[str, Any] | None:
+    key = action_key.lower().strip()
+    mapping: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        hotkey = entry.get("hotkey")
+        if hotkey:
+            mapping[str(hotkey).lower()] = entry
+        entry_id = entry.get("id")
+        if entry_id:
+            mapping[str(entry_id).lower()] = entry
+        command = entry.get("command")
+        if command:
+            mapping[str(command).lower()] = entry
+    return mapping.get(key)
 
 
 def _print_mission_summary(
@@ -1583,6 +1685,7 @@ def _print_mission_summary(
         timeline_limit=timeline_limit,
         interactive=False,
         title="Mission Summary",
+        palette=payload.get("palette"),
     )
     print()
 
@@ -1877,6 +1980,7 @@ def build_parser() -> argparse.ArgumentParser:
     mission_exec = mission_sub.add_parser("exec", help="Execute highest-priority playbook")
     mission_exec.add_argument("path", nargs="?", help="Project path (default: current directory)")
     mission_exec.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
+    mission_exec.add_argument("--issue", help="Specific playbook issue to execute", dest="issue")
     mission_exec.set_defaults(func=_mission_exec_cmd)
 
     mission_detail = mission_sub.add_parser("detail", help="Inspect detailed mission section")
