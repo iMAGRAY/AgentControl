@@ -40,7 +40,7 @@ agentcall mission ui --filter quality --filter tasks --interval 1.5
 ```
 The dashboard refreshes every 1.5 seconds, printing quality gate status and task progress only. A termination (Ctrl+C) emits a structured telemetry event so the orchestrator knows the session ended intentionally.
 
-> Новое: playbooks выводятся с приоритетом (`[priority] issue`) и hint — так агент понимает, какое действие запустить первым.
+> Новое: Mission UI теперь содержит command palette — нажмите `1…9`, `a`, `v`, `m`, `t`, `r` или `e`, чтобы мгновенно выполнить соответствующий playbook/automation. Статистика записывается в `reports/automation/mission-actions.json` и телеметрию `mission.ui.action`.
 
 ## Step 5 — React via Playbooks
 When the twin exposes `playbooks`, execute them in priority order. Example entry:
@@ -60,4 +60,4 @@ Agents should persist the twin path (`.agentcontrol/state/twin.json`) in case lo
 
 > **Next:**
 > 1. Register MCP servers using the [MCP integration tutorial](./mcp_integration.md) — timeline hints will link to `agentcall mcp status --json` outputs stored in `reports/automation/mcp-status.json`.
-> 2. Schedule nightly perf comparisons via `python3 scripts/perf/compare_history.py --report reports/perf/docs_benchmark.json --history-dir reports/perf/history --update-history` to keep the twin’s performance playbooks honest.
+> 2. Schedule nightly perf comparisons via `python3 scripts/perf/compare_history.py --report reports/perf/docs_benchmark.json --history-dir reports/perf/history --update-history` or the [Perf Nightly workflow](./perf_nightly.md).

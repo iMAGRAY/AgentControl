@@ -210,6 +210,17 @@ def main() -> int:
 
     print(json.dumps(diff, ensure_ascii=False, indent=2))
 
+    if diff["regressions"]:
+        _append_timeline_event(Path.cwd(), "perf.regression", {
+            "category": "quality",
+            "regressions": diff["regressions"],
+            "thresholds": {
+                "max_regression_pct": args.max_regression_pct,
+                "max_regression_ms": args.max_regression_ms,
+            },
+            "history": str(history_path),
+        })
+
     if args.update_history:
         new_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -221,6 +232,20 @@ def main() -> int:
         save_history(history_path, entries)
 
     return 1 if diff["regressions"] else 0
+
+
+def _append_timeline_event(project_root: Path, event: str, payload: Dict[str, Any]) -> None:
+    journal_dir = project_root / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+    journal_path = journal_dir / "task_events.jsonl"
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event": event,
+        "payload": payload,
+    }
+    with journal_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False))
+        handle.write("\n")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ import select
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
+import select
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable
@@ -716,6 +718,34 @@ def _clear_terminal() -> None:
     print("\033[2J\033[H", end="")
 
 
+def _log_palette_action(project_path: Path, entry: dict[str, Any], result: MissionExecResult) -> None:
+    report_dir = project_path / "reports" / "automation"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    log_path = report_dir / "mission-actions.json"
+    log_data: list[dict[str, Any]] = []
+    if log_path.exists():
+        try:
+            log_data = json.loads(log_path.read_text(encoding="utf-8"))
+            if not isinstance(log_data, list):
+                log_data = []
+        except json.JSONDecodeError:
+            log_data = []
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "id": entry.get("id"),
+        "label": entry.get("label"),
+        "action": entry.get("action"),
+        "status": result.status,
+        "message": result.message,
+    }
+    if result.action:
+        log_entry["resultAction"] = result.action
+    if result.playbook:
+        log_entry["playbook"] = result.playbook
+    log_data.append(log_entry)
+    log_path.write_text(json.dumps(log_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def _render_mission_dashboard(
     payload: dict[str, Any],
     twin_path: Path,
@@ -982,6 +1012,12 @@ def _mission_exec_cmd(args: argparse.Namespace) -> int:
     )
 
     _print_mission_exec(result, as_json=getattr(args, "json", False))
+    log_entry = {
+        "id": f"playbook:{payload.get('playbook') or issue or 'unknown'}",
+        "label": payload.get("playbook") or issue or "mission exec",
+        "action": {"kind": "playbook" if result.playbook else "mission_exec_top", "issue": payload.get("playbook") or issue},
+    }
+    _log_palette_action(project_path, log_entry, result)
     return 0 if result.status in {"success", "noop"} else 1
 
 
@@ -1615,6 +1651,7 @@ def _mission_ui(
                     "action_type": (entry.get("action") or {}).get("kind"),
                 },
             )
+            _log_palette_action(project_path, entry, result_exec)
             time.sleep(1.0)
     except KeyboardInterrupt:
         record_structured_event(

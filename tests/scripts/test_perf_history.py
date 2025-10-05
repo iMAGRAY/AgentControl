@@ -24,10 +24,13 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     report_path = tmp_path / "baseline.json"
     _write_report(report_path, 1000.0)
 
+    root = Path(__file__).resolve().parents[2]
+    script = root / "scripts" / "perf" / "compare_history.py"
+
     baseline = subprocess.run(
         [
             "python3",
-            "scripts/perf/compare_history.py",
+            str(script),
             "--report",
             str(report_path),
             "--history-dir",
@@ -37,16 +40,18 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
-        cwd=Path(__file__).resolve().parents[2],
+        cwd=tmp_path,
     )
     assert baseline.returncode == 0
 
     regression_report = tmp_path / "regression.json"
     _write_report(regression_report, 1300.0)
+    journal_dir = tmp_path / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
     regression = subprocess.run(
         [
             "python3",
-            "scripts/perf/compare_history.py",
+            str(script),
             "--report",
             str(regression_report),
             "--history-dir",
@@ -58,7 +63,7 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
         ],
         capture_output=True,
         text=True,
-        cwd=Path(__file__).resolve().parents[2],
+        cwd=tmp_path,
     )
     assert regression.returncode == 1
     diff_path = history_dir / "diff.json"
@@ -67,11 +72,16 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     op = diff["regressions"][0]
     assert op["operation"] == "diagnose"
     assert op["regression"] is True
+    events_path = tmp_path / "journal" / "task_events.jsonl"
+    assert events_path.exists()
+    entries = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(entry.get("event") == "perf.regression" for entry in entries)
 
 
 def test_perf_history_keep_trim(tmp_path: Path) -> None:
     history_dir = tmp_path / "history"
     root = Path(__file__).resolve().parents[2]
+    script = root / "scripts" / "perf" / "compare_history.py"
     values = [1000.0, 900.0, 800.0]
     for idx, value in enumerate(values):
         report = tmp_path / f"run_{idx}.json"
@@ -79,7 +89,7 @@ def test_perf_history_keep_trim(tmp_path: Path) -> None:
         result = subprocess.run(
             [
                 "python3",
-                "scripts/perf/compare_history.py",
+                str(script),
                 "--report",
                 str(report),
                 "--history-dir",
@@ -90,7 +100,7 @@ def test_perf_history_keep_trim(tmp_path: Path) -> None:
             ],
             capture_output=True,
             text=True,
-            cwd=root,
+            cwd=tmp_path,
         )
         assert result.returncode == 0
 

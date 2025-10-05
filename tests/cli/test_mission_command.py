@@ -7,6 +7,7 @@ import pytest
 
 from agentcontrol import __version__
 from agentcontrol.cli import main as cli_main
+from agentcontrol.app.mission.service import MissionExecResult
 from agentcontrol.settings import RuntimeSettings
 
 
@@ -153,6 +154,13 @@ def test_mission_command_generates_twin(project: Path, runtime_settings: Runtime
     first_timeline = output["timeline"][0]
     assert first_timeline.get("hint")
     assert first_timeline.get("hintId")
+    doc_path = first_timeline.get("docPath")
+    assert doc_path
+    repo_root = Path(__file__).resolve().parents[2]
+    assert (repo_root / doc_path).exists()
+    first_timeline = output["timeline"][0]
+    assert first_timeline.get("hint")
+    assert first_timeline.get("hintId")
     assert output["filters"] == ["docs", "quality", "tasks", "timeline", "mcp"]
     assert {"docs", "quality", "tasks", "timeline", "mcp"}.issubset(output["drilldown"].keys())
     assert output["playbooks"]
@@ -198,6 +206,8 @@ def test_mission_detail_timeline_json(project: Path, capsys: pytest.CaptureFixtu
     assert len(payload["detail"]) == 1
     assert payload["detail"][0].get("hint")
     assert payload["detail"][0].get("hintId")
+    assert payload["detail"][0].get("docPath")
+    assert payload["detail"][0].get("hintId")
 
 
 def test_mission_summary_filter_limits_output(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -241,3 +251,20 @@ def test_mission_exec_with_issue(project: Path, capsys: pytest.CaptureFixture[st
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload['playbook']['issue'] == 'docs_drift'
+
+
+def test_log_palette_action(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    entry = {
+        "id": "docs:sync",
+        "label": "Docs sync",
+        "action": {"kind": "docs_sync"},
+    }
+    result = MissionExecResult(status="success", playbook=None, action={"type": "docs_sync"}, twin={}, message=None)
+    cli_main._log_palette_action(project, entry, result)
+    cli_main._log_palette_action(project, entry, result)
+    log_path = project / "reports" / "automation" / "mission-actions.json"
+    payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert len(payload) == 2
+    assert payload[0]["status"] == "success"

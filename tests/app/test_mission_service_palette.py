@@ -72,6 +72,8 @@ def test_mission_service_generates_palette_and_executes_actions(tmp_path: Path) 
     palette_ids = {entry["id"] for entry in twin["palette"]}
     assert "mission:exec" in palette_ids
     assert any(entry["type"] == "playbook" for entry in twin["palette"])
+    assert "tasks:status" in palette_ids
+    assert "runtime:refresh" in palette_ids
 
     palette_path = service.persist_palette(project, twin["palette"])
     assert palette_path.exists()

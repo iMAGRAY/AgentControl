@@ -16,6 +16,7 @@ from agentcontrol.app.command_service import CommandService
 from agentcontrol.domain.mcp import MCPConfigRepository
 from agentcontrol.domain.project import ProjectId
 from agentcontrol.settings import SETTINGS
+from agentcontrol.app.runtime.service import RuntimeService
 
 MISSION_FILTERS = ("docs", "quality", "tasks", "timeline", "mcp")
 
@@ -91,7 +92,7 @@ class MissionService:
         mcp_summary = self._mcp_summary(project_root)
         playbooks = self._playbooks(docs_bridge, quality_summary, mcp_summary)
         drilldown = self._build_drilldown(docs_bridge, program_summary, quality_summary, mcp_summary, timeline)
-        palette = self._palette(playbooks, docs_bridge, quality_summary, mcp_summary)
+        palette = self._palette(project_root, playbooks, program_summary, docs_bridge, quality_summary, mcp_summary)
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -195,6 +196,28 @@ class MissionService:
                 message=message,
             )
 
+        if kind == "tasks_status":
+            project_id = ProjectId.from_existing(project_root)
+            exit_code = self._command_service.run(project_id, "status", [])
+            status = "success" if exit_code == 0 else "warning"
+            message = None if exit_code == 0 else "status pipeline returned non-zero exit code"
+            return MissionExecResult(
+                status=status,
+                playbook=None,
+                action={"type": "tasks_status", "exit_code": exit_code},
+                twin=twin,
+                message=message,
+            )
+
+        if kind == "runtime_refresh":
+            manifest = RuntimeService().build_manifest(project_root)
+            return MissionExecResult(
+                status="success",
+                playbook=None,
+                action={"type": "runtime_refresh", "path": str(manifest.path)},
+                twin=twin,
+            )
+
         return MissionExecResult(status="noop", playbook=None, action=None, twin=twin, message="unsupported action")
 
     def execute_top_playbook(self, project_root: Path) -> MissionExecResult:
@@ -245,6 +268,25 @@ class MissionService:
                     action=action_payload,
                     twin=twin,
                     message=message,
+                )
+            if category == "tasks":
+                project_id = ProjectId.from_existing(project_root)
+                exit_code = self._command_service.run(project_id, "status", [])
+                status = "success" if exit_code == 0 else "warning"
+                return MissionExecResult(
+                    status=status,
+                    playbook=playbook,
+                    action={"type": "tasks_status", "exit_code": exit_code},
+                    twin=twin,
+                    message=None if exit_code == 0 else "status pipeline returned non-zero exit code",
+                )
+            if category == "runtime":
+                manifest = RuntimeService().build_manifest(project_root)
+                return MissionExecResult(
+                    status="success",
+                    playbook=playbook,
+                    action={"type": "runtime_refresh", "path": str(manifest.path)},
+                    twin=twin,
                 )
         except Exception as exc:  # pragma: no cover - defensive path
             return MissionExecResult(status="error", playbook=playbook, action=None, twin=twin, message=str(exc))
@@ -441,7 +483,9 @@ class MissionService:
 
     def _palette(
         self,
+        project_root: Path,
         playbooks: List[Dict[str, Any]],
+        program_summary: Dict[str, Any],
         docs_bridge: Dict[str, Any] | Any,
         quality: Dict[str, Any] | Any,
         mcp_summary: Dict[str, Any] | Any,
@@ -507,6 +551,39 @@ class MissionService:
                 ),
             ]
         )
+
+        tasks_meta = program_summary.get("tasks", {}) if isinstance(program_summary, dict) else {}
+        open_tasks = tasks_meta.get("open")
+        if open_tasks is None:
+            counts = tasks_meta.get("counts") if isinstance(tasks_meta, dict) else {}
+            open_tasks = counts.get("open") if isinstance(counts, dict) else None
+        if open_tasks is None or open_tasks:
+            entries.append(
+                MissionPaletteEntry(
+                    id="tasks:status",
+                    label="Refresh status dashboard",
+                    command="agentcall status",
+                    category="tasks",
+                    type="automation",
+                    hotkey="t",
+                    summary="Run status pipeline to resync tasks/todo",
+                    action={"kind": "tasks_status"},
+                )
+            )
+
+        if self._runtime_stale(project_root):
+            entries.append(
+                MissionPaletteEntry(
+                    id="runtime:refresh",
+                    label="Generate runtime manifest",
+                    command="agentcall runtime status --json",
+                    category="runtime",
+                    type="automation",
+                    hotkey="r",
+                    summary="Rebuild .agentcontrol/runtime.json",
+                    action={"kind": "runtime_refresh"},
+                )
+            )
 
         return entries
 
@@ -583,6 +660,17 @@ class MissionService:
             )
 
         return None
+
+    def _runtime_stale(self, project_root: Path) -> bool:
+        runtime_path = project_root / ".agentcontrol" / "runtime.json"
+        if not runtime_path.exists():
+            return True
+        try:
+            mtime = runtime_path.stat().st_mtime
+        except OSError:
+            return True
+        age = datetime.now(timezone.utc) - datetime.fromtimestamp(mtime, timezone.utc)
+        return age.total_seconds() > 6 * 60 * 60
 
     def _mcp_diagnostics(self, project_root: Path) -> tuple[str, Dict[str, Any], Optional[str]]:
         repo = MCPConfigRepository(project_root)
