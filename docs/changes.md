@@ -1,3 +1,6 @@
+## 0.3.31 — 2025-10-05
+- Governance: AGENTS charter закрепляет обязательное обновление версий (`pyproject.toml` + `agentcontrol/__init__.py`) и мгновенный git commit/push; введена шкала — major для крупных изменений, десятичные для функциональных, сотые для точечных корректировок.
+
 ## 0.3.3 — 2025-10-05
 - `agentcall mission exec` now respects CLI shorthands (`mission exec <path>`) and emits structured telemetry payloads with playbook/action context; tests cover event logging.
 - Templates ship `.agentcontrol/config/automation.sh` with verify hooks that append docs diff / mission summary / MCP status reports to `reports/automation/` and load automatically via `sdk::load_commands`.

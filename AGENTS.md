@@ -39,6 +39,7 @@ teach: true
 - **Micro tasks:** managed exclusively via the Update Plan Tool; must be empty before `agentcall ship`.
 - **Task board:** synchronised across `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
 - **Planning integrity (MANDATORY):** при любом изменении кода необходимо немедленно обновлять `architecture_plan.md` и `todo.md`: отмечать завершённые пункты, добавлять новые цели, поддерживать полноту и актуальность. Несоблюдение правила считается нарушением процесса.
+- **Versioning discipline (MANDATORY):** каждое изменение сопровождаем актуализацией `pyproject.toml`/`agentcontrol/__init__.py` и немедленным git commit + push. Крупные изменения → мажорный шаг (3 → 4); заметные функциональные доработки → десятичный шаг (3.0 → 3.1); точечные исправления/документы → сотые и далее (3.120 → 3.121).
 
 ## 3. Quality Controls
 - Mandatory artefacts: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
