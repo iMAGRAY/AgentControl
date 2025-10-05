@@ -28,6 +28,11 @@ agentcall mission detail timeline --timeline-limit 5 --json
 ```
 The response includes chronological events with `timestamp`, `category`, and `event` keys—ideal for feeding into alerting playbooks.
 
+Every entry now surfaces a `hint` that spells out the next automation step. Examples:
+- Docs drift → `agentcall docs sync --json` + inspect `reports/automation/docs-diff.json`.
+- QA degradation → `agentcall auto tests --apply` + review `reports/verify.json`.
+- Task events → double-check `architecture_plan.md` / `todo.md`, then re-run `mission detail tasks --json`.
+
 ## Step 4 — Stream for Live Operations
 During long-running tasks run:
 ```bash
@@ -48,7 +53,11 @@ When the twin exposes `playbooks`, execute them in priority order. Example entry
 ```
 Invoke the command, then refresh the twin to confirm the playbook cleared.
 
+> С версии 0.3.2 доступна команда `agentcall mission exec`, которая автоматически выбирает плейбук с максимальным приоритетом и выполняет его (например, `docs sync`). Запустите её и проверьте обновлённый twin.
+
 ## Step 6 — Persist Findings
 Agents should persist the twin path (`.agentcontrol/state/twin.json`) in case logs are needed later. The file is overwritten on each summary call, so archive it when capturing RCA artifacts.
 
-> **Next:** Register MCP servers using the [MCP integration tutorial](./mcp_integration.md) to extend the mission dashboard with tool availability.
+> **Next:**
+> 1. Register MCP servers using the [MCP integration tutorial](./mcp_integration.md) — timeline hints will link to `agentcall mcp status --json` outputs stored in `reports/automation/mcp-status.json`.
+> 2. Schedule nightly perf comparisons via `python3 scripts/perf/compare_history.py --report reports/perf/docs_benchmark.json --history-dir reports/perf/history --update-history` to keep the twin’s performance playbooks honest.

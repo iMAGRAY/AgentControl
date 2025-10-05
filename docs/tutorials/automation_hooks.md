@@ -43,3 +43,13 @@ run: agentcall verify --json
 Используйте `SDK_VERIFY_COMMANDS+=(...)` в shell-скриптах, если необходимо дополнять список из разных модулей.
 
 > **Совет:** храните набор команд в `.agentcontrol/config/automation.sh` и source-ите файл в CI, чтобы агенты могли автоматически монтировать общие сценарии.
+
+## Управляемые automation hooks
+- Каждый новый проект, инициализированный SDK, содержит файл `.agentcontrol/config/automation.sh`.
+- Скрипт автоматически подгружается во время `sdk::load_commands` и добавляет три команды:
+  1. `agentcall docs diff --json` → отчёт `reports/automation/docs-diff.json`.
+  2. `agentcall mission summary --json --timeline-limit 20` → `reports/automation/mission-summary.json`.
+  3. `agentcall mcp status --json` → `reports/automation/mcp-status.json` (толерантен к отсутствию MCP, завершается `|| true`).
+- Используйте функции `sdk::ensure_array_value` и стандартные массивы, чтобы дополнять/заменять эти команды без дублирования.
+
+> Скрипт идемпотентен: повторный вызов `sdk::load_commands` не создаёт дублей в `SDK_VERIFY_COMMANDS`, а директория `reports/automation` создаётся автоматически.

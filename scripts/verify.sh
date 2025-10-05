@@ -16,6 +16,8 @@ mkdir -p "$PERF_REPORT_DIR"
 VERIFY_JSON="$REPORT_DIR/verify.json"
 PERF_REPORT_PATH="$PERF_REPORT_DIR/docs_benchmark.json"
 PERF_THRESHOLD_MS="${PERF_THRESHOLD_MS:-60000}"
+PERF_HISTORY_DIR="$PERF_REPORT_DIR/history"
+mkdir -p "$PERF_HISTORY_DIR"
 
 declare -a VERIFY_STEPS
 OVERALL_EXIT=0
@@ -116,6 +118,11 @@ run_step "scan-sbom" "critical" "\"$SDK_ROOT/scripts/scan-sbom.sh\""
 
 run_step "perf-docs" "warning" "\"$SDK_ROOT/scripts/perf/docs_benchmark.py\" --sections 1000 --trials 5 --report \"$PERF_REPORT_PATH\""
 run_step "perf-docs-threshold" "critical" "\"$SDK_ROOT/scripts/perf/check_docs_perf.py\" --report \"$PERF_REPORT_PATH\" --threshold \"$PERF_THRESHOLD_MS\""
+PERF_HISTORY_CMD="\"$SDK_ROOT/scripts/perf/compare_history.py\" --report \"$PERF_REPORT_PATH\" --history-dir \"$PERF_HISTORY_DIR\" --diff \"$PERF_HISTORY_DIR/diff.json\" --max-regression-pct \"${PERF_HISTORY_MAX_PCT:-10}\" --max-regression-ms \"${PERF_HISTORY_MAX_MS:-2000}\""
+if [[ "${PERF_HISTORY_UPDATE:-0}" == "1" ]]; then
+  PERF_HISTORY_CMD="$PERF_HISTORY_CMD --update-history --keep ${PERF_HISTORY_KEEP:-30}"
+fi
+run_step "perf-history" "warning" "$PERF_HISTORY_CMD"
 # custom verification commands (do not interrupt script)
 if [[ ${#SDK_VERIFY_COMMANDS[@]} -eq 0 ]]; then
   sdk::log "INF" "SDK_VERIFY_COMMANDS empty — skipping"

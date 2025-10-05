@@ -1,3 +1,10 @@
+## 0.3.3 — 2025-10-05
+- `agentcall mission exec` now respects CLI shorthands (`mission exec <path>`) and emits structured telemetry payloads with playbook/action context; tests cover event logging.
+- Templates ship `.agentcontrol/config/automation.sh` with verify hooks that append docs diff / mission summary / MCP status reports to `reports/automation/` and load automatically via `sdk::load_commands`.
+- Added `scripts/perf/compare_history.py` with verify integration to diff nightly docs benchmarks, persist JSON history, and alert on regressions; new tests validate regression detection and retention trimming.
+- Mission timeline hints surface actionable remediation strings (docs sync, QA reruns, MCP status, task sync) and documentation updates describe the richer hints + automation artefacts.
+- Managed region engine writes using UTF-8 surrogatepass to preserve non-BMP inputs covered by property tests.
+
 ## 0.3.2 — 2025-10-04
 - Added `agentcall cache` helper (`download`, `add`, `list`, `verify`) to simplify подготовку оффлайн-колеса перед запуском в закрытых контурах.
 - Persisted auto-update telemetry summary into `reports/status.json` и `context/auto-update-summary.json`, что делает события fallback/succeeded доступными для mission control.

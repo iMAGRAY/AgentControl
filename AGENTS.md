@@ -16,7 +16,7 @@ teach: true
 - `agentcall docs list|diff|repair|adopt|rollback [--json] [PATH]` — managed documentation lifecycle (backups, anchor-aware updates, MkDocs/Docusaurus/Confluence adapters).
 - `agentcall docs sync [--mode repair|adopt] [--json] [PATH]` — автоматизированный diff→repair/adopt конвейер для managed секций.
 - `agentcall sandbox start|list|purge [PATH]` — provision disposable capsules under `.agentcontrol/sandbox/` for experimentation.
-- `agentcall mission summary|ui|detail [--json] [PATH]` — generate twin snapshots, stream the live mission dashboard, or drill into a specific section (`docs`, `quality`, `tasks`, `timeline`, `mcp`).
+- `agentcall mission summary|ui|detail|exec [--json] [PATH]` — generate twins, stream dashboard, drill into sections или автоматически выполнить топ-плейбук (`exec`).
 - `agentcall info [PATH] [--json]` — enumerate available capabilities, telemetry schema, and optional mission snapshot.
 - `agentcall mcp add|remove|status [PATH]` — manage per-project MCP server registry under `.agentcontrol/config/mcp/`.
 - `agentcall runtime status|events [PATH]` — refresh `.agentcontrol/runtime.json` and stream structured telemetry events.
@@ -38,6 +38,7 @@ teach: true
 - **Agent logs:** stored under `reports/agents/` with metadata for each run.
 - **Micro tasks:** managed exclusively via the Update Plan Tool; must be empty before `agentcall ship`.
 - **Task board:** synchronised across `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
+- **Planning integrity (MANDATORY):** при любом изменении кода необходимо немедленно обновлять `architecture_plan.md` и `todo.md`: отмечать завершённые пункты, добавлять новые цели, поддерживать полноту и актуальность. Несоблюдение правила считается нарушением процесса.
 
 ## 3. Quality Controls
 - Mandatory artefacts: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
@@ -69,6 +70,7 @@ teach: true
 - Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
 - Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration, automation hooks).
 - Troubleshooting: `docs/troubleshooting/docs_bridge.md`.
+- Planning artefacts: `architecture_plan.md`, `todo.md` — поддерживаются строго актуальными и полными (см. §2).
 - Docs bridge: `agentcall docs diagnose|info|list|diff|repair|adopt|rollback --json` работают поверх `.agentcontrol/config/docs.bridge.yaml`, управляя маркерами непосредственно в боевой документации; managed регионы находятся в исходных `docs/` файлах — дублирующих деревьев нет. Анкоры (`insert_after_heading`, `insert_before_marker`) управляют первой вставкой; адаптеры поддерживают MkDocs/Docusaurus/Confluence через `mode: external`.
 - Mission control & digital twin (roadmap): `agentcall mission --json` создаёт/читает `.agentcontrol/state/twin.json`, предоставляя агенту вектор текущего статуса (docs/tests/tasks/MCP).
 - **Self-hosting caveat:** при разработке самого SDK не используем встроенные системные команды (`agentcall init/status/...`) для управления проектом. Планирование ведём вручную в `architecture_plan.md` и `todo.md`, чтобы исключить рекурсивные побочные эффекты. Любые изменения фиксируем здесь.

@@ -132,6 +132,15 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 **Phase update (2025-10-05):** Hypothesis-powered property/fuzz tests cover managed regions and CLI JSON, sandbox CLI ships with templated capsule + unit tests, mission dashboard добавляет `--filter`/`detail`, ранжирует плейбуки по приоритету с подсказками, а docs включают tutorials (включая automation hooks), troubleshooting и sample MCP/sandbox репозитории. Performance benchmark (`scripts/perf/docs_benchmark.py`) фиксирует `docs diagnose` p95=646 мс на 1 200 секций, verify теперь гоняет связку `perf-docs`/`check_docs_perf` и держит порог ≤60 с на 1000 секций; кэширование конфигов и регионов снижает повторный I/O практически до нуля.
 
+### Phase 5 – Autonomous Ops Assist
+- Mission autopilot: `agentcall mission exec` запускает рекомендованный плейбук, логирует исход.
+- Actionable telemetry: timeline события тегируются хинтами + remediate scripts.
+- Verify hook library: пакет `automation/hooks.sh` с типовыми `SDK_VERIFY_COMMANDS` (docs sync, perf, QA).
+- Continuous perf guard: `perf-docs` выносится в nightly + сравнение с историей.
+- Agent UX polish: command palette / cheatsheet для основных автоматизаций.
+
+**Phase update (2025-10-05):** mission exec CLI фиксирует шорткаты и логирует playbook/action, verify hooks подгружаются автоматически через `.agentcontrol/config/automation.sh`, nightly perf сравнивается скриптом `scripts/perf/compare_history.py` (история+diff), а timeline hints / туториалы теперь сразу предлагают команды (`docs sync --json`, `auto tests --apply`, `mcp status --json`, синхронизацию architecture_plan/todo).
+
 ---
 ## 6. Risk Register
 | Risk | Impact | Mitigation |
@@ -173,9 +182,9 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 ---
 ## 11. Immediate Next Steps
-- Implement Phase 0 backlog (see `todo.md`).
-- Draft JSON schema + CLI diagnose command.
-- Extend integration tests for removal & corruption.
-- Document runtime/event spec skeleton.
+- Mission UI command palette: быстрый запуск плейбуков/automation hooks прямо из `mission ui` (hotkeys + JSON API).
+- Nightly perf workflow: эталонный `perf-nightly` pipeline (GitHub Actions + local script) на базе `compare_history.py` с уведомлениями.
+- Mission exec extension: автоматизировать quality/mcp playbooks (QA reruns, MCP connectivity diagnostics) с расширенным телеметрийным статусом.
+- Mission knowledge base: привязать timeline hints к конкретным разделам документации (`docs/tutorials/...`) через ссылочные идентификаторы.
 
 > **Self-hosting constraint:** development tracked via `architecture_plan.md` + `todo.md`; no recursive usage of agentcall automation on the SDK itself.

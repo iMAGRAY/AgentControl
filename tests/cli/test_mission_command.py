@@ -196,3 +196,26 @@ def test_mission_summary_filter_limits_output(project: Path, capsys: pytest.Capt
     output = capsys.readouterr().out
     assert "docs status" in output
     assert "verify status" not in output
+
+
+def test_mission_exec_runs_docs_sync(
+    project: Path,
+    runtime_settings: RuntimeSettings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare_docs(project)
+    overview = project / 'docs' / 'architecture' / 'overview.md'
+    overview.write_text('# Architecture Overview\n\nManual drift\n', encoding='utf-8')
+
+    exit_code = cli_main.main(['mission', 'exec', str(project), '--json'])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload['playbook']['issue'] == 'docs_drift'
+    synced = overview.read_text(encoding='utf-8')
+    assert 'agentcontrol:start:agentcontrol-architecture-overview' in synced
+
+    events = [evt for evt in _load_events(runtime_settings) if evt.get('event') == 'mission.exec']
+    assert events
+    final = events[-1]
+    assert final.get('status') == 'success'
+    assert final.get('payload', {}).get('playbook') == 'docs_drift'

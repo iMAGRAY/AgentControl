@@ -11,7 +11,11 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from agentcontrol.app.docs.service import DocsBridgeService
+from agentcontrol.app.docs.operations import DocsCommandService
+from agentcontrol.app.command_service import CommandService
 from agentcontrol.domain.mcp import MCPConfigRepository
+from agentcontrol.domain.project import ProjectId
+from agentcontrol.settings import SETTINGS
 
 MISSION_FILTERS = ("docs", "quality", "tasks", "timeline", "mcp")
 
@@ -22,11 +26,22 @@ class TwinBuildResult:
     path: Path
 
 
+@dataclass(frozen=True)
+class MissionExecResult:
+    status: str
+    playbook: Optional[Dict[str, Any]]
+    action: Optional[Dict[str, Any]]
+    twin: Dict[str, Any]
+    message: Optional[str] = None
+
+
 class MissionService:
     """Aggregates project telemetry into a mission twin."""
 
     def __init__(self) -> None:
         self._docs_service = DocsBridgeService()
+        self._docs_command_service = DocsCommandService()
+        self._command_service = CommandService(SETTINGS)
 
     def build_twin(self, project_root: Path) -> Dict[str, Any]:
         project_root = project_root.resolve()
@@ -59,6 +74,54 @@ class MissionService:
         path = state_dir / "twin.json"
         path.write_text(json.dumps(twin, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return TwinBuildResult(twin=twin, path=path)
+
+    def execute_top_playbook(self, project_root: Path) -> MissionExecResult:
+        project_root = project_root.resolve()
+        twin = self.build_twin(project_root)
+        playbooks: List[Dict[str, Any]] = twin.get("playbooks", []) or []
+        if not playbooks:
+            return MissionExecResult(status="noop", playbook=None, action=None, twin=twin, message="no playbooks available")
+
+        playbook = playbooks[0]
+        category = playbook.get("category")
+        try:
+            if category == "docs":
+                payload = self._docs_command_service.sync_sections(project_root, mode="repair")
+                return MissionExecResult(
+                    status="success",
+                    playbook=playbook,
+                    action={"type": "docs_sync", "payload": payload},
+                    twin=twin,
+                )
+            if category == "quality":
+                project_id = ProjectId.from_existing(project_root)
+                exit_code = self._command_service.run(project_id, "verify", [])
+                status = "success" if exit_code == 0 else "warning"
+                return MissionExecResult(
+                    status=status,
+                    playbook=playbook,
+                    action={"type": "verify_pipeline", "exit_code": exit_code},
+                    twin=twin,
+                    message=None if exit_code == 0 else "verify pipeline returned non-zero exit code",
+                )
+            if category == "mcp":
+                return MissionExecResult(
+                    status="noop",
+                    playbook=playbook,
+                    action=None,
+                    twin=twin,
+                    message="no automated handler for MCP playbooks",
+                )
+        except Exception as exc:  # pragma: no cover - defensive path
+            return MissionExecResult(status="error", playbook=playbook, action=None, twin=twin, message=str(exc))
+
+        return MissionExecResult(
+            status="noop",
+            playbook=playbook,
+            action=None,
+            twin=twin,
+            message="unsupported playbook category",
+        )
 
     def _state_dir(self, project_root: Path) -> Path:
         return project_root.resolve() / ".agentcontrol" / "state"
@@ -151,19 +214,6 @@ class MissionService:
         if any(key in label for key in ("task", "roadmap", "mission")):
             return "tasks"
         return payload.get("category", "general")
-
-    def _timeline_hint(self, category: str, payload: Dict[str, Any]) -> Optional[str]:
-        if category == "docs":
-            section = payload.get("section") or payload.get("marker")
-            target = payload.get("path")
-            scope = f" --section {section}" if section else ""
-            return f"Run `agentcall docs sync{scope}` to reconcile documentation".strip()
-        if category == "quality":
-            status = payload.get("status") or payload.get("result")
-            return f"QA event ({status}); consider `agentcall auto tests --apply`"
-        if category == "mcp":
-            return "Review MCP registry via `agentcall mcp status`"
-        return None
 
     def _mcp_summary(self, project_root: Path) -> Dict[str, Any]:
         repo = MCPConfigRepository(project_root)
@@ -272,6 +322,46 @@ class MissionService:
             "category": category,
             "hint": hint,
         }
+
+    def _timeline_hint(self, category: str, payload: Dict[str, Any]) -> Optional[str]:
+        remediation = payload.get("remediation") or payload.get("remediation_hint") or payload.get("hint")
+        if remediation:
+            return remediation
+
+        if category == "docs":
+            section = payload.get("section") or payload.get("marker")
+            target = payload.get("path") or payload.get("target")
+            label = f" `{section}`" if section else ""
+            if section and all(ch.isalnum() or ch in {"_", "-"} for ch in str(section)):
+                scope = f" --section {section}"
+            else:
+                scope = ""
+            target_segment = f" (target: {target})" if target else ""
+            return (
+                f"Docs drift{label}{target_segment}; run `agentcall docs sync{scope} --json` "
+                "and review reports/automation/docs-diff.json"
+            )
+
+        if category == "quality":
+            status = str(payload.get("status") or payload.get("result") or "unknown").lower()
+            if status in {"fail", "failed", "error", "warning", "degraded", "blocked"}:
+                return "QA degraded; run `agentcall auto tests --apply` and inspect reports/verify.json"
+            return "QA update logged; refresh `agentcall mission summary --filter quality`"
+
+        if category == "mcp":
+            return "MCP registry change; run `agentcall mcp status --json` (see reports/automation/mcp-status.json)"
+
+        if category == "tasks":
+            task_ref = payload.get("task") or payload.get("id") or payload.get("summary")
+            label = f" `{task_ref}`" if task_ref else ""
+            return (
+                f"Task event{label}; sync architecture_plan.md & todo.md, then run `agentcall mission detail tasks --json`"
+            )
+
+        if category == "timeline":
+            return "Check `agentcall mission detail timeline --json` for expanded context"
+
+        return None
 
     @staticmethod
     def _load_json(path: Path) -> Optional[Dict[str, Any]]:

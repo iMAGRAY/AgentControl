@@ -47,7 +47,7 @@ class ManagedRegionEngine:
         operations: Dict[str, Union[Optional[str], Tuple[Optional[str], Optional[InsertionPolicy]], "RegionOperation"]],
     ) -> ManagedRegionApplyResult:
         ensure_directory(file_path)
-        text = file_path.read_text(encoding="utf-8") if file_path.exists() else ""
+        text = file_path.read_text(encoding="utf-8", errors="surrogatepass") if file_path.exists() else ""
         changed = False
         changes: List[ManagedRegionChange] = []
 
@@ -65,7 +65,7 @@ class ManagedRegionEngine:
     def read(self, file_path: Path, marker: str) -> Optional[str]:
         if not file_path.exists():
             return None
-        text = file_path.read_text(encoding="utf-8")
+        text = file_path.read_text(encoding="utf-8", errors="surrogatepass")
         match = self._locate(text, marker)
         if match is None:
             return None
@@ -176,8 +176,8 @@ def ensure_directory(path: Path) -> None:
 def _atomic_write(path: Path, data: str) -> None:
     fd, tmp_path = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(data)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data.encode("utf-8", errors="surrogatepass"))
         os.replace(tmp_path, path)
     finally:
         if os.path.exists(tmp_path):

@@ -18,7 +18,7 @@ from typing import Any, Iterable
 from agentcontrol.app.bootstrap_service import BootstrapService
 from agentcontrol.app.command_service import CommandService
 from agentcontrol.app.docs import DocsBridgeService, DocsBridgeServiceError, DocsCommandService
-from agentcontrol.app.mission.service import MissionService
+from agentcontrol.app.mission.service import MissionService, MissionExecResult
 from agentcontrol.app.mcp.manager import MCPManager
 from agentcontrol.app.runtime.service import RuntimeService
 from agentcontrol.app.info import InfoService
@@ -609,6 +609,41 @@ def _print_docs_sync(payload: dict) -> None:
             print(f"  {label}: skipped")
 
 
+def _print_mission_exec(result: MissionExecResult, *, as_json: bool) -> None:
+    if as_json:
+        payload = {
+            "status": result.status,
+            "playbook": result.playbook,
+            "action": result.action,
+            "message": result.message,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    print(f"mission exec: status={result.status}")
+    if result.playbook:
+        display = result.playbook.get("issue")
+        priority = result.playbook.get("priority")
+        if priority is not None:
+            display = f"[{priority}] {display}"
+        print(f"  playbook: {display}")
+        if result.playbook.get("hint"):
+            print(f"    hint: {result.playbook['hint']}")
+    else:
+        print("  playbook: none")
+    if result.action:
+        action_type = result.action.get("type")
+        print(f"  action: {action_type}")
+        payload = result.action.get("payload")
+        if isinstance(payload, dict) and payload.get("status"):
+            print(f"    payload status: {payload.get('status')}")
+        if action_type == "verify_pipeline":
+            print(f"    exit_code: {result.action.get('exit_code')}")
+    if result.message:
+        print(f"  note: {result.message}")
+    print()
+
+
 def _info_cmd(args: argparse.Namespace) -> int:
     service = InfoService()
     path_arg = getattr(args, "path", None)
@@ -881,6 +916,54 @@ def _mission_cmd(args: argparse.Namespace) -> int:
     )
     print("Unsupported mission command", file=sys.stderr)
     return 2
+
+
+def _mission_exec_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "mission", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = MissionService()
+    event_context = {"path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        "mission.exec",
+        status="start",
+        component="mission",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+    result = service.execute_top_playbook(project_path)
+    duration = (time.perf_counter() - start) * 1000
+    telemetry_status = "success"
+    if result.status == "error":
+        telemetry_status = "error"
+    elif result.status == "warning":
+        telemetry_status = "warning"
+
+    payload: dict[str, Any] = {
+        "playbook": result.playbook.get("issue") if result.playbook else None,
+        "category": result.playbook.get("category") if result.playbook else None,
+        "action": result.action.get("type") if result.action else None,
+    }
+    if result.action and result.action.get("type") == "verify_pipeline":
+        payload["exit_code"] = result.action.get("exit_code")
+    if result.message:
+        payload["message"] = result.message
+
+    record_structured_event(
+        SETTINGS,
+        "mission.exec",
+        status=telemetry_status,
+        component="mission",
+        duration_ms=duration,
+        payload=event_context | payload,
+    )
+
+    _print_mission_exec(result, as_json=getattr(args, "json", False))
+    return 0 if result.status in {"success", "noop"} else 1
 
 
 def _mcp_cmd(args: argparse.Namespace) -> int:
@@ -1791,6 +1874,11 @@ def build_parser() -> argparse.ArgumentParser:
     mission_ui.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events per refresh")
     mission_ui.set_defaults(func=_mission_cmd, mission_command="ui")
 
+    mission_exec = mission_sub.add_parser("exec", help="Execute highest-priority playbook")
+    mission_exec.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_exec.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
+    mission_exec.set_defaults(func=_mission_exec_cmd)
+
     mission_detail = mission_sub.add_parser("detail", help="Inspect detailed mission section")
     mission_detail.add_argument("section", choices=MISSION_FILTER_CHOICES, help="Section to inspect")
     mission_detail.add_argument("path", nargs="?", help="Project path (default: current directory)")
@@ -1840,7 +1928,7 @@ def _preprocess_argv(argv: list[str]) -> list[str]:
         return argv
     if argv[0] != "mission":
         return argv
-    mission_subcommands = {"summary", "ui", "detail"}
+    mission_subcommands = {"summary", "ui", "detail", "exec"}
     if len(argv) >= 2:
         candidate = argv[1]
         if not candidate.startswith("-") and candidate not in mission_subcommands:

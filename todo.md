@@ -38,4 +38,16 @@
 - [x] Developer sandbox (`agentcall sandbox start`) for agent experimentation.
 - [x] Mission dashboard polish (filters, timeline, drill-down).
 
+## Phase 5 (In Progress)
+- [x] `agentcall mission exec` auto-executes топовый плейбук и логирует результат в telemetry.
+- [x] Ship verify hook library (`.agentcontrol/config/automation.sh`) + программу for templates/Docs.
+- [x] Nightly perf comparisons (history vs baseline) с алертами при превышении порога.
+- [x] Расширить timeline hints (links/guides) и документацию по ремедиациям.
+
+## Phase 6 (Backlog)
+- [ ] Mission UI command palette для быстрого запуска playbooks и automation hooks.
+- [ ] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
+- [ ] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
+- [ ] Привязать timeline hints к разделам документации (knowledge base identifiers).
+
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.

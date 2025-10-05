@@ -47,6 +47,7 @@ sdk::load_commands() {
   sdk::strip_placeholder_scalar SDK_COVERAGE_FILE
 
   sdk::auto_detect_commands
+  sdk::load_automation_hooks
 }
 
 sdk::strip_placeholder_array() {
@@ -71,6 +72,27 @@ sdk::auto_detect_commands() {
   snippet=$(python3 -m scripts.lib.auto_detect "$SDK_ROOT" 2>/dev/null || true)
   if [[ -n "$snippet" ]]; then
     eval "$snippet"
+  fi
+}
+
+sdk::ensure_array_value() {
+  local array_name="$1"
+  local value="$2"
+  local -n ref="$array_name"
+  local item
+  for item in "${ref[@]}"; do
+    if [[ "$item" == "$value" ]]; then
+      return 0
+    fi
+  done
+  ref+=("$value")
+}
+
+sdk::load_automation_hooks() {
+  local automation_file="$SDK_ROOT/config/automation.sh"
+  if [[ -f "$automation_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$automation_file"
   fi
 }
 
