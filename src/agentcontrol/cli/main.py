@@ -906,6 +906,13 @@ def _render_mission_dashboard(
             print(f"  followup: {status}")
             if recommended:
                 print(f"    action: {recommended}")
+        tasks = perf.get("tasks") or []
+        if tasks:
+            print("  open tasks:")
+            for task in tasks:
+                if task.get("status") == "open":
+                    print(f"    - {task.get('id')} → {task.get('recommended_action')}")
+
 
     if interactive:
         if palette:
@@ -965,6 +972,12 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
         print(f"followup status: {status}")
         if recommended:
             print(f"recommended action: {recommended}")
+    tasks = perf.get("tasks") or []
+    if tasks:
+        open_tasks = [task for task in tasks if task.get("status") == "open"]
+        print(f"open perf tasks: {len(open_tasks)}")
+        for task in open_tasks[:5]:
+            print(f"  - {task.get('id')}: {task.get('recommended_action')}")
     print()
 
 

@@ -267,6 +267,51 @@ def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
         "recommended_action": "agentcall mission exec --issue perf_regression" if regressions else None,
     }
     followup_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _sync_perf_followup_task(project_root, payload)
+
+
+def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> None:
+    state_dir = project_root / ".agentcontrol" / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = state_dir / "perf_tasks.json"
+    tasks: list[dict[str, Any]] = []
+    if tasks_path.exists():
+        try:
+            existing = json.loads(tasks_path.read_text(encoding="utf-8"))
+            if isinstance(existing, list):
+                tasks = existing
+        except json.JSONDecodeError:
+            tasks = []
+
+    now = datetime.now(timezone.utc).isoformat()
+    has_open = any(task.get("status") == "open" for task in tasks)
+
+    if followup.get("status") == "regression":
+        if not has_open:
+            task_id = f"PERF-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
+            task = {
+                "id": task_id,
+                "status": "open",
+                "created_at": now,
+                "recommended_action": followup.get("recommended_action"),
+            }
+            tasks.append(task)
+            _append_timeline_event(
+                project_root,
+                "task.followup.created",
+                {"category": "perf", "task_id": task_id, "recommended_action": followup.get("recommended_action")},
+            )
+    else:
+        updated = False
+        for task in tasks:
+            if task.get("status") == "open":
+                task["status"] = "resolved"
+                task["resolved_at"] = now
+                updated = True
+        if updated:
+            _append_timeline_event(project_root, "task.followup.resolved", {"category": "perf"})
+
+    tasks_path.write_text(json.dumps(tasks, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

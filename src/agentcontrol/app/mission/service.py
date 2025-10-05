@@ -760,12 +760,22 @@ class MissionService:
         diff_path = project_root / "reports" / "perf" / "history" / "diff.json"
         if not diff_path.exists():
             self._update_acknowledgement(project_root, "perf", status="success")
-            return {"regressions": [], "diffPath": str(diff_path), "followup": self._load_perf_followup(project_root)}
+            return {
+                "regressions": [],
+                "diffPath": str(diff_path),
+                "followup": self._load_perf_followup(project_root),
+                "tasks": self._load_perf_tasks(project_root),
+            }
         try:
             diff = json.loads(diff_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             self._update_acknowledgement(project_root, "perf", status="warning", message="perf diff unreadable")
-            return {"regressions": [], "diffPath": str(diff_path), "followup": self._load_perf_followup(project_root)}
+            return {
+                "regressions": [],
+                "diffPath": str(diff_path),
+                "followup": self._load_perf_followup(project_root),
+                "tasks": self._load_perf_tasks(project_root),
+            }
         regressions = diff.get("regressions") or []
         if regressions:
             self._update_acknowledgement(
@@ -780,6 +790,7 @@ class MissionService:
             "regressions": regressions,
             "diffPath": str(diff_path),
             "followup": self._load_perf_followup(project_root),
+            "tasks": self._load_perf_tasks(project_root),
         }
 
     def _perf_regression_playbook(self, project_root: Path) -> Optional[Dict[str, Any]]:
@@ -813,6 +824,18 @@ class MissionService:
         except json.JSONDecodeError:
             return {"path": str(followup_path), "status": "unknown"}
         return {}
+
+    def _load_perf_tasks(self, project_root: Path) -> List[Dict[str, Any]]:
+        tasks_path = self._state_dir(project_root) / "perf_tasks.json"
+        if not tasks_path.exists():
+            return []
+        try:
+            tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+            if isinstance(tasks, list):
+                return tasks
+        except json.JSONDecodeError:
+            pass
+        return []
 
     def _runtime_stale(self, project_root: Path) -> bool:
         runtime_path = project_root / ".agentcontrol" / "runtime.json"
