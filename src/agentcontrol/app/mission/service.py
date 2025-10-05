@@ -119,6 +119,7 @@ class MissionService:
             "activity": activity,
             "acknowledgements": self._acknowledgements(project_root),
             "perf": self._perf_overview(project_root),
+            "tasks": self._task_board(project_root),
         }
 
     def persist_twin(self, project_root: Path) -> TwinBuildResult:
@@ -836,6 +837,22 @@ class MissionService:
         except json.JSONDecodeError:
             pass
         return []
+
+    def _task_board(self, project_root: Path) -> Dict[str, Any]:
+        tasks_dir = project_root / "reports" / "tasks"
+        tasks: list[dict[str, Any]] = []
+        if tasks_dir.exists():
+            for path in sorted(tasks_dir.glob("*.json")):
+                try:
+                    task = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(task, dict):
+                        tasks.append(task | {"path": str(path)})
+                except json.JSONDecodeError:
+                    continue
+        return {
+            "tasks": tasks,
+            "open": sum(1 for task in tasks if task.get("status") == "open"),
+        }
 
     def _runtime_stale(self, project_root: Path) -> bool:
         runtime_path = project_root / ".agentcontrol" / "runtime.json"

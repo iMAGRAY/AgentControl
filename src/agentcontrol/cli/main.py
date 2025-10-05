@@ -820,6 +820,12 @@ def _render_mission_dashboard(
             total = sum(counts.values())
             done = counts.get("done", 0)
             print(f"tasks done: {done}/{total}")
+        board = payload.get("tasks") or {}
+        open_count = board.get("open", 0)
+        board_tasks = board.get("tasks") or []
+        print(f"perf follow-up tasks open: {open_count}")
+        for task in [task for task in board_tasks if task.get("status") == "open"][:3]:
+            print(f"  - {task.get('id')}: {task.get('recommended_action')}")
 
     if "quality" in active_filters:
         verify = payload.get("quality", {}).get("verify", {})
@@ -931,6 +937,7 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
     activity = payload.get("activity") or {}
     perf = payload.get("perf") or {}
     acknowledgements = payload.get("acknowledgements") or {}
+    board = payload.get("tasks") or {}
 
     print("Mission Analytics")
     print("=================")
@@ -972,6 +979,14 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
         print(f"followup status: {status}")
         if recommended:
             print(f"recommended action: {recommended}")
+    tasks = board.get("tasks") or []
+    if tasks:
+        print(f"open follow-up tasks: {sum(1 for task in tasks if task.get('status') == 'open')}")
+        for task in tasks[:5]:
+            label = task.get("id")
+            status = task.get("status")
+            action = task.get("recommended_action")
+            print(f"  - {label}: {status} ({action})")
     tasks = perf.get("tasks") or []
     if tasks:
         open_tasks = [task for task in tasks if task.get("status") == "open"]

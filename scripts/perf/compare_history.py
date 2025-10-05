@@ -267,10 +267,16 @@ def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
         "recommended_action": "agentcall mission exec --issue perf_regression" if regressions else None,
     }
     followup_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    _sync_perf_followup_task(project_root, payload)
+    task_id = _sync_perf_followup_task(project_root, payload)
+    if task_id:
+        tasks_dir = project_root / "reports" / "tasks"
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+        task_path = tasks_dir / f"{task_id}.json"
+        task_payload = payload | {"id": task_id}
+        task_path.write_text(json.dumps(task_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> None:
+def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> str | None:
     state_dir = project_root / ".agentcontrol" / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     tasks_path = state_dir / "perf_tasks.json"
@@ -301,6 +307,7 @@ def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> No
                 "task.followup.created",
                 {"category": "perf", "task_id": task_id, "recommended_action": followup.get("recommended_action")},
             )
+            return task_id
     else:
         updated = False
         for task in tasks:
@@ -310,8 +317,10 @@ def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> No
                 updated = True
         if updated:
             _append_timeline_event(project_root, "task.followup.resolved", {"category": "perf"})
+            return None
 
     tasks_path.write_text(json.dumps(tasks, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return None
 
 
 if __name__ == "__main__":
