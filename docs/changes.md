@@ -1,3 +1,9 @@
+## 0.4.1 — 2025-10-05
+- Mission twin теперь включает mission activity (`reports/automation/mission-actions.json`), а dashboard показывает последние действия.
+- Team playbooks пополнены задачами runtime/status и автоматическим плейбуком `perf_regression`; `agentcall mission exec --issue` поддерживает targeted execution.
+- `scripts/perf/compare_history.py` добавляет события `perf.regression` в timeline и закрыт тестом; timeline hints снабжены `hintId`/`docPath` с проверкой `scripts/check_hint_docs.py`.
+- Mission UI logирует palette actions, palette JSON экспортируется в `mission_palette.json`, CLI обрабатывает горячие клавиши и записи.
+
 ## 0.4.0 — 2025-10-05
 - Mission UI command palette с hotkeys (`mission ui` ↔ `mission_palette.json`), интерактивным запуском playbooks/automation hooks и телеметрией `mission.ui.action`.
 - `mission exec --issue` и расширенные playbook экшены: quality reruns (`verify`) и MCP диагностика (warning при незаполненных endpoint), новые JSON telemetry поля (`category`, `action`).

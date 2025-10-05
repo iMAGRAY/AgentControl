@@ -182,9 +182,9 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 ---
 ## 11. Immediate Next Steps
-- Palette telemetry sink: экспорт действий (`mission.ui.action`) в `reports/automation/mission-actions.json` и визуализация в dashboards.
-- Perf regressions → timeline: автоматическая генерация события `perf.regression` при срабатывании `perf-history` + remediation playbook.
-- Autopilot breadth: mission exec покрывает docs/quality/mcp — расширить до tasks/runtime (pipeline orchestration) с подтверждением отклонений.
-- Agent knowledge loop: lint `hintId` ↔ docs/tutorials, гарантировать существование целей и обновлять cross-links.
+- Mission analytics dashboard: визуализировать `mission-actions.json` + perf history diff (link в mission summary, dashboard widgets).
+- Perf remediation workflow: автоматическое создание follow-up task и закрытие playbook после устранения регрессии.
+- Autopilot acknowledgements: фиксировать подтверждение выполнения задач/runtime playbooks (status pipeline) и статус в twin.
+- Knowledge lint automation: интегрировать `check_hint_docs.py` в CI и добавить coverage отчёт о новых ссылках.
 
 > **Self-hosting constraint:** development tracked via `architecture_plan.md` + `todo.md`; no recursive usage of agentcall automation on the SDK itself.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from unittest.mock import patch
+import json
 
 from agentcontrol.app.mission.service import MissionService
 
@@ -66,6 +67,13 @@ def test_mission_service_generates_palette_and_executes_actions(tmp_path: Path) 
     project.mkdir(parents=True, exist_ok=True)
     _seed_project(project)
 
+    diff_dir = project / "reports" / "perf" / "history"
+    diff_dir.mkdir(parents=True, exist_ok=True)
+    diff_dir.joinpath("diff.json").write_text(
+        json.dumps({"regressions": [{"operation": "diagnose", "regression": True, "delta_ms": 5000}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
     service = MissionService()
     twin = service.build_twin(project)
     assert twin["palette"]
@@ -74,6 +82,8 @@ def test_mission_service_generates_palette_and_executes_actions(tmp_path: Path) 
     assert any(entry["type"] == "playbook" for entry in twin["palette"])
     assert "tasks:status" in palette_ids
     assert "runtime:refresh" in palette_ids
+    playbook_issues = {entry["issue"] for entry in twin["playbooks"]}
+    assert "perf_regression" in playbook_issues
 
     palette_path = service.persist_palette(project, twin["palette"])
     assert palette_path.exists()

@@ -17,8 +17,17 @@ from agentcontrol.domain.mcp import MCPConfigRepository
 from agentcontrol.domain.project import ProjectId
 from agentcontrol.settings import SETTINGS
 from agentcontrol.app.runtime.service import RuntimeService
+from agentcontrol.app.runtime.service import RuntimeService
 
 MISSION_FILTERS = ("docs", "quality", "tasks", "timeline", "mcp")
+
+TIMELINE_DOC_REFERENCES = {
+    "docs": "docs/tutorials/automation_hooks.md",
+    "quality": "docs/tutorials/perf_nightly.md",
+    "mcp": "docs/tutorials/mcp_integration.md",
+    "tasks": "architecture_plan.md",
+    "timeline": "docs/tutorials/mission_control_walkthrough.md",
+}
 
 
 @dataclass(frozen=True)
@@ -90,9 +99,10 @@ class MissionService:
         quality_summary = self._quality_summary(verify_report)
         timeline = self._timeline(project_root)
         mcp_summary = self._mcp_summary(project_root)
-        playbooks = self._playbooks(docs_bridge, quality_summary, mcp_summary)
+        playbooks = self._playbooks(project_root, docs_bridge, quality_summary, mcp_summary)
         drilldown = self._build_drilldown(docs_bridge, program_summary, quality_summary, mcp_summary, timeline)
         palette = self._palette(project_root, playbooks, program_summary, docs_bridge, quality_summary, mcp_summary)
+        activity = self._mission_activity(project_root)
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -105,6 +115,7 @@ class MissionService:
             "filters": list(MISSION_FILTERS),
             "drilldown": drilldown,
             "palette": [entry.to_dict() for entry in palette],
+            "activity": activity,
         }
 
     def persist_twin(self, project_root: Path) -> TwinBuildResult:
@@ -422,6 +433,7 @@ class MissionService:
 
     def _playbooks(
         self,
+        project_root: Path,
         docs_bridge: Dict[str, Any],
         quality: Dict[str, Any],
         mcp_summary: Dict[str, Any],
@@ -477,6 +489,10 @@ class MissionService:
                     hint="Expose tooling via `agentcall mcp add ...`",
                 )
             )
+
+        perf_playbook = self._perf_regression_playbook(project_root)
+        if perf_playbook:
+            suggestions.append(perf_playbook)
 
         suggestions.sort(key=lambda item: (-item.get("priority", 0), item.get("issue")))
         return suggestions
@@ -627,7 +643,7 @@ class MissionService:
             hint_id = "docs.drift"
             if section:
                 hint_id = f"docs.drift.{section}"
-            return TimelineHint(text=text, hint_id=hint_id, doc_path="docs/tutorials/automation_hooks.md")
+            return TimelineHint(text=text, hint_id=hint_id, doc_path=TIMELINE_DOC_REFERENCES["docs"])
 
         if category == "quality":
             status = str(payload.get("status") or payload.get("result") or "unknown").lower()
@@ -637,29 +653,67 @@ class MissionService:
             else:
                 text = "QA update logged; refresh `agentcall mission summary --filter quality`"
                 hint_id = "quality.update"
-            return TimelineHint(text=text, hint_id=hint_id, doc_path="docs/tutorials/perf_nightly.md")
+            return TimelineHint(text=text, hint_id=hint_id, doc_path=TIMELINE_DOC_REFERENCES["quality"])
 
         if category == "mcp":
             return TimelineHint(
                 text="MCP registry change; run `agentcall mcp status --json` (see reports/automation/mcp-status.json)",
                 hint_id="mcp.registry",
-                doc_path="docs/tutorials/mcp_integration.md",
+                doc_path=TIMELINE_DOC_REFERENCES["mcp"],
             )
 
         if category == "tasks":
             task_ref = payload.get("task") or payload.get("id") or payload.get("summary")
             label = f" `{task_ref}`" if task_ref else ""
             text = f"Task event{label}; sync architecture_plan.md & todo.md, then run `agentcall mission detail tasks --json`"
-            return TimelineHint(text=text, hint_id="tasks.sync", doc_path="architecture_plan.md")
+            return TimelineHint(text=text, hint_id="tasks.sync", doc_path=TIMELINE_DOC_REFERENCES["tasks"])
 
         if category == "timeline":
             return TimelineHint(
                 text="Check `agentcall mission detail timeline --json` for expanded context",
                 hint_id="timeline.inspect",
-                doc_path="docs/tutorials/mission_control_walkthrough.md",
+                doc_path=TIMELINE_DOC_REFERENCES["timeline"],
             )
 
         return None
+
+    def _mission_activity(self, project_root: Path) -> Dict[str, Any]:
+        log_path = project_root / "reports" / "automation" / "mission-actions.json"
+        if not log_path.exists():
+            return {"count": 0, "recent": []}
+        try:
+            entries = json.loads(log_path.read_text(encoding="utf-8"))
+            if not isinstance(entries, list):
+                return {"count": 0, "recent": []}
+        except json.JSONDecodeError:
+            return {"count": 0, "recent": []}
+
+        recent = entries[-5:]
+        return {
+            "count": len(entries),
+            "recent": recent[::-1],
+            "logPath": str(log_path),
+        }
+
+    def _perf_regression_playbook(self, project_root: Path) -> Optional[Dict[str, Any]]:
+        diff_path = project_root / "reports" / "perf" / "history" / "diff.json"
+        if not diff_path.exists():
+            return None
+        try:
+            diff = json.loads(diff_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
+        regressions = diff.get("regressions") or []
+        if not regressions:
+            return None
+        return self._playbook_entry(
+            issue="perf_regression",
+            summary="Investigate docs performance regression",
+            command="agentcall verify --json",
+            priority=120,
+            category="quality",
+            hint="Review reports/perf/history/diff.json and rerun verify to validate perf fix",
+        )
 
     def _runtime_stale(self, project_root: Path) -> bool:
         runtime_path = project_root / ".agentcontrol" / "runtime.json"

@@ -850,6 +850,16 @@ def _render_mission_dashboard(
             if playbook.get("hint"):
                 print(f"      hint: {playbook['hint']}")
 
+    activity = payload.get("activity") or {}
+    recent_actions = activity.get("recent") or []
+    if recent_actions:
+        print("recent mission actions:")
+        for action in recent_actions[:5]:
+            label = action.get("label") or action.get("id")
+            status = action.get("status")
+            timestamp = action.get("timestamp")
+            print(f"  - [{timestamp}] {label} → {status}")
+
     if interactive:
         if palette:
             hotkeys = []

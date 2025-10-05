@@ -123,6 +123,7 @@ if [[ "${PERF_HISTORY_UPDATE:-0}" == "1" ]]; then
   PERF_HISTORY_CMD="$PERF_HISTORY_CMD --update-history --keep ${PERF_HISTORY_KEEP:-30}"
 fi
 run_step "perf-history" "warning" "$PERF_HISTORY_CMD"
+run_step "hint-docs" "warning" "\"$SDK_ROOT/scripts/check_hint_docs.py\""
 # custom verification commands (do not interrupt script)
 if [[ ${#SDK_VERIFY_COMMANDS[@]} -eq 0 ]]; then
   sdk::log "INF" "SDK_VERIFY_COMMANDS empty — skipping"

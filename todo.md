@@ -49,7 +49,9 @@
 - [x] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
 - [x] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
 - [x] Привязать timeline hints к разделам документации (knowledge base identifiers).
-- [ ] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
-- [ ] Integrate perf regression alerts with mission timeline (auto `perf.regression` event).
+- [x] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
+- [x] Integrate perf regression alerts with mission timeline (auto `perf.regression` event).
+- [ ] Mission analytics dashboard: визуализировать mission-actions + perf diff (reports/automation → dashboard).
+- [ ] Perf regression remediation workflow: автоматическое создание follow-up task и закрытие playbook после устранения.
 
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.

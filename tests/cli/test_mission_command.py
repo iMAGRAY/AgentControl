@@ -165,6 +165,8 @@ def test_mission_command_generates_twin(project: Path, runtime_settings: Runtime
     assert {"docs", "quality", "tasks", "timeline", "mcp"}.issubset(output["drilldown"].keys())
     assert output["playbooks"]
     assert output["palette"]
+    assert output["activity"]["count"] == 0
+    assert output["activity"]["recent"] == []
     first_playbook = output["playbooks"][0]
     assert "priority" in first_playbook and "hint" in first_playbook
     twin_path = project / ".agentcontrol" / "state" / "twin.json"
@@ -232,6 +234,10 @@ def test_mission_exec_runs_docs_sync(
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload['playbook']['issue'] == 'docs_drift'
+    log_path = project / "reports" / "automation" / "mission-actions.json"
+    log_entries = json.loads(log_path.read_text(encoding='utf-8'))
+    assert log_entries
+    assert log_entries[-1]['status'] == 'success'
     synced = overview.read_text(encoding='utf-8')
     assert 'agentcontrol:start:agentcontrol-architecture-overview' in synced
 
