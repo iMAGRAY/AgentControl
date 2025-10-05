@@ -1,2 +1,2 @@
-recursive-include src/agentcontrol/templates *
-recursive-include src/agentcontrol/templates .*
+graft src/agentcontrol/templates
+recursive-include src/agentcontrol/resources *.json

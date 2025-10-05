@@ -30,4 +30,4 @@ agentcall verify
 ## Customisation Tips
 - Update `package.json` with additional scripts (type checking, bundling).
 - Extend `config/commands.sh` with stack-specific tasks (Vitest, Playwright, etc.).
-- Maintain DDD artefacts (`architecture/manifest.yaml`, docs/ADR) to stay aligned with governance pipeline.
+- Maintain DDD artefacts (`architecture/manifest.yaml`, docs/adr) to stay aligned with governance pipeline.

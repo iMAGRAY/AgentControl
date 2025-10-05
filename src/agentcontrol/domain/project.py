@@ -10,22 +10,36 @@ from typing import Any
 
 
 PROJECT_DESCRIPTOR = "agentcontrol.project.json"
-PROJECT_DIR = "agentcontrol"
+PROJECT_DIR = ".agentcontrol"
+LEGACY_PROJECT_DIRS: tuple[str, ...] = ("agentcontrol",)
 COMMAND_DESCRIPTOR = "agentcall.yaml"
+
+
+def _capsule_dirs(root: Path) -> list[Path]:
+    """Return capsule directories prioritising the new hidden layout."""
+
+    seen: set[str] = set()
+    directories: list[Path] = []
+    for name in (PROJECT_DIR, *LEGACY_PROJECT_DIRS):
+        if name in seen:
+            continue
+        directories.append(root / name)
+        seen.add(name)
+    return directories
 
 
 def _descriptor_candidates(root: Path) -> list[Path]:
     """Return possible descriptor locations for backward compatibility."""
 
-    capsule_descriptor = root / PROJECT_DIR / PROJECT_DESCRIPTOR
-    legacy_descriptor = root / PROJECT_DESCRIPTOR
-    return [capsule_descriptor, legacy_descriptor]
+    candidates = [(capsule_dir / PROJECT_DESCRIPTOR) for capsule_dir in _capsule_dirs(root)]
+    candidates.append(root / PROJECT_DESCRIPTOR)
+    return candidates
 
 
 def command_descriptor_candidates(root: Path) -> list[Path]:
-    capsule_descriptor = root / PROJECT_DIR / COMMAND_DESCRIPTOR
-    legacy_descriptor = root / COMMAND_DESCRIPTOR
-    return [capsule_descriptor, legacy_descriptor]
+    candidates = [(capsule_dir / COMMAND_DESCRIPTOR) for capsule_dir in _capsule_dirs(root)]
+    candidates.append(root / COMMAND_DESCRIPTOR)
+    return candidates
 
 
 class ProjectNotInitialisedError(RuntimeError):

@@ -28,7 +28,7 @@ def _seed_template(template_dir: Path, name: str) -> None:
     )
     (root / "template.sha256").write_text("dummy\n", encoding="utf-8")
     (root / "agentcall.yaml").write_text("commands: {}\n", encoding="utf-8")
-    agent_dir = root / "agentcontrol"
+    agent_dir = root / ".agentcontrol"
     (agent_dir / "scripts").mkdir(parents=True, exist_ok=True)
     (agent_dir / "scripts" / "dummy.sh").write_text('#!/usr/bin/env bash\necho dummy\n', encoding="utf-8")
 
@@ -45,7 +45,7 @@ def test_bootstrap_persists_template(tmp_path: Path) -> None:
     descriptor = project_id.descriptor_path()
     data = json.loads(descriptor.read_text(encoding="utf-8"))
     assert data["template"] == "python"
-    assert (project_id.root / "agentcontrol" / "agentcall.yaml").exists()
+    assert (project_id.root / ".agentcontrol" / "agentcall.yaml").exists()
     assert not (project_id.root / "agentcall.yaml").exists()
 
 

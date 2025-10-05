@@ -1,0 +1,6 @@
+name: incident-wiki
+endpoint: https://mcp.example.com/incidents
+description: Incident post-mortem archive
+metadata:
+  tier: sre
+  owner: platform

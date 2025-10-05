@@ -12,6 +12,7 @@ authors = [{name = "AgentControl Core"}]
 dependencies = [
     "PyYAML>=6.0.3",
     "packaging>=25.0",
+    "jsonschema>=4.23.0",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +32,11 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-"agentcontrol" = ["templates/**/*"]
+"agentcontrol" = [
+    "templates/**/*",
+    "templates/**/.agentcontrol/**/*",
+    "resources/*.json",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

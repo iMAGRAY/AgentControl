@@ -1,0 +1,21 @@
+version: 1
+root: docs
+sections:
+  architecture_overview:
+    mode: managed
+    target: architecture/overview.md
+    marker: agentcontrol-architecture-overview
+  adr_index:
+    mode: managed
+    target: adr/index.md
+    marker: agentcontrol-adr-index
+  rfc_index:
+    mode: managed
+    target: rfc/index.md
+    marker: agentcontrol-rfc-index
+  adr_entry:
+    mode: file
+    target_template: adr/{id}.md
+  rfc_entry:
+    mode: file
+    target_template: rfc/{id}.md

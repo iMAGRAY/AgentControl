@@ -24,6 +24,7 @@ def cmd_download(version: str, cache_dir: Path) -> None:
     command = [sys.executable, "-m", "pip", "download", f"agentcontrol=={version}", "--no-deps", "-d", str(cache_dir)]
     result = subprocess.run(command, check=False)
     if result.returncode != 0:
+        print("pip download failed", file=sys.stderr)
         sys.exit(result.returncode)
     wheels = list(cache_dir.glob(f"agentcontrol-{version}-*.whl"))
     if not wheels:

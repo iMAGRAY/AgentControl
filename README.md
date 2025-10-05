@@ -5,17 +5,17 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 ## 1. Value Proposition
 - **Single operational entrypoint.** The `agentcall` CLI aligns humans and agents on the same verified pipelines (`init`, `verify`, `ship`, `status`, and more).
 - **Integrated governance.** Roadmaps, task boards, and architecture manifests remain in sync through automated status and progress commands.
-- **Agent-first runtime.** Codex/Claude CLIs, Memory Heart, and supporting scripts install without manual steps, keeping cognitive load low for automated contributors.
+- **Agent-first runtime.** Codex/Claude CLIs, supporting scripts install without manual steps, keeping cognitive load low for automated contributors.
 - **Compliance by default.** Lockfiles, SBOM generation, audit artefacts, and release gates are embedded into the workflow.
 
 ## 2. Solution Architecture
 | Layer | Responsibility | Key artefacts |
 | --- | --- | --- |
-| **CLI & Pipelines** | Lifecycle orchestration (`init`, `verify`, `ship`, `status`). | `src/agentcontrol/cli`, `src/agentcontrol/app` |
+| **CLI & Pipelines** | Lifecycle orchestration (`init`, `verify`, `ship`, `status`) + docs/mission/info/mcp control surfaces. | `src/agentcontrol/cli`, `src/agentcontrol/app` |
 | **Domain & Governance** | Capsule, template, and command models with explicit invariants. | `src/agentcontrol/domain`, `src/agentcontrol/ports` |
-| **Templates** | Project capsules (`default`, `python`, `node`, `monorepo`) fully contained inside `./agentcontrol/`. | `src/agentcontrol/templates/<version>/<template>` |
+| **Templates** | Project capsules (`default`, `python`, `node`, `monorepo`) fully contained inside `./.agentcontrol/`. | `src/agentcontrol/templates/<version>/<template>` |
 | **Plugin framework** | Extensible CLI via the `agentcontrol.plugins` entry point group. | `src/agentcontrol/plugins`, `examples/plugins/` |
-| **Observability** | Telemetry, Memory Heart, status artefacts. | `src/agentcontrol/utils/telemetry`, `reports/` |
+| **Observability** | Telemetry, mission control, runtime manifest/events. | `src/agentcontrol/utils/telemetry`, `src/agentcontrol/app/runtime`, `reports/` |
 
 ## 3. Quick Start (fresh machine)
 1. **Prerequisites.** Bash ≥ 5.0, Python ≥ 3.10, Node.js ≥ 18, Cargo ≥ 1.75. Pin versions in CI for reproducibility.
@@ -29,7 +29,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    ```bash
    agentcall init --template python ~/workspace/project
    ```
-   All SDK artefacts live inside `project/agentcontrol/`; the host repository remains untouched.
+   All SDK artefacts live inside `project/.agentcontrol/`; the host repository remains untouched.
    (Set `AGENTCONTROL_AUTO_INIT=1` if you prefer `agentcall status` to bootstrap automatically.)
 4. **Authenticate agents.**
    ```bash
@@ -42,7 +42,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    ```bash
    agentcall verify
    ```
-   The pipeline runs formatting, tests, security checks, SBOM, architecture sync, Memory Heart, and emits `reports/verify.json`.
+   The pipeline runs formatting, tests, security checks, SBOM, architecture sync, mission control, and emits `reports/verify.json`.
 
 ## 3.1 Automatic Updates
 - `agentcall` checks PyPI for newer public releases on first invocation (default interval: 6h) and upgrades itself automatically before executing the command.
@@ -63,7 +63,6 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall review` | Diff-focused review workflow with diff-cover support. | Options: `REVIEW_BASE_REF`, `REVIEW_SAVE`. |
 | `agentcall ship` | Release gate (verify → release choreography). | Blocks on failing checks or open micro tasks. |
 | `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
-| `agentcall heart …` | Memory Heart lifecycle (`sync`, `query`, `serve`). | Settings in `config/heart.json`. |
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report`, `tail --limit`, `clear`. |
 | `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |
@@ -72,8 +71,8 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 ## 5. Capsule Templates
 | Template | Use case | Highlights |
 | --- | --- | --- |
-| `default` | Full governance skeleton with architecture and documentation. | Turnkey `verify/fix/ship` scripts, Memory Heart integration. |
-| `python` | Python backend with pytest. | Isolated virtualenv inside `agentcontrol/.venv`, sample tests included. |
+| `default` | Full governance skeleton with architecture and documentation. | Turnkey `verify/fix/ship` scripts, mission control integration. |
+| `python` | Python backend with pytest. | Isolated virtualenv inside `.agentcontrol/.venv`, sample tests included. |
 | `node` | Node.js service with ESLint and `node --test`. | npm workflows encapsulated within the capsule. |
 | `monorepo` | Python backend + Node front-end. | Coordinated pipelines across both packages. |
 
@@ -87,7 +86,6 @@ Custom templates live under `src/agentcontrol/templates/<version>/<name>`; updat
 
 ## 7. Observability
 - Telemetry is local, stored in `~/.agentcontrol/logs/telemetry.jsonl`. Disable with `AGENTCONTROL_TELEMETRY=0`.
-- Memory Heart resides in `agentcontrol/state/heart/`; query using `agentcall heart query` or serve via `agentcall heart serve`.
 - Key artefacts: `reports/verify.json`, `reports/status.json`, `reports/review.json`, `reports/doctor.json`.
 
 ## 8. Service Model
@@ -100,10 +98,10 @@ Custom templates live under `src/agentcontrol/templates/<version>/<name>`; updat
 **A:** Export `AGENTCONTROL_NO_AUTO_INIT=1` before running `agentcall`.
 
 **Q:** How do I add a custom pipeline?
-**A:** Extend `agentcontrol/agentcall.yaml` and `config/commands.sh`. The command will appear in `agentcall commands`.
+**A:** Extend `.agentcontrol/agentcall.yaml` and `config/commands.sh`. The command will appear in `agentcall commands`.
 
 **Q:** Where is state stored?
-**A:** Project-level artefacts live in `agentcontrol/state/`; global state (registry, credentials) lives under `~/.agentcontrol/state/`.
+**A:** Project-level artefacts live in `.agentcontrol/state/`; global state (registry, credentials) lives under `~/.agentcontrol/state/`.
 
 ---
 © AgentControl — Universal Agent SDK.

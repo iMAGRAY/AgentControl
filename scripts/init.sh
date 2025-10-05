@@ -17,8 +17,37 @@ JOURNAL_FILE="$SDK_ROOT/journal/task_events.jsonl"
 TODO_FILE="$SDK_ROOT/todo.machine.md"
 REPORTS_DIR="$SDK_ROOT/reports"
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+DOCS_BRIDGE_FILE="$SDK_ROOT/config/docs.bridge.yaml"
 
 mkdir -p "$SDK_ROOT/config" "$SDK_ROOT/data" "$SDK_ROOT/state" "$SDK_ROOT/journal" "$REPORTS_DIR"
+
+if [[ ! -f "$DOCS_BRIDGE_FILE" ]]; then
+  docs_root="docs"
+  sdk::log "INF" "Configuring documentation bridge (root=$docs_root)"
+  cat <<BRIDGE >"$DOCS_BRIDGE_FILE"
+version: 1
+root: "$docs_root"
+sections:
+  architecture_overview:
+    mode: managed
+    target: architecture/overview.md
+    marker: agentcontrol-architecture-overview
+  adr_index:
+    mode: managed
+    target: adr/index.md
+    marker: agentcontrol-adr-index
+  rfc_index:
+    mode: managed
+    target: rfc/index.md
+    marker: agentcontrol-rfc-index
+  adr_entry:
+    mode: file
+    target_template: adr/{id}.md
+  rfc_entry:
+    mode: file
+    target_template: rfc/{id}.md
+BRIDGE
+fi
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
   sdk::log "INF" "Creating config/commands.sh"

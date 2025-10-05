@@ -10,19 +10,32 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from importlib import metadata
 from pathlib import Path
+from typing import Any, Iterable
 
 from agentcontrol.app.bootstrap_service import BootstrapService
 from agentcontrol.app.command_service import CommandService
+from agentcontrol.app.docs import DocsBridgeService, DocsBridgeServiceError, DocsCommandService
+from agentcontrol.app.mission.service import MissionService
+from agentcontrol.app.mcp.manager import MCPManager
+from agentcontrol.app.runtime.service import RuntimeService
+from agentcontrol.app.info import InfoService
+from agentcontrol.app.migration.service import MigrationService
+from agentcontrol.app.sandbox.service import SandboxService
 from agentcontrol.domain.project import PROJECT_DESCRIPTOR, PROJECT_DIR, ProjectId, ProjectNotInitialisedError
 from agentcontrol.adapters.fs_template_repo import FSTemplateRepository
 from agentcontrol.settings import SETTINGS
+from agentcontrol.domain.mcp import MCPServerConfig
 from agentcontrol.utils.telemetry import clear as telemetry_clear
 from agentcontrol.utils.telemetry import iter_events as telemetry_iter
-from agentcontrol.utils.telemetry import record_event, summarize as telemetry_summarize
+from agentcontrol.utils.telemetry import record_event, record_structured_event, summarize as telemetry_summarize
+from agentcontrol.runtime import stream_events
 from agentcontrol.plugins import PluginContext
 from agentcontrol import __version__
+
+MISSION_FILTER_CHOICES = ("docs", "quality", "tasks", "timeline", "mcp")
 from agentcontrol.plugins.loader import load_plugins
 from agentcontrol.utils.updater import maybe_auto_update
 
@@ -84,10 +97,11 @@ def _compute_template_checksum(target: Path) -> str:
 
 
 def _print_project_hint(project_path: Path, command: str) -> None:
-    print(f"Path {project_path} does not contain an AgentControl capsule.", file=sys.stderr)
+    print(f"Path {project_path} does not contain an AgentControl project.", file=sys.stderr)
+    print("This directory is not an AgentControl project.", file=sys.stderr)
     print('Run `agentcall init [--template ...]` here, or pass the project path explicitly.', file=sys.stderr)
     print('Example: `agentcall status /path/to/project`', file=sys.stderr)
-    print('Auto-initialisation is disabled by default. Set `AGENTCONTROL_AUTO_INIT=1` to enable it explicitly, or `AGENTCONTROL_NO_AUTO_INIT=1` to force-disable in wrappers.', file=sys.stderr)
+    print('Auto-initialisation runs automatically unless you set `AGENTCONTROL_NO_AUTO_INIT=1`. Use `AGENTCONTROL_AUTO_INIT=0` to opt out explicitly.', file=sys.stderr)
     record_event(SETTINGS, 'error.project_missing', {'command': command, 'cwd': str(project_path)})
 
 
@@ -96,7 +110,8 @@ def _auto_bootstrap_project(bootstrap: BootstrapService, project_path: Path, com
         record_event(SETTINGS, 'autobootstrap.disabled', {'command': command, 'cwd': str(project_path)})
         return None
 
-    auto_enabled = _truthy_env('AGENTCONTROL_AUTO_INIT')
+    env_value = os.environ.get('AGENTCONTROL_AUTO_INIT')
+    auto_enabled = True if env_value is None or env_value.strip() == '' else _truthy_env('AGENTCONTROL_AUTO_INIT')
     if not auto_enabled:
         return None
     capsule_dir = project_path / PROJECT_DIR
@@ -352,6 +367,1161 @@ def _plugins_cmd(args: argparse.Namespace) -> int:
     return 2
 
 
+def _docs_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "docs", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    bridge_service = DocsBridgeService()
+    command_service = DocsCommandService()
+    command = args.docs_command
+    as_json = getattr(args, "json", False)
+    event_context = {"command": command, "path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        f"docs.{command}",
+        status="start",
+        component="docs",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+
+    try:
+        if command == "diagnose":
+            payload = bridge_service.diagnose(project_path)
+            exit_code = 0 if payload.get("status") != "error" else 1
+            _emit_docs_result(payload, as_json, exit_code, command)
+        elif command == "info":
+            try:
+                payload = bridge_service.info(project_path)
+                exit_code = 0
+            except DocsBridgeServiceError as exc:
+                payload = {
+                    "status": "error",
+                    "issues": [
+                        {
+                            "severity": "error",
+                            "code": exc.code,
+                            "message": exc.message,
+                            "remediation": exc.remediation,
+                        }
+                    ],
+                }
+                exit_code = 1
+            _emit_docs_result(payload, as_json, exit_code, command)
+        elif command == "list":
+            payload = command_service.list_sections(project_path)
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_list(payload)
+            exit_code = 0
+        elif command == "diff":
+            sections = getattr(args, "sections", None)
+            payload = command_service.diff_sections(project_path, sections=sections)
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_diff(payload)
+            exit_code = 0 if all(item["status"] == "match" for item in payload["diff"]) else 1
+        elif command == "repair":
+            sections = getattr(args, "sections", None)
+            entries = getattr(args, "entries", None)
+            payload = command_service.repair_sections(project_path, sections=sections, entries=entries)
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_actions("repair", payload)
+            exit_code = 0
+        elif command == "adopt":
+            sections = getattr(args, "sections", None)
+            entries = getattr(args, "entries", None)
+            payload = command_service.adopt_sections(project_path, sections=sections, entries=entries)
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_actions("adopt", payload)
+            exit_code = 0
+        elif command == "rollback":
+            sections = getattr(args, "sections", None)
+            entries = getattr(args, "entries", None)
+            payload = command_service.rollback_sections(
+                project_path,
+                timestamp=args.timestamp,
+                sections=sections,
+                entries=entries,
+            )
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_actions("rollback", payload)
+            exit_code = 0
+        else:
+            record_structured_event(
+                SETTINGS,
+                f"docs.{command}",
+                status="error",
+                level="error",
+                component="docs",
+                payload=event_context | {"message": "unsupported"},
+            )
+            print("Unsupported docs command", file=sys.stderr)
+            return 2
+    except DocsBridgeServiceError as exc:
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            f"docs.{command}",
+            status="error",
+            level="error",
+            component="docs",
+            duration_ms=duration,
+            payload=event_context | {"code": exc.code, "message": exc.message},
+        )
+        print(f"docs {command} failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # pragma: no cover - propagate unexpected issues
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            f"docs.{command}",
+            status="error",
+            level="error",
+            component="docs",
+            duration_ms=duration,
+            payload=event_context | {"error": str(exc)},
+        )
+        raise
+
+    duration = (time.perf_counter() - start) * 1000
+    status_label = "success" if exit_code == 0 else "warning"
+    level = "info" if exit_code == 0 else "warn"
+    record_structured_event(
+        SETTINGS,
+        f"docs.{command}",
+        status=status_label,
+        level=level,
+        component="docs",
+        duration_ms=duration,
+        payload=event_context | {"exit_code": exit_code},
+    )
+    return exit_code
+
+
+def _emit_docs_result(payload: dict, as_json: bool, exit_code: int, command: str) -> int:
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        _print_docs_summary(payload, command)
+    return exit_code
+
+
+def _print_docs_summary(payload: dict, command: str) -> None:
+    status = payload.get("status", "ok")
+    print(f"docs {command}: status={status}")
+    issues = payload.get("issues", [])
+    if issues:
+        print("issues:")
+        for item in issues:
+            code = item.get("code")
+            message = item.get("message")
+            remediation = item.get("remediation")
+            print(f"  - {code}: {message}")
+            if remediation:
+                print(f"    remediation: {remediation}")
+    if command == "info" and status != "error":
+        capabilities = payload.get("capabilities", {})
+        print("capabilities:")
+        for key, value in capabilities.items():
+            print(f"  - {key}: {value}")
+
+
+def _print_docs_list(payload: dict) -> None:
+    print(f"docs list @ {payload.get('generatedAt')}")
+    for section in payload.get("sections", []):
+        status = section.get("status", "unknown")
+        name = section.get("name")
+        marker = section.get("marker")
+        target = section.get("target") or section.get("directory")
+        print(f"  - {name}: status={status} target={target}")
+        if marker:
+            print(f"      marker={marker}")
+
+
+def _print_docs_diff(payload: dict) -> None:
+    print(f"docs diff @ {payload.get('generatedAt')}")
+    for entry in payload.get("diff", []):
+        name = entry.get("name")
+        status = entry.get("status")
+        path = entry.get("path")
+        print(f"  - {name}: {status} ({path})")
+        if status == "differs":
+            print(f"      expectedHash={entry.get('expectedHash')} actualHash={entry.get('actualHash')}")
+        if entry.get("error"):
+            print(f"      error={entry['error']}")
+
+
+def _print_docs_actions(operation: str, payload: dict) -> None:
+    print(f"docs {operation} @ {payload.get('generatedAt')}")
+    backup = payload.get("backup")
+    if backup:
+        print(f"  backup: {backup}")
+    for action in payload.get("actions", []):
+        name = action.get("name")
+        path = action.get("path")
+        action_type = action.get("action")
+        print(f"  - {name}: {action_type} ({path})")
+
+
+def _info_cmd(args: argparse.Namespace) -> int:
+    service = InfoService()
+    path_arg = getattr(args, "path", None)
+    project_path = _default_project_path(path_arg) if path_arg else None
+    event_context = {"path": str(project_path) if project_path else None}
+    record_structured_event(
+        SETTINGS,
+        "info.collect",
+        status="start",
+        component="info",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+    try:
+        payload = service.collect(project_path).data
+    except Exception as exc:  # pragma: no cover - unexpected failure path
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "info.collect",
+            status="error",
+            level="error",
+            component="info",
+            duration_ms=duration,
+            payload=event_context | {"error": str(exc)},
+        )
+        print(f"info command failed: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        _print_info_summary(payload)
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        "info.collect",
+        status="success",
+        component="info",
+        duration_ms=duration,
+        payload=event_context | {"features": list(payload.get("features", {}).keys())},
+    )
+    return 0
+
+
+def _print_info_summary(payload: dict[str, Any]) -> None:
+    version = payload.get("version", "unknown")
+    print(f"agentcall version: {version}")
+    features = payload.get("features", {})
+    if features:
+        print("features:")
+        for name, meta in features.items():
+            print(f"  - {name}:")
+            if isinstance(meta, dict):
+                for key, value in meta.items():
+                    print(f"      {key}: {value}")
+            else:
+                print(f"      {meta}")
+    mission_snapshot = payload.get("mission")
+    if mission_snapshot:
+        print("mission snapshot available")
+        twin_path = mission_snapshot.get("twinPath")
+        if twin_path:
+            print(f"  twin: {twin_path}")
+
+
+def _clear_terminal() -> None:
+    print("\033[2J\033[H", end="")
+
+
+def _render_mission_dashboard(
+    payload: dict[str, Any],
+    twin_path: Path,
+    *,
+    filters: Iterable[str] | None = None,
+    timeline_limit: int = 5,
+    interactive: bool = True,
+    title: str | None = None,
+) -> None:
+    active_filters = {item.lower() for item in (filters or MISSION_FILTER_CHOICES)}
+    header_label = title or "Mission Control"
+    generated = payload.get("generated_at")
+    if generated:
+        header_label = f"{header_label} — generated {generated}"
+    print(header_label)
+    print("=" * len(header_label))
+    print(f"twin file: {twin_path}")
+
+    if "docs" in active_filters:
+        docs = payload.get("docsBridge", {})
+        docs_status = docs.get("status", "unknown")
+        issues = docs.get("issues", [])
+        print(f"docs status: {docs_status} (issues: {len(issues)})")
+        if issues:
+            for issue in issues[:3]:
+                code = issue.get("code", "?")
+                message = issue.get("message", "")
+                print(f"  - {code}: {message}")
+        summary = docs.get("summary", {}) if isinstance(docs, dict) else {}
+        sections = summary.get("sections", []) if isinstance(summary, dict) else []
+        degraded_sections = [section for section in sections if section.get("status") not in {"ok", "external"}]
+        if degraded_sections:
+            print("  sections:")
+            for section in degraded_sections[:5]:
+                print(f"    - {section.get('name')}: {section.get('status')}")
+
+    program = payload.get("program", {})
+    roadmap = program.get("roadmap", {}) if isinstance(program, dict) else {}
+    if "tasks" in active_filters:
+        program_meta = roadmap.get("program", {}) if isinstance(roadmap, dict) else {}
+        progress = program_meta.get("progress_pct")
+        health = program_meta.get("health")
+        if progress is not None:
+            print(f"program progress: {progress}% (health: {health})")
+        phase_progress = roadmap.get("phase_progress", {}) if isinstance(roadmap, dict) else {}
+        if phase_progress:
+            leading = sorted(phase_progress.items(), key=lambda item: item[0])[:3]
+            phase_display = ", ".join(f"{name}: {value}%" for name, value in leading)
+            print(f"phase progress: {phase_display}")
+        tasks = roadmap.get("tasks", {}) if isinstance(roadmap, dict) else {}
+        counts = tasks.get("counts") or program.get("tasks", {}).get("counts") if isinstance(program, dict) else {}
+        if counts:
+            total = sum(counts.values())
+            done = counts.get("done", 0)
+            print(f"tasks done: {done}/{total}")
+
+    if "quality" in active_filters:
+        verify = payload.get("quality", {}).get("verify", {})
+        if verify:
+            status = verify.get("status")
+            available = verify.get("available")
+            state = status or ("available" if available else "unavailable")
+            print(f"verify status: {state}")
+            summary = verify.get("summary")
+            if isinstance(summary, dict) and summary:
+                for name, value in list(summary.items())[:3]:
+                    print(f"  {name}: {value}")
+
+    if "mcp" in active_filters:
+        mcp = payload.get("mcp", {})
+        count = mcp.get("count", 0)
+        print(f"mcp servers: {count}")
+        servers = mcp.get("servers") or []
+        for server in servers[:3]:
+            name = server.get("name")
+            endpoint = server.get("endpoint")
+            print(f"  - {name}: {endpoint}")
+
+    if "timeline" in active_filters:
+        timeline = payload.get("timeline") or []
+        if timeline:
+            print("timeline:")
+            for entry in timeline[:timeline_limit]:
+                timestamp = entry.get("timestamp") or "unknown"
+                category = entry.get("category", "general")
+                event = entry.get("event") or entry.get("details", {}).get("event") or "-"
+                print(f"  - [{timestamp}] ({category}) {event}")
+
+    playbooks = payload.get("playbooks") or []
+    if playbooks:
+        print("playbooks:")
+        for playbook in playbooks[:3]:
+            print(f"  - {playbook.get('issue')}: {playbook.get('command')}")
+            if playbook.get("summary"):
+                print(f"      {playbook['summary']}")
+
+    if interactive:
+        print("\nPress Ctrl+C to exit")
+
+
+def _mission_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "mission", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = MissionService()
+    command = getattr(args, "mission_command", "summary")
+    try:
+        filters = _normalize_filters(getattr(args, "filters", None))
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    timeline_limit = getattr(args, "timeline_limit", 5)
+
+    event_context: dict[str, Any] = {"command": command, "path": str(project_path)}
+    if filters:
+        event_context["filters"] = filters
+    if hasattr(args, "timeline_limit"):
+        event_context["timeline_limit"] = getattr(args, "timeline_limit")
+    if command == "detail":
+        event_context["section"] = getattr(args, "section")
+
+    record_structured_event(
+        SETTINGS,
+        f"mission.{command}",
+        status="start",
+        component="mission",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+
+    if command == "summary":
+        result = service.persist_twin(project_path)
+        payload = result.twin
+        as_json = getattr(args, "json", False)
+        if as_json:
+            summary_payload = dict(payload)
+            if filters:
+                summary_payload = {**payload, "filtersApplied": filters}
+            print(json.dumps(summary_payload, ensure_ascii=False, indent=2))
+        else:
+            _print_mission_summary(payload, result.path, filters=filters or None, timeline_limit=timeline_limit)
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "mission.summary",
+            status="success",
+            component="mission",
+            duration_ms=duration,
+            payload=event_context | {"twin": str(result.path)},
+        )
+        return 0
+
+    if command == "ui":
+        interval = getattr(args, "interval", 2.0)
+        return _mission_ui(service, project_path, interval, filters, timeline_limit)
+
+    if command == "detail":
+        section = getattr(args, "section")
+        result = service.persist_twin(project_path)
+        payload = result.twin
+        drilldown = payload.get("drilldown", {}) if isinstance(payload, dict) else {}
+        detail_payload = drilldown.get(section, {})
+        if section == "timeline":
+            detail_payload = payload.get("timeline", [])[:timeline_limit]
+        if getattr(args, "json", False):
+            print(json.dumps({"section": section, "detail": detail_payload}, ensure_ascii=False, indent=2))
+        else:
+            _print_mission_detail(section, detail_payload, timeline_limit=timeline_limit)
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "mission.detail",
+            status="success",
+            component="mission",
+            duration_ms=duration,
+            payload=event_context | {"section": section},
+        )
+        return 0
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        f"mission.{command}",
+        status="error",
+        level="error",
+        component="mission",
+        duration_ms=duration,
+        payload=event_context | {"message": "unsupported"},
+    )
+    print("Unsupported mission command", file=sys.stderr)
+    return 2
+
+
+def _mcp_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "mcp", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    manager = MCPManager.for_project(project_path)
+    command = getattr(args, "mcp_command")
+    event_context = {"command": command, "path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        f"mcp.{command}",
+        status="start",
+        component="mcp",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+
+    try:
+        if command == "add":
+            metadata = _parse_metadata(getattr(args, "meta", None))
+            config = MCPServerConfig(
+                name=args.name,
+                endpoint=args.endpoint,
+                description=getattr(args, "description", None),
+                metadata=metadata,
+            )
+            manager.add(config, overwrite=getattr(args, "force", False))
+            if getattr(args, "json", False):
+                print(json.dumps({"status": "ok", "server": config.to_dict()}, ensure_ascii=False, indent=2))
+            else:
+                print(f"mcp add: registered {config.name} -> {config.endpoint}")
+            exit_code = 0
+        elif command == "remove":
+            removed = manager.remove(args.name)
+            exit_code = 0 if removed else 1
+            message = "removed" if removed else "not found"
+            if getattr(args, "json", False):
+                print(json.dumps({"status": message, "name": args.name}, ensure_ascii=False, indent=2))
+            else:
+                print(f"mcp remove: {args.name} {message}")
+        elif command == "status":
+            servers = manager.list()
+            if getattr(args, "json", False):
+                print(json.dumps({"servers": [srv.to_dict() for srv in servers]}, ensure_ascii=False, indent=2))
+            else:
+                if not servers:
+                    print("mcp status: no servers registered")
+                else:
+                    print("mcp status:")
+                    for server in servers:
+                        print(f"  - {server.name}: {server.endpoint}")
+                        if server.description:
+                            print(f"      description: {server.description}")
+            exit_code = 0
+        else:
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                f"mcp.{command}",
+                status="error",
+                level="error",
+                component="mcp",
+                duration_ms=duration,
+                payload=event_context | {"message": "unsupported"},
+            )
+            print("Unsupported mcp command", file=sys.stderr)
+            return 2
+    except ValueError as exc:
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            f"mcp.{command}",
+            status="error",
+            level="error",
+            component="mcp",
+            duration_ms=duration,
+            payload=event_context | {"error": str(exc)},
+        )
+        print(f"mcp {command} failed: {exc}", file=sys.stderr)
+        return 1
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        f"mcp.{command}",
+        status="success",
+        component="mcp",
+        duration_ms=duration,
+        payload=event_context | {"exit_code": exit_code},
+    )
+    return exit_code
+
+
+def _sandbox_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "sandbox", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = SandboxService(FSTemplateRepository(SETTINGS.template_dir), SETTINGS)
+    command = getattr(args, "sandbox_command")
+    event_context = {"command": command, "path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        f"sandbox.{command}",
+        status="start",
+        component="sandbox",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+
+    try:
+        if command == "start":
+            metadata = _parse_metadata(getattr(args, "meta", None))
+            descriptor = service.start(
+                project_path,
+                template=getattr(args, "template", None),
+                metadata=metadata,
+                minimal=getattr(args, "minimal", False),
+            )
+            payload = descriptor.to_dict()
+            if getattr(args, "json", False):
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                print(f"sandbox start: {descriptor.sandbox_id}")
+                print(f"  workspace: {descriptor.path}")
+                if metadata:
+                    print("  metadata:")
+                    for key, value in metadata.items():
+                        print(f"    {key}: {value}")
+                print(f"next steps: cd {descriptor.path}")
+            exit_code = 0
+        elif command == "list":
+            entries = [item.to_dict() for item in service.list(project_path)]
+            if getattr(args, "json", False):
+                print(json.dumps({"sandboxes": entries}, ensure_ascii=False, indent=2))
+            else:
+                if not entries:
+                    print("sandbox list: no sandboxes provisioned")
+                else:
+                    print("sandbox list:")
+                    for item in entries:
+                        print(f"  - {item['sandbox_id']} @ {item['path']} ({item['template']})")
+            exit_code = 0
+        elif command == "purge":
+            sandbox_id = getattr(args, "sandbox_id", None)
+            purge_all = getattr(args, "all", False)
+            if sandbox_id and purge_all:
+                raise SandboxServiceError("Specify either --id or --all, not both")
+            if not sandbox_id and not purge_all:
+                raise SandboxServiceError("Use --id <sandbox> or --all to purge")
+            removed = service.purge(project_path, sandbox_id=None if purge_all else sandbox_id)
+            payload = [item.to_dict() for item in removed if item is not None]
+            if getattr(args, "json", False):
+                print(json.dumps({"removed": payload}, ensure_ascii=False, indent=2))
+            else:
+                if not payload:
+                    print("sandbox purge: nothing removed")
+                else:
+                    print("sandbox purge removed:")
+                    for item in payload:
+                        print(f"  - {item['sandbox_id']} @ {item['path']}")
+            exit_code = 0
+        else:
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                f"sandbox.{command}",
+                status="error",
+                level="error",
+                component="sandbox",
+                duration_ms=duration,
+                payload=event_context | {"message": "unsupported"},
+            )
+            print("Unsupported sandbox command", file=sys.stderr)
+            return 2
+    except SandboxServiceError as exc:
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            f"sandbox.{command}",
+            status="error",
+            level="error",
+            component="sandbox",
+            duration_ms=duration,
+            payload=event_context | {"error": str(exc)},
+        )
+        print(f"sandbox {command} failed: {exc}", file=sys.stderr)
+        return 1
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        f"sandbox.{command}",
+        status="success",
+        component="sandbox",
+        duration_ms=duration,
+        payload=event_context | {"exit_code": exit_code},
+    )
+    return exit_code
+
+
+
+
+def _parse_metadata(items: Iterable[str] | None) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    if not items:
+        return metadata
+    for entry in items:
+        if "=" not in entry:
+            raise ValueError(f"Metadata entry '{entry}' must be in key=value format")
+        key, value = entry.split("=", 1)
+        metadata[key.strip()] = value.strip()
+    return metadata
+
+
+def _normalize_filters(items: Iterable[str] | None) -> list[str]:
+    normalized: list[str] = []
+    if not items:
+        return normalized
+    for item in items:
+        key = item.lower().strip()
+        if key not in MISSION_FILTER_CHOICES:
+            raise ValueError(f"Unsupported filter '{item}'. Expected one of {', '.join(MISSION_FILTER_CHOICES)}")
+        if key not in normalized:
+            normalized.append(key)
+    return normalized
+
+
+def _print_runtime_manifest(payload: dict[str, Any], path: Path) -> None:
+    print(f"runtime manifest: {path}")
+    print(f"  version: {payload.get('version')}")
+    print(f"  generated_at: {payload.get('generated_at')}")
+    commands = payload.get("commands", [])
+    print(f"  commands ({len(commands)}): {', '.join(commands)}")
+    telemetry = payload.get("telemetry", {})
+    if telemetry:
+        print(f"  telemetry log: {telemetry.get('log')}")
+        print(f"  telemetry schema: {telemetry.get('schema')}")
+
+
+def _runtime_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "runtime", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = RuntimeService()
+    command = getattr(args, "runtime_command")
+    event_context = {"command": command, "path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        f"runtime.{command}",
+        status="start",
+        component="runtime",
+        payload=event_context,
+    )
+    start = time.perf_counter()
+
+    if command == "status":
+        manifest = service.build_manifest(project_path)
+        if getattr(args, "json", False):
+            print(json.dumps(manifest.data, ensure_ascii=False, indent=2))
+        else:
+            _print_runtime_manifest(manifest.data, manifest.path)
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "runtime.status",
+            status="success",
+            component="runtime",
+            duration_ms=duration,
+            payload=event_context | {"manifest": str(manifest.path)},
+        )
+        return 0
+
+    if command == "events":
+        follow = getattr(args, "follow", False)
+        limit = getattr(args, "limit", 0)
+        emitted = 0
+        try:
+            for event in stream_events(SETTINGS.log_dir, follow=follow, poll_interval=getattr(args, "poll", 0.5)):
+                print(json.dumps(event, ensure_ascii=False))
+                emitted += 1
+                if limit and emitted >= limit:
+                    break
+        except KeyboardInterrupt:
+            pass
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "runtime.events",
+            status="success",
+            component="runtime",
+            duration_ms=duration,
+            payload=event_context | {"follow": follow, "emitted": emitted},
+        )
+        return 0
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        f"runtime.{command}",
+        status="error",
+        level="error",
+        component="runtime",
+        duration_ms=duration,
+        payload=event_context | {"message": "unsupported"},
+    )
+    print("Unsupported runtime command", file=sys.stderr)
+    return 2
+
+
+def _auto_cmd(args: argparse.Namespace) -> int:
+    bootstrap, command_service = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "auto", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    command = getattr(args, "auto_command")
+    apply_changes = getattr(args, "apply", False)
+    dry_run = not apply_changes
+    event_context = {"command": command, "path": str(project_path)}
+    record_structured_event(
+        SETTINGS,
+        f"auto.{command}",
+        status="start",
+        component="automation",
+        payload=event_context | {"apply": apply_changes},
+    )
+    start = time.perf_counter()
+
+    docs_command_service = DocsCommandService()
+
+    if command == "docs":
+        return _auto_docs(args, project_path, dry_run, docs_command_service, event_context, start)
+    if command == "tests":
+        return _auto_tests(args, project_path, dry_run, event_context, start)
+    if command == "release":
+        return _auto_release(args, project_path, dry_run, event_context, start)
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        f"auto.{command}",
+        status="error",
+        level="error",
+        component="automation",
+        duration_ms=duration,
+        payload=event_context | {"message": "unsupported"},
+    )
+    print("Unsupported auto command", file=sys.stderr)
+    return 2
+
+
+def _migrate_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "migrate", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = MigrationService.for_project(project_path)
+    plan = service.detect()
+    as_json = getattr(args, "json", False)
+    apply_changes = getattr(args, "apply", False)
+    event_context = {"path": str(project_path), "apply": apply_changes}
+    record_structured_event(
+        SETTINGS,
+        "migration.plan",
+        status="start",
+        component="migration",
+        payload=event_context | {"actions": len(plan.actions)},
+    )
+    if not apply_changes or not plan.actions:
+        record_structured_event(
+            SETTINGS,
+            "migration.plan",
+            status="success",
+            component="migration",
+            payload=event_context | {"actions": len(plan.actions)},
+        )
+        if as_json:
+            print(json.dumps({"plan": plan.actions}, ensure_ascii=False, indent=2))
+        else:
+            if plan.actions:
+                print("migration plan:")
+                for action in plan.actions:
+                    print(f"  - {action}")
+            else:
+                print("migration: no legacy artefacts detected")
+        return 0
+
+    service.apply(plan)
+    record_structured_event(
+        SETTINGS,
+        "migration.apply",
+        status="success",
+        component="migration",
+        payload=event_context | {"actions": len(plan.actions)},
+    )
+    if as_json:
+        print(json.dumps({"plan": plan.actions, "result": {"status": "ok", "actions": len(plan.actions)}}, ensure_ascii=False, indent=2))
+    else:
+        print("migration applied:")
+        for action in plan.actions:
+            print(f"  - {action}")
+    return 0
+
+
+def _auto_docs(
+    args: argparse.Namespace,
+    project_path: Path,
+    dry_run: bool,
+    command_service: DocsCommandService,
+    event_context: dict[str, Any],
+    start: float,
+) -> int:
+    bridge_service = DocsBridgeService()
+    diagnosis = bridge_service.diagnose(project_path)
+    issues = diagnosis.get("issues", [])
+    sections = getattr(args, "sections", None)
+    entries = getattr(args, "entries", None)
+    plan = ["docs diagnose", "docs repair" if not dry_run else "(dry-run) docs repair"]
+
+    if dry_run:
+        print("automation plan (docs):")
+        for step in plan:
+            print(f"  - {step}")
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "auto.docs",
+            status="success",
+            component="automation",
+            duration_ms=duration,
+            payload=event_context | {"dry_run": True, "issues": len(issues)},
+        )
+        return 0
+
+    if issues:
+        payload = command_service.repair_sections(project_path, sections=sections, entries=entries)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("automation docs: no issues detected, nothing to repair")
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        "auto.docs",
+        status="success",
+        component="automation",
+        duration_ms=duration,
+        payload=event_context | {"dry_run": False, "issues": len(issues)},
+    )
+    return 0
+
+
+def _auto_tests(
+    args: argparse.Namespace,
+    project_path: Path,
+    dry_run: bool,
+    event_context: dict[str, Any],
+    start: float,
+) -> int:
+    plan = ["verify pipeline"]
+    if dry_run:
+        print("automation plan (tests):")
+        for step in plan:
+            print(f"  - {step}")
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "auto.tests",
+            status="success",
+            component="automation",
+            duration_ms=duration,
+            payload=event_context | {"dry_run": True},
+        )
+        return 0
+
+    ns = argparse.Namespace(command_name="verify", path=str(project_path), extra=[])
+    exit_code = _run_pipeline("verify", ns)
+    duration = (time.perf_counter() - start) * 1000
+    status = "success" if exit_code == 0 else "error"
+    level = "info" if exit_code == 0 else "error"
+    record_structured_event(
+        SETTINGS,
+        "auto.tests",
+        status=status,
+        level=level,
+        component="automation",
+        duration_ms=duration,
+        payload=event_context | {"dry_run": False, "exit_code": exit_code},
+    )
+    return exit_code
+
+
+def _auto_release(
+    args: argparse.Namespace,
+    project_path: Path,
+    dry_run: bool,
+    event_context: dict[str, Any],
+    start: float,
+) -> int:
+    plan = ["review pipeline", "ship pipeline"]
+    if dry_run:
+        print("automation plan (release):")
+        for step in plan:
+            print(f"  - {step}")
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "auto.release",
+            status="success",
+            component="automation",
+            duration_ms=duration,
+            payload=event_context | {"dry_run": True},
+        )
+        return 0
+
+    for pipeline in ("review", "ship"):
+        ns = argparse.Namespace(command_name=pipeline, path=str(project_path), extra=[])
+        exit_code = _run_pipeline(pipeline, ns)
+        if exit_code != 0:
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "auto.release",
+                status="error",
+                level="error",
+                component="automation",
+                duration_ms=duration,
+                payload=event_context | {"pipeline": pipeline, "exit_code": exit_code},
+            )
+            return exit_code
+
+    duration = (time.perf_counter() - start) * 1000
+    record_structured_event(
+        SETTINGS,
+        "auto.release",
+        status="success",
+        component="automation",
+        duration_ms=duration,
+        payload=event_context | {"dry_run": False},
+    )
+    return 0
+
+
+def _mission_ui(
+    service: MissionService,
+    project_path: Path,
+    interval: float,
+    filters: list[str],
+    timeline_limit: int,
+) -> int:
+    display_filters = filters or []
+    try:
+        while True:
+            cycle_start = time.perf_counter()
+            result = service.persist_twin(project_path)
+            payload = result.twin
+            _clear_terminal()
+            _render_mission_dashboard(
+                payload,
+                result.path,
+                filters=display_filters or None,
+                timeline_limit=timeline_limit,
+                interactive=True,
+            )
+            docs_status = payload.get("docsBridge", {}).get("status", "unknown")
+            duration_ms = (time.perf_counter() - cycle_start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "mission.ui.refresh",
+                status="success",
+                component="mission",
+                duration_ms=duration_ms,
+                payload={
+                    "path": str(project_path),
+                    "docs_status": docs_status,
+                    "filters": display_filters,
+                    "timeline_limit": timeline_limit,
+                },
+            )
+            remaining = max(interval - (time.perf_counter() - cycle_start), 0.2)
+            time.sleep(remaining)
+    except KeyboardInterrupt:
+        record_structured_event(
+            SETTINGS,
+            "mission.ui",
+            component="mission",
+            status="stopped",
+            payload={"path": str(project_path), "filters": display_filters},
+        )
+        return 0
+
+
+def _print_mission_summary(
+    payload: dict[str, Any],
+    path: Path,
+    *,
+    filters: Iterable[str] | None = None,
+    timeline_limit: int = 5,
+) -> None:
+    _render_mission_dashboard(
+        payload,
+        path,
+        filters=filters,
+        timeline_limit=timeline_limit,
+        interactive=False,
+        title="Mission Summary",
+    )
+    print()
+
+
+def _print_mission_detail(section: str, payload: Any, *, timeline_limit: int = 10) -> None:
+    section = section.lower()
+    print(f"mission detail — {section}")
+    print("-" * (18 + len(section)))
+    if section == "docs":
+        issues = payload.get('issues', []) if isinstance(payload, dict) else []
+        sections = payload.get('sections', []) if isinstance(payload, dict) else []
+        print(f"issues: {len(issues)}")
+        for issue in issues[:5]:
+            code = issue.get('code', '?')
+            message = issue.get('message', '')
+            print(f"  - {code}: {message}")
+        if sections:
+            print('sections:')
+            for entry in sections[:10]:
+                print(f"  - {entry.get('name')}: {entry.get('status')}")
+        return
+    if section == "quality":
+        if not isinstance(payload, dict):
+            print('no quality data available')
+            return
+        status = payload.get('status')
+        summary = payload.get('summary', {})
+        print(f"verify status: {status}")
+        for name, value in list(summary.items())[:10]:
+            print(f"  {name}: {value}")
+        return
+    if section == "tasks":
+        counts = payload.get('counts', {}) if isinstance(payload, dict) else {}
+        if counts:
+            print('task counts:')
+            for name, value in counts.items():
+                print(f"  {name}: {value}")
+        else:
+            print('no task metrics available')
+        return
+    if section == "mcp":
+        if not isinstance(payload, dict):
+            print('no mcp data available')
+            return
+        servers = payload.get('servers', [])
+        if not servers:
+            print('no MCP servers registered')
+            return
+        for server in servers:
+            print(f"  - {server.get('name')}: {server.get('endpoint')}")
+        return
+    if section == "timeline":
+        events = payload if isinstance(payload, list) else []
+        if not events:
+            print('no timeline events recorded')
+            return
+        for entry in events[:timeline_limit]:
+            timestamp = entry.get('timestamp') or 'unknown'
+            category = entry.get('category', 'general')
+            event = entry.get('event') or entry.get('details', {}).get('event') or '-'
+            print(f"  - [{timestamp}] ({category}) {event}")
+        return
+    print('no detail available for requested section')
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agentcall", description="AgentControl SDK CLI")
     parser.add_argument('--version', action='version', version=f'agentcall {__version__}')
@@ -426,6 +1596,157 @@ def build_parser() -> argparse.ArgumentParser:
     plugins_remove.add_argument("--mode", choices=["pip", "pipx"], default="pip")
     plugins_remove.set_defaults(plugins_command="remove")
 
+    docs_cmd = sub.add_parser("docs", help="Inspect documentation bridge state")
+    docs_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    docs_sub = docs_cmd.add_subparsers(dest="docs_command", required=True)
+
+    docs_diagnose = docs_sub.add_parser("diagnose", help="Validate docs bridge configuration")
+    docs_diagnose.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_diagnose.set_defaults(func=_docs_cmd, docs_command="diagnose")
+
+    docs_info = docs_sub.add_parser("info", help="Describe docs bridge capabilities")
+    docs_info.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_info.set_defaults(func=_docs_cmd, docs_command="info")
+
+    docs_list = docs_sub.add_parser("list", help="List managed documentation sections")
+    docs_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_list.set_defaults(func=_docs_cmd, docs_command="list")
+
+    docs_diff = docs_sub.add_parser("diff", help="Show drift between expected and actual docs")
+    docs_diff.add_argument("--section", dest="sections", action="append", help="Filter by section name")
+    docs_diff.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_diff.set_defaults(func=_docs_cmd, docs_command="diff")
+
+    docs_repair = docs_sub.add_parser("repair", help="Restore managed sections to expected content")
+    docs_repair.add_argument("--section", dest="sections", action="append", help="Filter by section name")
+    docs_repair.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
+    docs_repair.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_repair.set_defaults(func=_docs_cmd, docs_command="repair")
+
+    docs_adopt = docs_sub.add_parser("adopt", help="Adopt current docs as managed baseline")
+    docs_adopt.add_argument("--section", dest="sections", action="append", help="Filter by section name")
+    docs_adopt.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
+    docs_adopt.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_adopt.set_defaults(func=_docs_cmd, docs_command="adopt")
+
+    docs_rollback = docs_sub.add_parser("rollback", help="Restore documentation from backup")
+    docs_rollback.add_argument("--timestamp", required=True, help="Backup timestamp returned by repair")
+    docs_rollback.add_argument("--section", dest="sections", action="append", help="Filter by section name")
+    docs_rollback.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
+    docs_rollback.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_rollback.set_defaults(func=_docs_cmd, docs_command="rollback")
+
+    info_cmd = sub.add_parser("info", help="Display AgentControl capabilities")
+    info_cmd.add_argument("path", nargs="?", help="Project path (optional)")
+    info_cmd.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    info_cmd.set_defaults(func=_info_cmd)
+
+    mcp_cmd = sub.add_parser("mcp", help="Manage MCP server registrations")
+    mcp_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mcp_sub = mcp_cmd.add_subparsers(dest="mcp_command", required=True)
+
+    mcp_add = mcp_sub.add_parser("add", help="Register a new MCP server")
+    mcp_add.add_argument("--name", required=True)
+    mcp_add.add_argument("--endpoint", required=True)
+    mcp_add.add_argument("--description")
+    mcp_add.add_argument("--meta", action="append", help="Additional metadata as key=value pairs")
+    mcp_add.add_argument("--force", action="store_true", help="Overwrite existing server with the same name")
+    mcp_add.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    mcp_add.set_defaults(func=_mcp_cmd, mcp_command="add")
+
+    mcp_remove = mcp_sub.add_parser("remove", help="Remove a registered MCP server")
+    mcp_remove.add_argument("--name", required=True)
+    mcp_remove.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    mcp_remove.set_defaults(func=_mcp_cmd, mcp_command="remove")
+
+    mcp_status = mcp_sub.add_parser("status", help="List registered MCP servers")
+    mcp_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    mcp_status.set_defaults(func=_mcp_cmd, mcp_command="status")
+
+    sandbox_cmd = sub.add_parser("sandbox", help="Manage disposable sandbox workspaces")
+    sandbox_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    sandbox_sub = sandbox_cmd.add_subparsers(dest="sandbox_command", required=True)
+
+    sandbox_start = sandbox_sub.add_parser("start", help="Provision a fresh sandbox capsule")
+    sandbox_start.add_argument("--template", default=None, help="Template name (default: sandbox)")
+    sandbox_start.add_argument("--minimal", action="store_true", help="Trim heavy sample assets")
+    sandbox_start.add_argument("--meta", action="append", help="Attach metadata as key=value")
+    sandbox_start.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    sandbox_start.set_defaults(func=_sandbox_cmd, sandbox_command="start")
+
+    sandbox_list = sandbox_sub.add_parser("list", help="List existing sandboxes")
+    sandbox_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    sandbox_list.set_defaults(func=_sandbox_cmd, sandbox_command="list")
+
+    sandbox_purge = sandbox_sub.add_parser("purge", help="Remove sandbox workspaces")
+    sandbox_purge.add_argument("--id", dest="sandbox_id", help="Sandbox identifier")
+    sandbox_purge.add_argument("--all", action="store_true", help="Remove all sandboxes")
+    sandbox_purge.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    sandbox_purge.set_defaults(func=_sandbox_cmd, sandbox_command="purge")
+
+    runtime_cmd = sub.add_parser("runtime", help="Runtime metadata and events")
+    runtime_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    runtime_sub = runtime_cmd.add_subparsers(dest="runtime_command", required=True)
+
+    runtime_status = runtime_sub.add_parser("status", help="Generate runtime manifest")
+    runtime_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    runtime_status.set_defaults(func=_runtime_cmd, runtime_command="status")
+
+    runtime_events = runtime_sub.add_parser("events", help="Stream telemetry events")
+    runtime_events.add_argument("--follow", action="store_true", help="Keep streaming new events")
+    runtime_events.add_argument("--limit", type=int, default=0, help="Stop after N events (0 = unlimited)")
+    runtime_events.add_argument("--poll", type=float, default=0.5, help="Polling interval when following (seconds)")
+    runtime_events.set_defaults(func=_runtime_cmd, runtime_command="events")
+
+    auto_cmd = sub.add_parser("auto", help="Automation playbooks")
+    auto_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    auto_sub = auto_cmd.add_subparsers(dest="auto_command", required=True)
+
+    auto_docs = auto_sub.add_parser("docs", help="Repair documentation drift")
+    auto_docs.add_argument("--apply", action="store_true", help="Execute repair actions")
+    auto_docs.add_argument("--section", dest="sections", action="append", help="Limit to specific section names")
+    auto_docs.add_argument("--entry", dest="entries", action="append", help="Limit to specific entries")
+    auto_docs.set_defaults(func=_auto_cmd, auto_command="docs")
+
+    auto_tests = auto_sub.add_parser("tests", help="Run verification pipeline")
+    auto_tests.add_argument("--apply", action="store_true", help="Execute verify pipeline")
+    auto_tests.set_defaults(func=_auto_cmd, auto_command="tests")
+
+    auto_release = auto_sub.add_parser("release", help="Execute review+ship pipelines")
+    auto_release.add_argument("--apply", action="store_true", help="Execute pipelines")
+    auto_release.set_defaults(func=_auto_cmd, auto_command="release")
+
+    migrate_cmd = sub.add_parser("migrate", help="Migrate legacy capsules to the new layout")
+    migrate_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    migrate_cmd.add_argument("--apply", action="store_true", help="Execute the migration actions")
+    migrate_cmd.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    migrate_cmd.set_defaults(func=_migrate_cmd)
+
+    mission_cmd = sub.add_parser("mission", help="Mission control commands")
+    mission_cmd.set_defaults(func=_mission_cmd, mission_command="summary")
+    mission_sub = mission_cmd.add_subparsers(dest="mission_command")
+
+    mission_summary = mission_sub.add_parser("summary", help="Generate mission twin summary")
+    mission_summary.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_summary.add_argument("--json", action="store_true", help="Emit machine-readable JSON twin")
+    mission_summary.add_argument("--filter", dest="filters", action="append", choices=MISSION_FILTER_CHOICES, help="Filter sections to display")
+    mission_summary.add_argument("--timeline-limit", type=int, default=5, help="Number of timeline events to display")
+    mission_summary.set_defaults(func=_mission_cmd, mission_command="summary")
+
+    mission_ui = mission_sub.add_parser("ui", help="Stream mission dashboard updates")
+    mission_ui.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_ui.add_argument("--interval", type=float, default=2.0, help="Refresh interval in seconds (default: 2)")
+    mission_ui.add_argument("--filter", dest="filters", action="append", choices=MISSION_FILTER_CHOICES, help="Filter sections to display")
+    mission_ui.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events per refresh")
+    mission_ui.set_defaults(func=_mission_cmd, mission_command="ui")
+
+    mission_detail = mission_sub.add_parser("detail", help="Inspect detailed mission section")
+    mission_detail.add_argument("section", choices=MISSION_FILTER_CHOICES, help="Section to inspect")
+    mission_detail.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_detail.add_argument("--json", action="store_true", help="Emit machine-readable detail output")
+    mission_detail.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events to display")
+    mission_detail.set_defaults(func=_mission_cmd, mission_command="detail")
+
     def make_pipeline(name: str, help_text: str) -> None:
         pipeline_cmd = sub.add_parser(name, help=help_text)
         pipeline_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
@@ -438,7 +1759,6 @@ def build_parser() -> argparse.ArgumentParser:
     make_pipeline("ship", "Run release pipeline")
     make_pipeline("status", "Render project status")
     make_pipeline("agents", "Agent management commands")
-    make_pipeline("heart", "Memory Heart operations")
     make_pipeline("doctor", "Environment diagnostics")
 
     # Generic run entrypoint for custom commands
@@ -462,9 +1782,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _preprocess_argv(argv: list[str]) -> list[str]:
+    """Normalize argv to preserve backward-compatible shorthands."""
+
+    if not argv:
+        return argv
+    if argv[0] != "mission":
+        return argv
+    mission_subcommands = {"summary", "ui", "detail"}
+    if len(argv) >= 2:
+        candidate = argv[1]
+        if not candidate.startswith("-") and candidate not in mission_subcommands:
+            return ["mission", "summary", *argv[1:]]
+    if len(argv) == 1:
+        return ["mission", "summary"]
+    return argv
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    if argv is None:
+        raw_args = sys.argv[1:]
+        processed_args = _preprocess_argv(raw_args)
+        args = parser.parse_args(processed_args)
+    else:
+        processed_args = _preprocess_argv(argv)
+        args = parser.parse_args(processed_args)
     command = getattr(args, "command", None)
     pipeline = getattr(args, "command_name", None)
     maybe_auto_update(SETTINGS, __version__, command=command, pipeline=pipeline)

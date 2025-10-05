@@ -5,28 +5,33 @@ LC_ALL=C.UTF-8
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/dist"
-if [[ -z "${PYTHON:-}" ]]; then
-  if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
-    PYTHON="$PROJECT_ROOT/.venv/bin/python"
-  else
-    PYTHON="python3"
-  fi
-fi
-
-if [[ "$PYTHON" == "python3" && ! -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
-  log "Creating local virtualenv for release"
-  python3 -m venv "$PROJECT_ROOT/.venv"
-  PYTHON="$PROJECT_ROOT/.venv/bin/python"
-  "$PYTHON" -m pip install --upgrade pip >/dev/null
-fi
-
-export DIST_DIR
 
 log() {
   printf '[REL] %s\n' "$1"
 }
 
+cleanup_release_env() {
+  if [[ "${RELEASE_ENV_CREATED:-0}" == "1" && -n "${RELEASE_ENV:-}" && -d "${RELEASE_ENV}" ]]; then
+    rm -rf "$RELEASE_ENV"
+  fi
+}
+
+RELEASE_ENV_CREATED=0
+if [[ -z "${PYTHON:-}" ]]; then
+  RELEASE_ENV="$(mktemp -d "${TMPDIR:-/tmp}/agentcontrol-release-XXXXXX")"
+  RELEASE_ENV_CREATED=1
+  trap cleanup_release_env EXIT
+  log "Creating isolated release virtualenv"
+  python3 -m venv "$RELEASE_ENV"
+  PYTHON="$RELEASE_ENV/bin/python"
+fi
+
+export DIST_DIR
+
 log "Ensuring build toolchain"
+if [[ "$RELEASE_ENV_CREATED" == "1" ]]; then
+  $PYTHON -m pip install --upgrade pip >/dev/null
+fi
 if ! $PYTHON -c "import build" >/dev/null 2>&1; then
   log "Installing build module via pip"
   $PYTHON -m pip install build >/dev/null
@@ -95,5 +100,12 @@ PY
   "checksums": "$(basename "$SHA_FILE")"
 }
 JSON
+
+log "Seeding offline cache with new wheel"
+if [[ -f "$DIST_DIR/agentcontrol-$VERSION-py3-none-any.whl" ]]; then
+  if ! $PYTHON "$PROJECT_ROOT/scripts/cache.py" add "$DIST_DIR/agentcontrol-$VERSION-py3-none-any.whl"; then
+    log "WARN: failed to add wheel to cache"
+  fi
+fi
 
 log "Release artifacts prepared in $DIST_DIR"

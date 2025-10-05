@@ -10,14 +10,11 @@
    ```bash
    ./scripts/release.sh
    ```
-   Produces wheel + sdist in `dist/`, generates `agentcontrol.sha256`, and writes `release-manifest.json`.
-4. **Prime the auto-update cache (optional but recommended for restricted networks)**
+   The script now provisions an isolated temporary virtual environment when `PYTHON` is unset, installs build tooling inside it, and copies the new wheel into the offline cache (`${AGENTCONTROL_AUTO_UPDATE_CACHE:-~/.agentcontrol/cache}`).
+   Verify cache state if you operate in restricted networks:
    ```bash
-   export AGENTCONTROL_AUTO_UPDATE_CACHE=${AGENTCONTROL_AUTO_UPDATE_CACHE:-~/.agentcontrol/cache}
-   agentcall cache add dist/agentcontrol-<version>-py3-none-any.whl
    agentcall cache list
    ```
-   The fallback mechanism consumes the newest cached wheel with a version greater than the installed CLI when PyPI is unavailable.
 4. **Changelog tooling (optional)**
    ```bash
    ./scripts/changelog.py "Short summary"
@@ -40,3 +37,5 @@
    agentcall verify
    ```
    Capture results in `reports/release-validation.json` if required.
+
+> **Docs bridge:** убедитесь, что `.agentcontrol/config/docs.bridge.yaml` отражает целевые файлы и маркеры в `docs/`. `agentcall run architecture-sync` обновляет только помеченные блоки, не трогая остальную часть документа.

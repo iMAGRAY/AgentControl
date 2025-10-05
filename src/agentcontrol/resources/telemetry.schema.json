@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agentcontrol://schemas/telemetry.schema.json",
+  "title": "AgentControl Telemetry Event",
+  "type": "object",
+  "required": ["ts", "event", "payload"],
+  "properties": {
+    "ts": {
+      "type": "number"
+    },
+    "event": {
+      "type": "string",
+      "minLength": 1
+    },
+    "level": {
+      "type": "string",
+      "enum": ["info", "warn", "error"]
+    },
+    "status": {
+      "type": "string"
+    },
+    "component": {
+      "type": "string"
+    },
+    "correlationId": {
+      "type": "string"
+    },
+    "durationMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

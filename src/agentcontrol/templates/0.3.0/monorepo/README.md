@@ -21,5 +21,5 @@ agentcall verify
 - Use `agentcall agents` commands to wire autonomous agents into multi-service delivery.
 
 ## Tips
-- Configure per-package CI by invoking `agentcall verify -- packages/backend` or via custom command pipelines in `agentcontrol/agentcall.yaml`.
+- Configure per-package CI by invoking `agentcall verify -- packages/backend` or via custom command pipelines in `.agentcontrol/agentcall.yaml`.
 - Keep `architecture/manifest.yaml` authoritative to reflect all bounded contexts and their tasks.

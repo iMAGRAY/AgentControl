@@ -11,7 +11,11 @@ sdk::load_commands
 
 REPORT_DIR="$SDK_ROOT/reports"
 mkdir -p "$REPORT_DIR"
+PERF_REPORT_DIR="$SDK_ROOT/reports/perf"
+mkdir -p "$PERF_REPORT_DIR"
 VERIFY_JSON="$REPORT_DIR/verify.json"
+PERF_REPORT_PATH="$PERF_REPORT_DIR/docs_benchmark.json"
+PERF_THRESHOLD_MS="${PERF_THRESHOLD_MS:-60000}"
 
 declare -a VERIFY_STEPS
 OVERALL_EXIT=0
@@ -78,7 +82,6 @@ run_step "check:todo_sections" "critical" "grep -q '^## Program' \"$SDK_ROOT/tod
 run_step "shellcheck" "warning" "sdk::run_shellcheck_if_available"
 run_step "roadmap-status" "warning" "\"$SDK_ROOT/scripts/roadmap-status.sh\" compact"
 run_step "task-validate" "warning" "\"$SDK_ROOT/scripts/task.sh\" validate"
-run_step "heart-check" "warning" "\"$SDK_ROOT/scripts/agents/heart_check.sh\""
 
 # quality guard (diff against base commit)
 BASE_REF_DEFAULT="${VERIFY_BASE_REF:-origin/main}"
@@ -102,14 +105,17 @@ determine_base_commit() {
 BASE_COMMIT="${VERIFY_BASE_COMMIT:-$(determine_base_commit "$BASE_REF_DEFAULT")}" || true
 QUALITY_JSON="$REPORT_DIR/verify_quality.json"
 if [[ -n "$BASE_COMMIT" ]]; then
-run_step "quality_guard" "warning" "python3 -m scripts.lib.quality_guard --base \"$BASE_COMMIT\" --include-untracked --output \"$QUALITY_JSON\""
+  run_step "quality_guard" "warning" "python3 -m scripts.lib.quality_guard --base \"$BASE_COMMIT\" --include-untracked --output \"$QUALITY_JSON\""
 
-run_step "check-lock" "critical" "\"$SDK_ROOT/scripts/check-lock.sh\""
-run_step "scan-sbom" "critical" "\"$SDK_ROOT/scripts/scan-sbom.sh\""
 else
   sdk::log "WRN" "Failed to determine base commit for quality_guard"
 fi
 
+run_step "check-lock" "critical" "\"$SDK_ROOT/scripts/check-lock.sh\""
+run_step "scan-sbom" "critical" "\"$SDK_ROOT/scripts/scan-sbom.sh\""
+
+run_step "perf-docs" "warning" "\"$SDK_ROOT/scripts/perf/docs_benchmark.py\" --sections 1000 --trials 5 --report \"$PERF_REPORT_PATH\""
+run_step "perf-docs-threshold" "critical" "\"$SDK_ROOT/scripts/perf/check_docs_perf.py\" --report \"$PERF_REPORT_PATH\" --threshold \"$PERF_THRESHOLD_MS\""
 # custom verification commands (do not interrupt script)
 if [[ ${#SDK_VERIFY_COMMANDS[@]} -eq 0 ]]; then
   sdk::log "INF" "SDK_VERIFY_COMMANDS empty — skipping"

@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -19,6 +19,16 @@ PROJECT_ROOT = CURRENT_DIR.parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
+from agentcontrol.utils.docs_bridge import (
+    DocsBridgeConfig,
+    DocsBridgeConfigError,
+    SectionConfig,
+    default_docs_bridge_config,
+    load_docs_bridge_config,
+    read_managed_region,
+    update_managed_region,
+    write_file,
+)
 from scripts.lib.progress_utils import (
     PHASE_ORDER,
     compute_phase_progress,
@@ -42,10 +52,26 @@ class TaskProgress:
     total: int
 
 
+@dataclass
+class DocSections:
+    architecture_overview: str
+    adr_index: str
+    rfc_index: str
+    adr_entries: Dict[str, str]
+    rfc_entries: Dict[str, str]
+
+
 def load_manifest() -> dict:
     if not MANIFEST_PATH.exists():
         raise FileNotFoundError(f"Manifest not found: {MANIFEST_PATH}")
     with MANIFEST_PATH.open("r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
+
+
+def load_manifest_from_path(manifest_path: Path) -> dict:
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Manifest not found: {manifest_path}")
+    with manifest_path.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
 
@@ -311,20 +337,13 @@ def render_architecture_overview(manifest: dict) -> str:
             phase=task.get("roadmap_phase", "—"),
         )
         lines.append(row)
-    lines.extend([
-        "",
-        "## Documents",
-        "- ADR Index: docs/adr/index.md",
-        "- RFC Index: docs/rfc/index.md",
-        "- Manifest: architecture/manifest.yaml",
-    ])
     return "\n".join(lines) + "\n"
 
 
-def render_adr_files(manifest: dict) -> Dict[str, str]:
-    outputs: Dict[str, str] = {}
+def render_adr_files(manifest: dict) -> Tuple[str, Dict[str, str]]:
     adr_entries = manifest.get("adr", [])
     lines = ["# Architecture Decision Record Index", "", "| ADR | Title | Status | Date | Systems |", "| --- | --- | --- | --- | --- |"]
+    entry_map: Dict[str, str] = {}
     for adr in adr_entries:
         systems = ", ".join(adr.get("related_systems", [])) or "—"
         lines.append(f"| {adr['id']} | {adr['title']} | {adr['status']} | {adr['date']} | {systems} |")
@@ -348,15 +367,15 @@ def render_adr_files(manifest: dict) -> Dict[str, str]:
             f"**Superseded by:** {', '.join(adr.get('superseded_by', [])) or '—'}",
             "",
         ])
-        outputs[f"docs/adr/{adr['id']}.md"] = content
-    outputs["docs/adr/index.md"] = "\n".join(lines) + "\n"
-    return outputs
+        entry_map[adr["id"]] = content
+    index = "\n".join(lines) + "\n"
+    return index, entry_map
 
 
-def render_rfc_files(manifest: dict) -> Dict[str, str]:
-    outputs: Dict[str, str] = {}
+def render_rfc_files(manifest: dict) -> Tuple[str, Dict[str, str]]:
     rfc_entries = manifest.get("rfc", [])
     lines = ["# Request for Comments Index", "", "| RFC | Title | Status | Date | Systems |", "| --- | --- | --- | --- | --- |"]
+    entry_map: Dict[str, str] = {}
     for rfc in rfc_entries:
         systems = ", ".join(rfc.get("related_systems", [])) or "—"
         lines.append(f"| {rfc['id']} | {rfc['title']} | {rfc['status']} | {rfc['date']} | {systems} |")
@@ -379,9 +398,9 @@ def render_rfc_files(manifest: dict) -> Dict[str, str]:
             f"**References:** {', '.join(rfc.get('references', [])) or '—'}",
             "",
         ])
-        outputs[f"docs/rfc/{rfc['id']}.md"] = content
-    outputs["docs/rfc/index.md"] = "\n".join(lines) + "\n"
-    return outputs
+        entry_map[rfc["id"]] = content
+    index = "\n".join(lines) + "\n"
+    return index, entry_map
 
 
 def render_dashboard(manifest: dict) -> str:
@@ -403,16 +422,29 @@ def render_dashboard(manifest: dict) -> str:
     return json.dumps(ensure_json_serialisable(dashboard), ensure_ascii=False, indent=2) + "\n"
 
 
-def generate_outputs(manifest: dict) -> Dict[str, str]:
+def generate_outputs(manifest: dict) -> Tuple[Dict[str, str], DocSections]:
     manifest = enrich_manifest(manifest)
     outputs: Dict[str, str] = {}
     outputs["todo.machine.md"] = render_program_section(manifest)
     outputs["data/tasks.board.json"] = render_tasks_board(manifest)
-    outputs["docs/architecture/overview.md"] = render_architecture_overview(manifest)
-    outputs.update(render_adr_files(manifest))
-    outputs.update(render_rfc_files(manifest))
     outputs["reports/architecture-dashboard.json"] = render_dashboard(manifest)
-    return outputs
+    adr_index, adr_entries = render_adr_files(manifest)
+    rfc_index, rfc_entries = render_rfc_files(manifest)
+    doc_sections = DocSections(
+        architecture_overview=render_architecture_overview(manifest),
+        adr_index=adr_index,
+        rfc_index=rfc_index,
+        adr_entries=adr_entries,
+        rfc_entries=rfc_entries,
+    )
+    return outputs, doc_sections
+
+
+def generate_doc_sections_for(project_root: Path) -> DocSections:
+    manifest_path = project_root / "architecture" / "manifest.yaml"
+    manifest = load_manifest_from_path(manifest_path)
+    _, doc_sections = generate_outputs(manifest)
+    return doc_sections
 
 
 def compute_hash(text: str) -> str:
@@ -429,14 +461,129 @@ def write_if_changed(path: Path, content: str) -> bool:
     return True
 
 
+def _load_bridge_config() -> DocsBridgeConfig:
+    try:
+        config, _ = load_docs_bridge_config(ROOT)
+        return config
+    except (DocsBridgeConfigError, yaml.YAMLError, OSError, ValueError):
+        return default_docs_bridge_config()
+
+
+def apply_doc_sections(
+    sections: DocSections,
+    config: DocsBridgeConfig,
+    new_state: Dict[str, str],
+    updated: List[str],
+) -> None:
+    root_base = config.root if config.root.is_absolute() else (ROOT / config.root)
+    _apply_managed_section(
+        "architecture_overview",
+        config.architecture_overview,
+        sections.architecture_overview,
+        root_base,
+        new_state,
+        updated,
+    )
+    _apply_managed_section(
+        "adr_index",
+        config.adr_index,
+        sections.adr_index,
+        root_base,
+        new_state,
+        updated,
+    )
+    _apply_managed_section(
+        "rfc_index",
+        config.rfc_index,
+        sections.rfc_index,
+        root_base,
+        new_state,
+        updated,
+    )
+    _apply_entry_sections(
+        "adr_entry",
+        config.adr_entry,
+        sections.adr_entries,
+        root_base,
+        new_state,
+        updated,
+    )
+    _apply_entry_sections(
+        "rfc_entry",
+        config.rfc_entry,
+        sections.rfc_entries,
+        root_base,
+        new_state,
+        updated,
+    )
+
+
+def _apply_managed_section(
+    name: str,
+    spec: SectionConfig,
+    content: str,
+    root_base: Path,
+    new_state: Dict[str, str],
+    updated: List[str],
+) -> None:
+    if spec.mode == "skip":
+        return
+    target = spec.resolve_path(root_base)
+    marker = spec.marker or f"agentcontrol-{name}"
+    if spec.mode == "managed":
+        changed = update_managed_region(target, marker, content, insertion=spec.insertion)
+    else:
+        payload = content if content.endswith("\n") else content + "\n"
+        changed = write_file(target, payload)
+    if changed:
+        updated.append(str(_relative_for_state(target)))
+    new_state[_doc_state_key(name, target)] = compute_hash(content)
+
+
+def _apply_entry_sections(
+    name: str,
+    spec: SectionConfig,
+    entries: Dict[str, str],
+    root_base: Path,
+    new_state: Dict[str, str],
+    updated: List[str],
+) -> None:
+    if spec.mode == "skip":
+        return
+    for identifier, content in entries.items():
+        target = spec.resolve_path(root_base, identifier)
+        if spec.mode == "managed":
+            marker = spec.marker or f"agentcontrol-{name}-{identifier}"
+            changed = update_managed_region(target, marker, content, insertion=spec.insertion)
+        else:
+            payload = content if content.endswith("\n") else content + "\n"
+            changed = write_file(target, payload)
+        if changed:
+            updated.append(str(_relative_for_state(target)))
+        new_state[_doc_state_key(f"{name}:{identifier}", target)] = compute_hash(content)
+
+
+def _doc_state_key(section: str, path: Path) -> str:
+    rel = _relative_for_state(path)
+    return f"doc::{section}::{rel}"
+
+
+def _relative_for_state(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.resolve().as_posix()
+
+
 def sync_outputs() -> None:
     manifest = load_manifest()
-    outputs = generate_outputs(manifest)
+    outputs, doc_sections = generate_outputs(manifest)
     state = load_state()
     force = os.getenv("ARCH_TOOL_FORCE") == "1"
 
     updated: List[str] = []
     skipped: List[str] = []
+    doc_updates: List[str] = []
     new_state: Dict[str, str] = {}
 
     for rel_path, content in outputs.items():
@@ -458,6 +605,9 @@ def sync_outputs() -> None:
         if changed or recorded or force:
             new_state[rel_path] = compute_hash(content)
 
+    bridge_config = _load_bridge_config()
+    apply_doc_sections(doc_sections, bridge_config, new_state, doc_updates)
+
     if new_state:
         save_state(new_state)
     else:
@@ -469,8 +619,13 @@ def sync_outputs() -> None:
         print("Updated:")
         for path in updated:
             print(f"  - {path}")
+    if doc_updates:
+        print("Updated documentation sections:")
+        for path in doc_updates:
+            print(f"  - {path}")
     else:
-        print("All managed artifacts are up-to-date.")
+        if not updated:
+            print("All managed artifacts are up-to-date.")
 
     unmanaged = sorted(set(skipped))
     if unmanaged:
@@ -486,21 +641,33 @@ def check_outputs() -> None:
         return
 
     manifest = load_manifest()
-    outputs = generate_outputs(manifest)
+    outputs, doc_sections = generate_outputs(manifest)
     mismatches: List[Tuple[str, str]] = []
+    bridge_config = _load_bridge_config()
 
     for rel_path, _hash in state.items():
-        target = ROOT / rel_path
-        content = outputs.get(rel_path)
-        if content is None:
-            mismatches.append((rel_path, "not produced by manifest"))
-            continue
-        if not target.exists():
-            mismatches.append((rel_path, "missing"))
-            continue
-        existing = target.read_text(encoding="utf-8")
-        if existing != content:
-            mismatches.append((rel_path, "outdated"))
+        if rel_path.startswith("doc::"):
+            section_name, target_str = rel_path.split("::", 2)[1:]
+            target_path = Path(target_str)
+            if not target_path.is_absolute():
+                target_path = ROOT / target_path
+            expected = _expected_doc_content(section_name, target_path, bridge_config, doc_sections)
+            if expected is None:
+                continue
+            if not _doc_section_matches(section_name, target_path, bridge_config, expected):
+                mismatches.append((rel_path, "outdated"))
+        else:
+            target = ROOT / rel_path
+            content = outputs.get(rel_path)
+            if content is None:
+                mismatches.append((rel_path, "not produced by manifest"))
+                continue
+            if not target.exists():
+                mismatches.append((rel_path, "missing"))
+                continue
+            existing = target.read_text(encoding="utf-8")
+            if existing != content:
+                mismatches.append((rel_path, "outdated"))
 
     if mismatches:
         print("Architecture integrity check failed:")
@@ -510,6 +677,64 @@ def check_outputs() -> None:
         sys.exit(1)
 
     print("Architecture integrity confirmed.")
+
+
+def _expected_doc_content(
+    section_name: str,
+    target: Path,
+    config: DocsBridgeConfig,
+    doc_sections: DocSections,
+) -> Optional[str]:
+    if section_name == "architecture_overview":
+        return doc_sections.architecture_overview
+    if section_name == "adr_index":
+        return doc_sections.adr_index
+    if section_name == "rfc_index":
+        return doc_sections.rfc_index
+    if section_name.startswith("adr_entry"):
+        identifier = section_name.split(":", 1)[1] if ":" in section_name else None
+        if identifier:
+            return doc_sections.adr_entries.get(identifier)
+        return None
+    if section_name.startswith("rfc_entry"):
+        identifier = section_name.split(":", 1)[1] if ":" in section_name else None
+        if identifier:
+            return doc_sections.rfc_entries.get(identifier)
+        return None
+    return None
+
+
+def _doc_section_matches(
+    section_name: str,
+    target: Path,
+    config: DocsBridgeConfig,
+    expected: str,
+) -> bool:
+    section = None
+    if section_name == "architecture_overview":
+        section = config.architecture_overview
+    elif section_name == "adr_index":
+        section = config.adr_index
+    elif section_name == "rfc_index":
+        section = config.rfc_index
+    elif section_name.startswith("adr_entry"):
+        section = config.adr_entry
+    elif section_name.startswith("rfc_entry"):
+        section = config.rfc_entry
+    else:
+        return True
+
+    if section.mode == "skip":
+        return True
+    if section.mode == "managed":
+        marker = section.marker or f"agentcontrol-{section_name}"
+        current = read_managed_region(target, marker)
+        return current == expected.strip("\n")
+    if not target.exists():
+        return False
+    existing = target.read_text(encoding="utf-8")
+    payload = expected if expected.endswith("\n") else expected + "\n"
+    return existing == payload
 
 
 def main(argv: List[str] | None = None) -> int:

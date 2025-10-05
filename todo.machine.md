@@ -118,9 +118,9 @@ milestones:
   - agentcall run architecture-sync
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
 ```
 
 ## Big Tasks
@@ -168,9 +168,9 @@ milestones:
   - scripts/lib/architecture_tool.py
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
 - id: bigtask-doc-ops
   title: Documentation delivery pipeline
   type: feature
@@ -214,9 +214,9 @@ milestones:
   - templates/
   audit:
     created_at: '2025-09-29T18:00:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T13:20:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
 - id: bigtask-test-pytest
   title: Pytest in verify pipeline
   type: test
@@ -264,9 +264,9 @@ milestones:
   - requirements.txt
   audit:
     created_at: '2025-09-30T05:20:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T06:05:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
 - id: bigtask-doctor-ux
   title: Improved agentcall doctor output
   type: ops
@@ -312,7 +312,7 @@ milestones:
   - scripts/lib/deps_checker.py
   audit:
     created_at: '2025-09-30T05:20:00Z'
-    created_by: gpt-5-codex
+    created_by: agentcontrol-core
     updated_at: '2025-09-30T06:05:00Z'
-    updated_by: gpt-5-codex
+    updated_by: agentcontrol-core
 ```

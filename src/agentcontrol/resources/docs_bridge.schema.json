@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agentcontrol://schemas/docs_bridge.schema.json",
+  "title": "AgentControl Docs Bridge Configuration",
+  "type": "object",
+  "required": ["version", "root", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sections": {
+      "type": "object",
+      "required": [
+        "architecture_overview",
+        "adr_index",
+        "rfc_index",
+        "adr_entry",
+        "rfc_entry"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "architecture_overview": { "$ref": "#/$defs/managedSection" },
+        "adr_index": { "$ref": "#/$defs/managedSection" },
+        "rfc_index": { "$ref": "#/$defs/managedSection" },
+        "adr_entry": { "$ref": "#/$defs/fileSection" },
+        "rfc_entry": { "$ref": "#/$defs/fileSection" }
+      }
+    }
+  },
+  "$defs": {
+    "managedSection": {
+      "type": "object",
+      "required": ["mode", "target", "marker"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["managed", "skip"]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "marker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "insert_after_heading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "insert_before_marker": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": ["insert_after_heading", "insert_before_marker"]
+          }
+        }
+      ]
+    },
+    "fileSection": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["file", "skip"]
+        },
+        "target": {
+          "type": "string"
+        },
+        "target_template": {
+          "type": "string"
+        },
+        "insert_after_heading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "insert_before_marker": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {"required": ["target"]},
+        {"required": ["target_template"]}
+      ],
+      "allOf": [
+        {
+          "not": {
+            "required": ["insert_after_heading", "insert_before_marker"]
+          }
+        }
+      ]
+    }
+  }
+}

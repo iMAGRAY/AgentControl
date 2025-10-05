@@ -29,7 +29,7 @@ def test_command_service_runs_pipeline(tmp_path: Path, monkeypatch) -> None:
     script = project_root / "hello.sh"
     script.write_text("#!/usr/bin/env bash\necho 'hi'\n", encoding="utf-8")
     os.chmod(script, 0o755)
-    capsule_dir = project_root / "agentcontrol"
+    capsule_dir = project_root / ".agentcontrol"
     capsule_dir.mkdir(parents=True, exist_ok=True)
     descriptor = capsule_dir / COMMAND_DESCRIPTOR
     descriptor.write_text(

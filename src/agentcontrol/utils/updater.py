@@ -20,6 +20,7 @@ from agentcontrol.utils.telemetry import record_event
 PYPI_URL = "https://pypi.org/pypi/agentcontrol/json"
 STATE_FILENAME = "update.json"
 CACHE_ENV = "AGENTCONTROL_AUTO_UPDATE_CACHE"
+DEFAULT_CACHE_SUBDIR = Path(".agentcontrol") / "cache"
 CHECK_INTERVAL = timedelta(hours=6)
 
 
@@ -173,6 +174,12 @@ def _extract_version_from_filename(filename: str) -> Version | None:
     return None
 
 
+def _resolve_cache_dir(env_value: str | None) -> Path:
+    if env_value:
+        return Path(env_value).expanduser()
+    return Path.home() / DEFAULT_CACHE_SUBDIR
+
+
 def maybe_auto_update(settings: RuntimeSettings, current_version: str, *, command: str | None = None, pipeline: str | None = None) -> None:
     if _is_dev_environment():
         return
@@ -207,8 +214,7 @@ def maybe_auto_update(settings: RuntimeSettings, current_version: str, *, comman
     if remote_version is None:
         remote_version = _fetch_remote_version()
         if remote_version is None:
-            cache_dir_value = os.environ.get(CACHE_ENV)
-            cache_dir = Path(cache_dir_value).expanduser() if cache_dir_value else None
+            cache_dir = _resolve_cache_dir(os.environ.get(CACHE_ENV))
             current_version_parsed = _parse_version(current_version)
             cached = _select_cached_release(cache_dir, current_version_parsed)
             if cached is None:

@@ -7,7 +7,7 @@ from agentcontrol.domain.project import ProjectId
 
 def test_command_descriptor_prefers_capsule(tmp_path: Path) -> None:
     project_root = tmp_path / "proj"
-    capsule = project_root / "agentcontrol"
+    capsule = project_root / ".agentcontrol"
     capsule.mkdir(parents=True)
     (capsule / "agentcall.yaml").write_text("commands: {}\n", encoding="utf-8")
     project_id = ProjectId.for_new_project(project_root)

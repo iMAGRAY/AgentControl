@@ -1,7 +1,12 @@
 ## 0.3.2 — 2025-10-04
 - Added `agentcall cache` helper (`download`, `add`, `list`, `verify`) to simplify подготовку оффлайн-колеса перед запуском в закрытых контурах.
-- Persisted auto-update telemetry summary into `reports/status.json` и `context/auto-update-summary.json`, что делает события fallback/succeeded доступными в Memory Heart.
+- Persisted auto-update telemetry summary into `reports/status.json` и `context/auto-update-summary.json`, что делает события fallback/succeeded доступными для mission control.
 - Ввели флаги `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` и `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` для безопасного моделирования отказов PyPI при локальной отладке.
+- Auto-update fallback теперь по умолчанию использует `~/.agentcontrol/cache`, даже если переменная `AGENTCONTROL_AUTO_UPDATE_CACHE` не задана, что устраняет массовые `fetch_failed` при наличии предзагруженных колёс.
+- `scripts/release.sh` создаёт временный изолированный venv, устанавливает build/twine и автоматически добавляет свежий wheel в оффлайн-кэш, упрощая поддержку закрытых сегментов.
+- CLI-подсказки и auto-bootstrap: `agentcall` сразу инициализирует капсулу, если нет запрета, и выводит сообщение "This directory is not an AgentControl project." для операторов.
+- Docs bridge: `.agentcontrol/config/docs.bridge.yaml` настраивает целевые файлы, а `architecture-sync` заполняет managed-блоки в существующей документации (без дублирования `docs/`).
+- `agentcall init` автоматически подхватывает уже существующий каталог `docs/` и прокладывает мост без перезаписи пользовательских файлов.
 
 ## 0.3.1 — 2025-10-04
 - Added automatic self-update before command execution with telemetry, configurable modes (`AGENTCONTROL_AUTO_UPDATE_MODE`), and environment-based overrides (`AGENTCONTROL_DISABLE_AUTO_UPDATE`, `AGENTCONTROL_AUTO_UPDATE=0`).
@@ -14,7 +19,7 @@
 - Rebranded to *AgentControl Universal Agent SDK* with corporate documentation (README, AGENTS charter, architecture brief).
 - Auto-initialisation now opt-in (`AGENTCONTROL_AUTO_INIT=1`) with explicit disable override (`AGENTCONTROL_NO_AUTO_INIT=1`) and improved onboarding hints when no capsule is detected.
 - Roadmap/status scripts now tolerate empty epics, big tasks, and milestones, emitting actionable warnings without failing pipelines.
-- Templates 0.3.0 provide nested capsule layout, packaged dotfiles, Memory Heart guards, and `PYTHONPATH` injection under `./agentcontrol/`.
+- Templates 0.3.0 provide nested capsule layout, packaged dotfiles, mission control hooks, and `PYTHONPATH` injection under `./.agentcontrol/`.
 
 ## 0.2.1 — 2025-10-04
 - Improved project detection errors with guidance (`agentcall status` outside project).

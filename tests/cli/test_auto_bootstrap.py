@@ -47,13 +47,13 @@ def test_auto_bootstrap_creates_capsule(tmp_path: Path, runtime_settings: Runtim
     project_id = cli_main._auto_bootstrap_project(bootstrap, project_path, "status")
     assert project_id is not None
 
-    descriptor = project_path / "agentcontrol" / "agentcontrol.project.json"
+    descriptor = project_path / ".agentcontrol" / "agentcontrol.project.json"
     assert descriptor.exists()
     assert not (project_path / "agentcall.yaml").exists()
 
     capsule = ProjectCapsule.load(project_id)
     assert capsule.project_id == project_id
-    assert project_id.command_descriptor_path() == project_path / "agentcontrol" / "agentcall.yaml"
+    assert project_id.command_descriptor_path() == project_path / ".agentcontrol" / "agentcall.yaml"
 
 
 def test_auto_bootstrap_respects_disable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, runtime_settings: RuntimeSettings) -> None:
@@ -65,7 +65,7 @@ def test_auto_bootstrap_respects_disable(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     result = cli_main._auto_bootstrap_project(bootstrap, project_path, "status")
     assert result is None
-    assert not (project_path / "agentcontrol").exists()
+    assert not (project_path / ".agentcontrol").exists()
 
 
 def test_resolve_project_id_no_auto(tmp_path: Path, runtime_settings: RuntimeSettings, capsys: pytest.CaptureFixture[str]) -> None:
@@ -86,4 +86,4 @@ def test_resolve_project_id_with_auto(tmp_path: Path, runtime_settings: RuntimeS
 
     result = cli_main._resolve_project_id(bootstrap, project_path, "status", allow_auto=True)
     assert isinstance(result, ProjectId)
-    assert (project_path / "agentcontrol" / "agentcall.yaml").exists()
+    assert (project_path / ".agentcontrol" / "agentcall.yaml").exists()

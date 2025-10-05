@@ -22,6 +22,7 @@ def runtime_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runtime
     monkeypatch.setattr(updater, "_is_dev_environment", lambda: False)
     monkeypatch.delenv("AGENTCONTROL_AUTO_UPDATE", raising=False)
     monkeypatch.delenv("AGENTCONTROL_DISABLE_AUTO_UPDATE", raising=False)
+    monkeypatch.setenv("HOME", str(home))
     return RuntimeSettings(home_dir=home, template_dir=template_dir, state_dir=state_dir, log_dir=log_dir, cli_version="0.3.2")
 
 
@@ -170,6 +171,37 @@ def test_auto_update_uses_local_cache(runtime_settings: RuntimeSettings, monkeyp
     assert payload["status"] == "local"
     assert payload["latest_version"] == "0.4.0"
 
+
+def test_auto_update_uses_default_cache_directory(
+    runtime_settings: RuntimeSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_home = runtime_settings.home_dir.parent / "default-home"
+    default_home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("HOME", str(default_home))
+    monkeypatch.delenv("AGENTCONTROL_AUTO_UPDATE_CACHE", raising=False)
+    cache_dir = default_home / ".agentcontrol" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    wheel_path = cache_dir / "agentcontrol-0.4.1-py3-none-any.whl"
+    wheel_path.write_bytes(b"")
+
+    monkeypatch.setattr(updater, "_fetch_remote_version", lambda: None)
+
+    captured: dict[str, str] = {}
+
+    def fake_local_install(path: Path, mode: str) -> CompletedProcess[bytes]:
+        captured["path"] = str(path)
+        captured["mode"] = mode
+        return CompletedProcess(args=[str(path)], returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(updater, "_install_local_package", fake_local_install)
+
+    with pytest.raises(SystemExit) as exc_info:
+        updater.maybe_auto_update(runtime_settings, "0.3.2", command="status")
+
+    assert exc_info.value.code == 0
+    assert captured["path"].endswith("agentcontrol-0.4.1-py3-none-any.whl")
+    assert captured["mode"] == "pip"
 
 def test_auto_update_local_cache_failure(runtime_settings: RuntimeSettings, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     cache_dir = runtime_settings.state_dir / "cache"

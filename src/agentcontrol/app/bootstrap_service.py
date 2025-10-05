@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agentcontrol.domain.project import (
+    LEGACY_PROJECT_DIRS,
     PROJECT_DIR,
     ProjectCapsule,
     ProjectId,
@@ -83,7 +84,13 @@ class BootstrapService:
         template.validate()
         capsule_src = template.root_dir / PROJECT_DIR
         if not capsule_src.exists():
-            raise RuntimeError("Template missing agentcontrol capsule")
+            for legacy_dir in LEGACY_PROJECT_DIRS:
+                candidate = template.root_dir / legacy_dir
+                if candidate.exists():
+                    capsule_src = candidate
+                    break
+            else:
+                raise RuntimeError("Template missing agentcontrol capsule")
         capsule_dst = destination / PROJECT_DIR
         if capsule_dst.exists():
             if force:
@@ -93,7 +100,8 @@ class BootstrapService:
         capsule_dst.mkdir(parents=True, exist_ok=True)
         self._copy_tree(capsule_src, capsule_dst, force=force)
 
-        legacy_entries = [p for p in template.root_dir.iterdir() if p.name not in {PROJECT_DIR}]
+        excluded = {PROJECT_DIR, *LEGACY_PROJECT_DIRS}
+        legacy_entries = [p for p in template.root_dir.iterdir() if p.name not in excluded]
         for entry in legacy_entries:
             target = capsule_dst / entry.name
             if entry.name == "template.sha256":

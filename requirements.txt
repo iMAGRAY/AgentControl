@@ -3,3 +3,5 @@ diff-cover==9.7.1
 detect-secrets==1.5.0
 pip-audit==2.7.3
 PyYAML==6.0.3
+jsonschema==4.23.0
+hypothesis==6.112.1

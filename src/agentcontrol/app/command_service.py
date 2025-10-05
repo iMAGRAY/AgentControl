@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-from agentcontrol.domain.project import PROJECT_DIR, ProjectCapsule, ProjectId
+from agentcontrol.domain.project import LEGACY_PROJECT_DIRS, PROJECT_DIR, ProjectCapsule, ProjectId
 from agentcontrol.settings import RuntimeSettings
 from agentcontrol.utils.telemetry import record_event
 
@@ -116,8 +116,18 @@ class CommandService:
         env["AGENTCONTROL_PROJECT_ROOT"] = str(project_id.root)
         env["AGENTCONTROL_STATE"] = str(state_dir)
         env["AGENTCONTROL_TEMPLATE"] = template
+        capsule_paths: list[str] = []
         toolkit_dir = project_id.root / PROJECT_DIR
+        capsule_paths.append(str(toolkit_dir))
+        for legacy_name in LEGACY_PROJECT_DIRS:
+            legacy_dir = project_id.root / legacy_name
+            if legacy_dir.exists():
+                capsule_paths.append(str(legacy_dir))
         pythonpath = env.get("PYTHONPATH")
-        env["PYTHONPATH"] = f"{toolkit_dir}{os.pathsep}{pythonpath}" if pythonpath else str(toolkit_dir)
+        capsule_pythonpath = os.pathsep.join(capsule_paths)
+        if pythonpath:
+            env["PYTHONPATH"] = f"{capsule_pythonpath}{os.pathsep}{pythonpath}"
+        else:
+            env["PYTHONPATH"] = capsule_pythonpath
         env.setdefault("PYTHONUNBUFFERED", "1")
         return env

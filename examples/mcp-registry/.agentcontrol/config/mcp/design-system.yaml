@@ -1,0 +1,6 @@
+name: design-system
+endpoint: https://mcp.example.com/design
+description: Design system knowledge base
+metadata:
+  tier: prod
+  owner: design
