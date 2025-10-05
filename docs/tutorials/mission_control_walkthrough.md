@@ -35,6 +35,8 @@ agentcall mission ui --filter quality --filter tasks --interval 1.5
 ```
 The dashboard refreshes every 1.5 seconds, printing quality gate status and task progress only. A termination (Ctrl+C) emits a structured telemetry event so the orchestrator knows the session ended intentionally.
 
+> Новое: playbooks выводятся с приоритетом (`[priority] issue`) и hint — так агент понимает, какое действие запустить первым.
+
 ## Step 5 — React via Playbooks
 When the twin exposes `playbooks`, execute them in priority order. Example entry:
 ```json

@@ -192,3 +192,19 @@ def test_docs_diff_repair_and_rollback(project: Path, runtime_settings: RuntimeS
     assert "Legacy" in restored
     events = [evt for evt in _load_events(runtime_settings) if evt.get("event") in {"docs.diff", "docs.repair", "docs.rollback"}]
     assert any(evt.get("status") == "start" for evt in events)
+
+
+def test_docs_sync_repair_path(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_config(project)
+    docs_root = project / "docs"
+    (docs_root / "architecture").mkdir(parents=True, exist_ok=True)
+    overview = docs_root / "architecture" / "overview.md"
+    overview.write_text("# Architecture Overview\n\nLegacy\n", encoding="utf-8")
+
+    exit_code = cli_main.main(["docs", str(project), "sync", "--json"])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert "architecture_overview" in payload.get("sections", [])
+    updated = overview.read_text(encoding="utf-8")
+    assert "agentcontrol:start:agentcontrol-architecture-overview" in updated

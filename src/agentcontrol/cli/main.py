@@ -458,6 +458,21 @@ def _docs_cmd(args: argparse.Namespace) -> int:
             else:
                 _print_docs_actions("rollback", payload)
             exit_code = 0
+        elif command == "sync":
+            sections = getattr(args, "sections", None)
+            entries = getattr(args, "entries", None)
+            mode = getattr(args, "mode", "repair")
+            payload = command_service.sync_sections(
+                project_path,
+                mode=mode,
+                sections=sections,
+                entries=entries,
+            )
+            if as_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                _print_docs_sync(payload)
+            exit_code = 0 if payload.get("status") == "ok" else 1
         else:
             record_structured_event(
                 SETTINGS,
@@ -573,6 +588,25 @@ def _print_docs_actions(operation: str, payload: dict) -> None:
         path = action.get("path")
         action_type = action.get("action")
         print(f"  - {name}: {action_type} ({path})")
+
+
+def _print_docs_sync(payload: dict) -> None:
+    print(f"docs sync ({payload.get('mode')}) @ {payload.get('generatedAt')}")
+    processed = payload.get("sections") or []
+    if processed:
+        print(f"  processed: {', '.join(processed)}")
+    else:
+        print("  processed: none (already in sync)")
+    for step in payload.get("steps", []):
+        label = step.get("step")
+        if label == "diff-after":
+            issues = [entry for entry in step.get("diff", []) if entry.get("status") != "match"]
+            print(f"  {label}: {len(issues)} issues remaining")
+        elif label in {"repair", "adopt"} and step.get("payload"):
+            actions = step["payload"].get("actions", [])
+            print(f"  {label}: {len(actions)} actions")
+        elif step.get("skipped"):
+            print(f"  {label}: skipped")
 
 
 def _info_cmd(args: argparse.Namespace) -> int:
@@ -733,14 +767,21 @@ def _render_mission_dashboard(
                 category = entry.get("category", "general")
                 event = entry.get("event") or entry.get("details", {}).get("event") or "-"
                 print(f"  - [{timestamp}] ({category}) {event}")
+                hint = entry.get("hint")
+                if hint:
+                    print(f"      hint: {hint}")
 
     playbooks = payload.get("playbooks") or []
     if playbooks:
         print("playbooks:")
         for playbook in playbooks[:3]:
-            print(f"  - {playbook.get('issue')}: {playbook.get('command')}")
+            priority = playbook.get("priority")
+            label = f"[{priority}] " if priority is not None else ""
+            print(f"  - {label}{playbook.get('issue')}: {playbook.get('command')}")
             if playbook.get("summary"):
                 print(f"      {playbook['summary']}")
+            if playbook.get("hint"):
+                print(f"      hint: {playbook['hint']}")
 
     if interactive:
         print("\nPress Ctrl+C to exit")
@@ -1520,6 +1561,9 @@ def _print_mission_detail(section: str, payload: Any, *, timeline_limit: int = 1
             category = entry.get('category', 'general')
             event = entry.get('event') or entry.get('details', {}).get('event') or '-'
             print(f"  - [{timestamp}] ({category}) {event}")
+            hint = entry.get('hint')
+            if hint:
+                print(f"      hint: {hint}")
         return
     print('no detail available for requested section')
 def build_parser() -> argparse.ArgumentParser:
@@ -1635,6 +1679,13 @@ def build_parser() -> argparse.ArgumentParser:
     docs_rollback.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
     docs_rollback.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     docs_rollback.set_defaults(func=_docs_cmd, docs_command="rollback")
+
+    docs_sync = docs_sub.add_parser("sync", help="Auto repair/adopt managed sections")
+    docs_sync.add_argument("--mode", choices=["repair", "adopt"], default="repair", help="Sync mode (default: repair)")
+    docs_sync.add_argument("--section", dest="sections", action="append", help="Filter by section name")
+    docs_sync.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
+    docs_sync.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_sync.set_defaults(func=_docs_cmd, docs_command="sync")
 
     info_cmd = sub.add_parser("info", help="Display AgentControl capabilities")
     info_cmd.add_argument("path", nargs="?", help="Project path (optional)")

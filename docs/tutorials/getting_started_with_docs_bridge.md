@@ -30,6 +30,8 @@ agentcall docs diff --section release_notes --json
 ```
 The diff payload shows whether the managed block already matches AgentControl’s expectations. No mutations occur in this step.
 
+> **Shortcut:** `agentcall docs sync --section release_notes` выполняет diff → repair/adopt за один шаг и вернёт JSON/summary с оставшимися расхождениями.
+
 ## Step 4 — Adopt Baseline
 If the diff reports `status: drift`, adopt the current content as ground truth:
 ```bash

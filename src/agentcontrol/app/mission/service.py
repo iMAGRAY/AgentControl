@@ -134,6 +134,7 @@ class MissionService:
                     "event": event,
                     "category": category,
                     "details": payload,
+                    "hint": self._timeline_hint(category, payload),
                 }
             )
         entries.sort(key=lambda item: item.get("timestamp") or "", reverse=True)
@@ -150,6 +151,19 @@ class MissionService:
         if any(key in label for key in ("task", "roadmap", "mission")):
             return "tasks"
         return payload.get("category", "general")
+
+    def _timeline_hint(self, category: str, payload: Dict[str, Any]) -> Optional[str]:
+        if category == "docs":
+            section = payload.get("section") or payload.get("marker")
+            target = payload.get("path")
+            scope = f" --section {section}" if section else ""
+            return f"Run `agentcall docs sync{scope}` to reconcile documentation".strip()
+        if category == "quality":
+            status = payload.get("status") or payload.get("result")
+            return f"QA event ({status}); consider `agentcall auto tests --apply`"
+        if category == "mcp":
+            return "Review MCP registry via `agentcall mcp status`"
+        return None
 
     def _mcp_summary(self, project_root: Path) -> Dict[str, Any]:
         repo = MCPConfigRepository(project_root)
@@ -179,34 +193,85 @@ class MissionService:
             "timeline": timeline,
         }
 
-    def _playbooks(self, docs_bridge: Dict[str, Any], quality: Dict[str, Any], mcp_summary: Dict[str, Any]) -> list[Dict[str, Any]]:
-        playbooks: list[Dict[str, Any]] = []
-        if docs_bridge.get("issues"):
-            playbooks.append(
-                {
-                    "issue": "docs_drift",
-                    "summary": "Repair managed documentation sections",
-                    "command": "agentcall auto docs --apply",
-                }
+    def _playbooks(
+        self,
+        docs_bridge: Dict[str, Any],
+        quality: Dict[str, Any],
+        mcp_summary: Dict[str, Any],
+    ) -> list[Dict[str, Any]]:
+        suggestions: list[Dict[str, Any]] = []
+
+        docs_issues = docs_bridge.get("issues") if isinstance(docs_bridge, dict) else []
+        if docs_issues:
+            priority = 100 + len(docs_issues) * 10
+            suggestions.append(
+                self._playbook_entry(
+                    issue="docs_drift",
+                    summary="Repair managed documentation sections",
+                    command="agentcall docs sync",
+                    priority=priority,
+                    category="docs",
+                    hint="Run `agentcall docs sync --json` to auto-heal managed regions",
+                )
             )
-        verify = quality.get("verify", {})
+
+        verify = quality.get("verify", {}) if isinstance(quality, dict) else {}
         if not verify.get("available"):
-            playbooks.append(
-                {
-                    "issue": "verify_outdated",
-                    "summary": "Run verification pipeline",
-                    "command": "agentcall auto tests --apply",
-                }
+            suggestions.append(
+                self._playbook_entry(
+                    issue="verify_outdated",
+                    summary="Run verification pipeline",
+                    command="agentcall auto tests --apply",
+                    priority=90,
+                    category="quality",
+                    hint="Trigger QA guardrail via `agentcall auto tests --apply`",
+                )
             )
-        if not mcp_summary.get("count"):
-            playbooks.append(
-                {
-                    "issue": "mcp_servers_missing",
-                    "summary": "Register mission-critical MCP servers",
-                    "command": "agentcall mcp add --name demo --endpoint https://example.com",
-                }
+        elif verify.get("status") and str(verify.get("status")).lower() not in {"pass", "ok", "success"}:
+            suggestions.append(
+                self._playbook_entry(
+                    issue="verify_attention",
+                    summary="Investigate degraded verification status",
+                    command="agentcall auto tests",
+                    priority=75,
+                    category="quality",
+                    hint="Inspect `reports/verify.json` for failing gates",
+                )
             )
-        return playbooks
+
+        if mcp_summary.get("count", 0) == 0:
+            suggestions.append(
+                self._playbook_entry(
+                    issue="mcp_servers_missing",
+                    summary="Register mission-critical MCP servers",
+                    command="agentcall mcp add --name <server> --endpoint <url>",
+                    priority=60,
+                    category="mcp",
+                    hint="Expose tooling via `agentcall mcp add ...`",
+                )
+            )
+
+        suggestions.sort(key=lambda item: (-item.get("priority", 0), item.get("issue")))
+        return suggestions
+
+    def _playbook_entry(
+        self,
+        *,
+        issue: str,
+        summary: str,
+        command: str,
+        priority: int,
+        category: str,
+        hint: str,
+    ) -> Dict[str, Any]:
+        return {
+            "issue": issue,
+            "summary": summary,
+            "command": command,
+            "priority": priority,
+            "category": category,
+            "hint": hint,
+        }
 
     @staticmethod
     def _load_json(path: Path) -> Optional[Dict[str, Any]]:

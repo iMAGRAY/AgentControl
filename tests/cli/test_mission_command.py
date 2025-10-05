@@ -152,6 +152,9 @@ def test_mission_command_generates_twin(project: Path, runtime_settings: Runtime
     assert output["timeline"]
     assert output["filters"] == ["docs", "quality", "tasks", "timeline", "mcp"]
     assert {"docs", "quality", "tasks", "timeline", "mcp"}.issubset(output["drilldown"].keys())
+    assert output["playbooks"]
+    first_playbook = output["playbooks"][0]
+    assert "priority" in first_playbook and "hint" in first_playbook
     twin_path = project / ".agentcontrol" / "state" / "twin.json"
     assert twin_path.exists()
     stored = json.loads(twin_path.read_text(encoding="utf-8"))
@@ -165,7 +168,7 @@ def test_mission_playbook_suggested_for_docs(issue_project: Path, capsys: pytest
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     commands = [entry.get("command") for entry in payload.get("playbooks", [])]
-    assert "agentcall auto docs --apply" in commands
+    assert "agentcall docs sync" in commands
 
 
 def test_mission_detail_timeline_json(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -183,6 +186,7 @@ def test_mission_detail_timeline_json(project: Path, capsys: pytest.CaptureFixtu
     payload = json.loads(capsys.readouterr().out)
     assert payload["section"] == "timeline"
     assert len(payload["detail"]) == 1
+    assert payload["detail"][0].get("hint")
 
 
 def test_mission_summary_filter_limits_output(project: Path, capsys: pytest.CaptureFixture[str]) -> None:

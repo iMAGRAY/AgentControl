@@ -130,7 +130,7 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 - Developer sandbox: `agentcall sandbox start` spins up disposable workspace with sample data.
 - Mission dashboard polish (filters, drill-down, timeline view).
 
-**Phase update (2025-10-05):** Hypothesis-powered property/fuzz tests cover managed regions and CLI JSON, sandbox CLI ships with templated capsule + unit tests, mission dashboard adds `--filter`/`detail` commands with timeline ingestion, and docs now include tutorials, troubleshooting, and sample MCP/sandbox repositories. Performance benchmark (`scripts/perf/docs_benchmark.py`) records `docs diagnose` p95=646 ms on 1,200 sections with optimisation plan in `docs/perf/docs_benchmark.md`. Docs bridge config + managed-region caching keep repeated IO near-zero, and verify now runs `perf-docs`/`check_docs_perf` gates enforcing p95 ≤ 60s for 1000-section workloads.
+**Phase update (2025-10-05):** Hypothesis-powered property/fuzz tests cover managed regions and CLI JSON, sandbox CLI ships with templated capsule + unit tests, mission dashboard добавляет `--filter`/`detail`, ранжирует плейбуки по приоритету с подсказками, а docs включают tutorials (включая automation hooks), troubleshooting и sample MCP/sandbox репозитории. Performance benchmark (`scripts/perf/docs_benchmark.py`) фиксирует `docs diagnose` p95=646 мс на 1 200 секций, verify теперь гоняет связку `perf-docs`/`check_docs_perf` и держит порог ≤60 с на 1000 секций; кэширование конфигов и регионов снижает повторный I/O практически до нуля.
 
 ---
 ## 6. Risk Register

@@ -14,6 +14,7 @@ teach: true
 - `agentcall status [PATH]` — dashboard plus capsule auto-bootstrap (tuned via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`). JSON output now embeds `docsBridge` diagnostics.
 - `agentcall docs diagnose|info --json [PATH]` — schema validation, status/sections for in-place documentation bridge.
 - `agentcall docs list|diff|repair|adopt|rollback [--json] [PATH]` — managed documentation lifecycle (backups, anchor-aware updates, MkDocs/Docusaurus/Confluence adapters).
+- `agentcall docs sync [--mode repair|adopt] [--json] [PATH]` — автоматизированный diff→repair/adopt конвейер для managed секций.
 - `agentcall sandbox start|list|purge [PATH]` — provision disposable capsules under `.agentcontrol/sandbox/` for experimentation.
 - `agentcall mission summary|ui|detail [--json] [PATH]` — generate twin snapshots, stream the live mission dashboard, or drill into a specific section (`docs`, `quality`, `tasks`, `timeline`, `mcp`).
 - `agentcall info [PATH] [--json]` — enumerate available capabilities, telemetry schema, and optional mission snapshot.
@@ -66,7 +67,7 @@ teach: true
 ## 5. References
 - Architecture manifest: `architecture/manifest.yaml`.
 - Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
-- Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration).
+- Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration, automation hooks).
 - Troubleshooting: `docs/troubleshooting/docs_bridge.md`.
 - Docs bridge: `agentcall docs diagnose|info|list|diff|repair|adopt|rollback --json` работают поверх `.agentcontrol/config/docs.bridge.yaml`, управляя маркерами непосредственно в боевой документации; managed регионы находятся в исходных `docs/` файлах — дублирующих деревьев нет. Анкоры (`insert_after_heading`, `insert_before_marker`) управляют первой вставкой; адаптеры поддерживают MkDocs/Docusaurus/Confluence через `mode: external`.
 - Mission control & digital twin (roadmap): `agentcall mission --json` создаёт/читает `.agentcontrol/state/twin.json`, предоставляя агенту вектор текущего статуса (docs/tests/tasks/MCP).

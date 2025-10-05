@@ -181,6 +181,63 @@ class DocsCommandService:
             "actions": actions,
         }
 
+    def sync_sections(
+        self,
+        project_root: Path,
+        *,
+        mode: str = "repair",
+        sections: Optional[Iterable[str]] = None,
+        entries: Optional[Iterable[str]] = None,
+    ) -> Dict[str, object]:
+        if mode not in {"repair", "adopt"}:
+            raise ValueError(f"Unsupported sync mode '{mode}'")
+
+        sections_filter = set(sections) if sections else None
+        entries_filter = set(entries) if entries else None
+
+        diff_before = self.diff_sections(project_root, sections=sections)
+        mismatches: List[Dict[str, object]] = []
+        for entry in diff_before["diff"]:
+            status = entry.get("status")
+            if status == "match":
+                continue
+            name = str(entry.get("name", ""))
+            section_name, _, entry_id = name.partition(":")
+            if sections_filter and section_name not in sections_filter:
+                continue
+            if entries_filter and entry_id and entry_id not in entries_filter:
+                continue
+            mismatches.append(entry)
+
+        target_sections = sorted({item.get("name", "").split(":", 1)[0] for item in mismatches if item.get("name")})
+
+        step_payload: Optional[Dict[str, object]] = None
+        if target_sections:
+            if mode == "repair":
+                step_payload = self.repair_sections(project_root, sections=target_sections)
+            else:
+                step_payload = self.adopt_sections(project_root, sections=target_sections)
+
+        diff_after = self.diff_sections(project_root, sections=sections)
+        remaining = [entry for entry in diff_after["diff"] if entry.get("status") != "match"]
+
+        steps: List[Dict[str, object]] = [
+            {"step": "diff-before", "diff": diff_before["diff"]},
+        ]
+        if target_sections:
+            steps.append({"step": mode, "payload": step_payload})
+        else:
+            steps.append({"step": mode, "skipped": True})
+        steps.append({"step": "diff-after", "diff": diff_after["diff"]})
+
+        return {
+            "generatedAt": _now_iso(),
+            "mode": mode,
+            "sections": target_sections,
+            "steps": steps,
+            "status": "ok" if not remaining else "warning",
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

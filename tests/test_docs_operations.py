@@ -120,6 +120,23 @@ def test_docs_operations_roundtrip(tmp_path: Path) -> None:
     assert any(entry["status"] != "match" for entry in diff_final["diff"])
 
 
+def test_docs_sync_sections(tmp_path: Path) -> None:
+    project = tmp_path
+    write_manifest(project / "architecture" / "manifest.yaml")
+    write_config(project / ".agentcontrol" / "config" / "docs.bridge.yaml")
+
+    docs_root = project / "docs"
+    (docs_root / "architecture").mkdir(parents=True, exist_ok=True)
+    (docs_root / "architecture" / "overview.md").write_text("# Architecture Overview\n\nDrift\n", encoding="utf-8")
+
+    service = DocsCommandService()
+    payload = service.sync_sections(project)
+    assert payload["status"] in {"ok", "warning"}
+    assert "architecture_overview" in payload["sections"]
+    diff_after = service.diff_sections(project)
+    assert all(entry["status"] == "match" for entry in diff_after["diff"])
+
+
 def test_external_adapters(tmp_path: Path) -> None:
     project = tmp_path
     write_manifest(project / "architecture" / "manifest.yaml")
