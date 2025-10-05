@@ -51,7 +51,7 @@
 - [x] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
 - [x] Integrate perf regression alerts with mission timeline (auto `perf.regression` event + followup payload).
 - [x] Mission analytics командой `agentcall mission analytics` собирает activity/ack/perf overview.
-- [ ] Mission analytics visualization: интегрировать вывод в dashboard UI / reports/architecture-dashboard.
+- [x] Mission analytics visualization: обновлять `reports/architecture-dashboard.json` миссионными сводками.
 - [ ] Perf regression remediation workflow: автоматизировать создание follow-up task и закрытие playbook после устранения.
 
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.
