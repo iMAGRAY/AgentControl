@@ -292,8 +292,6 @@ def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> st
     now = datetime.now(timezone.utc).isoformat()
     has_open = any(task.get("status") == "open" for task in tasks)
 
-    created_task_id: str | None = None
-
     if followup.get("status") == "regression":
         if not has_open:
             task_id = f"PERF-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
@@ -309,7 +307,7 @@ def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> st
                 "task.followup.created",
                 {"category": "perf", "task_id": task_id, "recommended_action": followup.get("recommended_action")},
             )
-            created_task_id = task_id
+            return task_id
     else:
         updated = False
         for task in tasks:
@@ -319,9 +317,10 @@ def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> st
                 updated = True
         if updated:
             _append_timeline_event(project_root, "task.followup.resolved", {"category": "perf"})
+            return None
 
     tasks_path.write_text(json.dumps(tasks, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return created_task_id
+    return None
 
 
 if __name__ == "__main__":
