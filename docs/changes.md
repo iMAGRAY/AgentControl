@@ -1,3 +1,8 @@
+## 0.4.3 — 2025-10-05
+- Автоматизирован follow-up для perf регрессий: `scripts/perf/compare_history.py` пишет `reports/automation/perf_followup.json` (status+рекомендация) и события `perf.regression`.
+- Mission twin/analytics показывают activity, acknowledgements и perf follow-up; dashboard (`reports/architecture-dashboard.json`) обновляется вызовом `mission analytics`.
+- `mission ui` отображает acknowledgements и рекомендации, `mission exec`/autopilot обновляют `mission_ack.json`.
+
 ## 0.4.2 — 2025-10-05
 - `agentcall mission analytics` выводит activity/ack/perf сводку; mission summary отражает последние действия, ack-статусы и perf регрессии.
 - Autopilot действия обновляют `.agentcontrol/state/mission_ack.json` и `perf` overview; perf follow-up сохраняется в `reports/automation/perf_followup.json`.

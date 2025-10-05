@@ -899,6 +899,13 @@ def _render_mission_dashboard(
         diff_path = perf.get("diffPath")
         if diff_path:
             print(f"  diff: {diff_path}")
+        followup = perf.get("followup") or {}
+        if followup:
+            status = followup.get("status")
+            recommended = followup.get("recommended_action")
+            print(f"  followup: {status}")
+            if recommended:
+                print(f"    action: {recommended}")
 
     if interactive:
         if palette:
@@ -951,6 +958,13 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
     diff_path = perf.get("diffPath")
     if diff_path:
         print(f"diff file: {diff_path}")
+    followup = perf.get("followup") or {}
+    if followup:
+        status = followup.get("status")
+        recommended = followup.get("recommended_action")
+        print(f"followup status: {status}")
+        if recommended:
+            print(f"recommended action: {recommended}")
     print()
 
 

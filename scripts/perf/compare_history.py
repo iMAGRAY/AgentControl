@@ -257,12 +257,14 @@ def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
     report_dir.mkdir(parents=True, exist_ok=True)
     followup_path = report_dir / "perf_followup.json"
     regressions = diff.get("regressions", [])
+    status = "regression" if regressions else "resolved"
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "status": "regression" if regressions else "resolved",
+        "status": status,
         "regressions": regressions,
         "new_operations": diff.get("new_operations", []),
         "removed_operations": diff.get("removed_operations", []),
+        "recommended_action": "agentcall mission exec --issue perf_regression" if regressions else None,
     }
     followup_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
