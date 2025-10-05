@@ -301,3 +301,4 @@ def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str
     assert dashboard.exists()
     dashboard_payload = json.loads(dashboard.read_text(encoding='utf-8'))
     assert 'mission' in dashboard_payload
+    assert 'tasks' in analytics

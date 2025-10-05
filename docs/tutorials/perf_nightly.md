@@ -71,6 +71,7 @@ Store the resulting `reports/perf/history/diff.json` artefact to surface regress
 
 ## 4. Surfacing Results to Agents
 - Mission palette now records `reports/perf/history/diff.json` under `mission_palette.json` allowing automations to fetch the latest regression report.
+- `scripts/perf/compare_history.py` создает follow-up задачи (`reports/tasks/PERF-*.json`, `.agentcontrol/state/perf_tasks.json`) с рекомендованным действием; `mission ui`/`mission analytics` отображают статус и закрывают задачи после устранения.
 - Add a mission timeline event (`perf.regression`) when `perf-history` fails; automation recipes can respond by opening an incident or triggering `agentcall docs sync` across affected sections.
 
 ## 5. Checklist

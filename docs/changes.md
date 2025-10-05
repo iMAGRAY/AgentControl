@@ -1,8 +1,12 @@
+## 0.4.4 — 2025-10-05
+- Perf remediation flow создаёт follow-up tasks (`reports/tasks/PERF-*.json`, `.agentcontrol/state/perf_tasks.json`), синхронизирует их статус и публикует таймлайн события `task.followup.*`.
+- Mission twin/analytics выводят список perf задач, рекомендованный action и обновляют dashboard (`reports/architecture-dashboard.json`).
+- `mission ui` отображает перф-задачи, `mission analytics --json` включает их в сводку.
+
 ## 0.4.3 — 2025-10-05
 - Автоматизирован follow-up для perf регрессий: `scripts/perf/compare_history.py` пишет `reports/automation/perf_followup.json` (status+рекомендация) и события `perf.regression`.
 - Mission twin/analytics показывают activity, acknowledgements и perf follow-up; dashboard (`reports/architecture-dashboard.json`) обновляется вызовом `mission analytics`.
 - `mission ui` отображает acknowledgements и рекомендации, `mission exec`/autopilot обновляют `mission_ack.json`.
-- Perf remediation tasks синхронизируются в `.agentcontrol/state/perf_tasks.json` и `reports/tasks/PERF-*.json`, а таймлайн фиксирует их создание/закрытие.
 
 ## 0.4.2 — 2025-10-05
 - `agentcall mission analytics` выводит activity/ack/perf сводку; mission summary отражает последние действия, ack-статусы и perf регрессии.

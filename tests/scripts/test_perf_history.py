@@ -85,6 +85,8 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     assert tasks_path.exists()
     tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
     assert any(task.get("status") == "open" for task in tasks)
+    board_path = tmp_path / "reports" / "tasks" / f"{tasks[-1]['id']}.json"
+    assert board_path.exists()
 
 
 def test_perf_history_keep_trim(tmp_path: Path) -> None:
