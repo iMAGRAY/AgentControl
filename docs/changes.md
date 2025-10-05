@@ -1,3 +1,9 @@
+## 0.4.2 — 2025-10-05
+- `agentcall mission analytics` выводит activity/ack/perf сводку; mission summary отражает последние действия, ack-статусы и perf регрессии.
+- Autopilot действия обновляют `.agentcontrol/state/mission_ack.json` и `perf` overview; perf follow-up сохраняется в `reports/automation/perf_followup.json`.
+- `scripts/perf/compare_history.py` создаёт follow-up payload и таймлайн событие `perf.regression`; CLI dashboard показывает ack/perf сводку.
+- `mission ui` рендерит acknowledgements, perf diff, hotkeys; verify дополнился lint-скриптом `scripts/check_hint_docs.py`.
+
 ## 0.4.1 — 2025-10-05
 - Mission twin теперь включает mission activity (`reports/automation/mission-actions.json`), а dashboard показывает последние действия.
 - Team playbooks пополнены задачами runtime/status и автоматическим плейбуком `perf_regression`; `agentcall mission exec --issue` поддерживает targeted execution.

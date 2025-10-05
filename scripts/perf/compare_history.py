@@ -210,8 +210,9 @@ def main() -> int:
 
     print(json.dumps(diff, ensure_ascii=False, indent=2))
 
+    project_root = Path.cwd()
     if diff["regressions"]:
-        _append_timeline_event(Path.cwd(), "perf.regression", {
+        _append_timeline_event(project_root, "perf.regression", {
             "category": "quality",
             "regressions": diff["regressions"],
             "thresholds": {
@@ -220,6 +221,9 @@ def main() -> int:
             },
             "history": str(history_path),
         })
+        _write_perf_followup(project_root, diff)
+    else:
+        _write_perf_followup(project_root, diff)
 
     if args.update_history:
         new_entry = {
@@ -246,6 +250,19 @@ def _append_timeline_event(project_root: Path, event: str, payload: Dict[str, An
     with journal_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False))
         handle.write("\n")
+
+
+def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
+    report_dir = project_root / "reports" / "automation"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    followup_path = report_dir / "perf_followup.json"
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "regressions": diff.get("regressions", []),
+        "new_operations": diff.get("new_operations", []),
+        "removed_operations": diff.get("removed_operations", []),
+    }
+    followup_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

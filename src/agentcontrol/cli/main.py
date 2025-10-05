@@ -860,6 +860,28 @@ def _render_mission_dashboard(
             timestamp = action.get("timestamp")
             print(f"  - [{timestamp}] {label} → {status}")
 
+    acknowledgements = payload.get("acknowledgements") or {}
+    if acknowledgements:
+        print("acknowledgements:")
+        for category, meta in acknowledgements.items():
+            status = meta.get("status")
+            updated = meta.get("updated_at")
+            message = meta.get("message")
+            note = f" ({message})" if message else ""
+            print(f"  - {category}: {status}@{updated}{note}")
+
+    perf = payload.get("perf") or {}
+    regressions = perf.get("regressions") or []
+    if perf:
+        print(f"perf regressions: {len(regressions)}")
+        for reg in regressions[:3]:
+            operation = reg.get("operation")
+            delta = reg.get("delta_ms")
+            print(f"  - {operation}: Δ {delta} ms")
+        diff_path = perf.get("diffPath")
+        if diff_path:
+            print(f"  diff: {diff_path}")
+
     if interactive:
         if palette:
             hotkeys = []

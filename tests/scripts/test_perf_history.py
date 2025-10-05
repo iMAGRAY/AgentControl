@@ -76,6 +76,10 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     assert events_path.exists()
     entries = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert any(entry.get("event") == "perf.regression" for entry in entries)
+    followup = tmp_path / "reports" / "automation" / "perf_followup.json"
+    assert followup.exists()
+    followup_payload = json.loads(followup.read_text(encoding="utf-8"))
+    assert followup_payload["regressions"]
 
 
 def test_perf_history_keep_trim(tmp_path: Path) -> None:

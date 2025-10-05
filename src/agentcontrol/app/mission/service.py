@@ -759,12 +759,23 @@ class MissionService:
     def _perf_overview(self, project_root: Path) -> Dict[str, Any]:
         diff_path = project_root / "reports" / "perf" / "history" / "diff.json"
         if not diff_path.exists():
+            self._update_acknowledgement(project_root, "perf", status="success")
             return {"regressions": [], "diffPath": str(diff_path)}
         try:
             diff = json.loads(diff_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
+            self._update_acknowledgement(project_root, "perf", status="warning", message="perf diff unreadable")
             return {"regressions": [], "diffPath": str(diff_path)}
         regressions = diff.get("regressions") or []
+        if regressions:
+            self._update_acknowledgement(
+                project_root,
+                "perf",
+                status="warning",
+                message=f"{len(regressions)} regressions open",
+            )
+        else:
+            self._update_acknowledgement(project_root, "perf", status="success")
         return {
             "regressions": regressions,
             "diffPath": str(diff_path),

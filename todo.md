@@ -44,14 +44,14 @@
 - [x] Nightly perf comparisons (history vs baseline) с алертами при превышении порога.
 - [x] Расширить timeline hints (links/guides) и документацию по ремедиациям.
 
-## Phase 6 (Backlog)
 - [x] Mission UI command palette для быстрого запуска playbooks и automation hooks.
 - [x] Publish reference pipeline for nightly perf history (`.github/workflows/perf-nightly.yaml`).
 - [x] Расширить `mission exec` (quality/mcp плейбуки + telemetry context).
 - [x] Привязать timeline hints к разделам документации (knowledge base identifiers).
 - [x] Mission UI command palette command palette hotkeys persist to telemetry dashboard (export to reports/automation/mission-actions.json).
-- [x] Integrate perf regression alerts with mission timeline (auto `perf.regression` event).
-- [ ] Mission analytics dashboard: визуализировать mission-actions + perf diff (reports/automation → dashboard).
-- [ ] Perf regression remediation workflow: автоматическое создание follow-up task и закрытие playbook после устранения.
+- [x] Integrate perf regression alerts with mission timeline (auto `perf.regression` event + followup payload).
+- [x] Mission analytics командой `agentcall mission analytics` собирает activity/ack/perf overview.
+- [ ] Mission analytics visualization: интегрировать вывод в dashboard UI / reports/architecture-dashboard.
+- [ ] Perf regression remediation workflow: автоматизировать создание follow-up task и закрытие playbook после устранения.
 
 > Self-hosting: планы ведём здесь и в `architecture_plan.md`; автоматикой agentcall проект не управляємо.
