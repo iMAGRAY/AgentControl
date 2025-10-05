@@ -297,3 +297,7 @@ def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str
     assert 'acknowledgements' in analytics
     assert 'docs' in analytics['acknowledgements']
     assert 'perf' in analytics
+    dashboard = project / 'reports' / 'architecture-dashboard.json'
+    assert dashboard.exists()
+    dashboard_payload = json.loads(dashboard.read_text(encoding='utf-8'))
+    assert 'mission' in dashboard_payload

@@ -256,9 +256,11 @@ def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
     report_dir = project_root / "reports" / "automation"
     report_dir.mkdir(parents=True, exist_ok=True)
     followup_path = report_dir / "perf_followup.json"
+    regressions = diff.get("regressions", [])
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "regressions": diff.get("regressions", []),
+        "status": "regression" if regressions else "resolved",
+        "regressions": regressions,
         "new_operations": diff.get("new_operations", []),
         "removed_operations": diff.get("removed_operations", []),
     }

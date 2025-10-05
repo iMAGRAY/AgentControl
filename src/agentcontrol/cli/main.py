@@ -13,7 +13,6 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
-import select
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable
@@ -746,6 +745,25 @@ def _log_palette_action(project_path: Path, entry: dict[str, Any], result: Missi
     log_path.write_text(json.dumps(log_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _update_mission_dashboard(project_path: Path, analytics: dict[str, Any]) -> None:
+    report_dir = project_path / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    dashboard_path = report_dir / "architecture-dashboard.json"
+    data: dict[str, Any]
+    if dashboard_path.exists():
+        try:
+            data = json.loads(dashboard_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                data = {}
+        except json.JSONDecodeError:
+            data = {}
+    else:
+        data = {}
+    data.setdefault("mission", {})
+    data["mission"] = analytics | {"updated_at": datetime.now(timezone.utc).isoformat()}
+    dashboard_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def _render_mission_dashboard(
     payload: dict[str, Any],
     twin_path: Path,
@@ -1123,6 +1141,12 @@ def _mission_analytics_cmd(args: argparse.Namespace) -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:
         _print_mission_analytics(payload)
+
+    _update_mission_dashboard(project_path, {
+        "activity": payload.get("activity", {}),
+        "acknowledgements": payload.get("acknowledgements", {}),
+        "perf": payload.get("perf", {}),
+    })
 
     record_structured_event(
         SETTINGS,

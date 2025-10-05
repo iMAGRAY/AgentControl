@@ -80,6 +80,7 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     assert followup.exists()
     followup_payload = json.loads(followup.read_text(encoding="utf-8"))
     assert followup_payload["regressions"]
+    assert followup_payload["status"] == "regression"
 
 
 def test_perf_history_keep_trim(tmp_path: Path) -> None:
