@@ -181,10 +181,14 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 - Telemetry dashboards for adoption metrics.
 
 ---
-## 11. Immediate Next Steps
-- Mission analytics visualization: render mission analytics data (`activity`, `acknowledgements`, `perf`) в dashboard UI / reports/architecture-dashboard.json.
-- Perf remediation workflow: автоматизировать создание follow-up task и закрытие playbook после устранения регрессии (интеграция с mission ack + diff clearing).
-- Autopilot acknowledgements reporting: включить подтверждения в mission summary и telemetry dashboards, добавить SLA напоминания.
-- Knowledge lint rollout: включить `scripts/check_hint_docs.py` в CI pipelines (GitHub Actions) и отслеживать coverage новых doc ссылок.
+## 11. Immediate Next Steps (0.4.x → 0.5 Roadmap)
+- Bootstrap & profiles: `agentcall bootstrap` wizard, стандартные профили, улучшенный doctor/onboarding.
+- Extension ecosystem: CLI/API для кастомных playbooks/hooks/MCP, registry и tutorial.
+- Mission dashboard UX: TUI + web UI поверх twin/analytics, snapshot экспорт.
+- Automation watcher & notifications: фоновые auto playbooks, Slack/email/webhook алерты, SLA.
+- Task integration: синхронизировать perf follow-up с `data/tasks.board.json` + внешние PM (Jira/GitHub).
+- Knowledge & docs DX: портал, lint coverage, auto changelog.
+- Meta-repo readiness: workspace descriptor, distributed agents, шардированные perf.
+- Distribution UX: bootstrap installer, cache doctor, telemetry opt-in.
 
 > **Self-hosting constraint:** development tracked via `architecture_plan.md` + `todo.md`; no recursive usage of agentcall automation on the SDK itself.
