@@ -61,3 +61,4 @@ Agents should persist the twin path (`.agentcontrol/state/twin.json`) in case lo
 > **Next:**
 > 1. Register MCP servers using the [MCP integration tutorial](./mcp_integration.md) — timeline hints will link to `agentcall mcp status --json` outputs stored in `reports/automation/mcp-status.json`.
 > 2. Schedule nightly perf comparisons via `python3 scripts/perf/compare_history.py --report reports/perf/docs_benchmark.json --history-dir reports/perf/history --update-history` or the [Perf Nightly workflow](./perf_nightly.md).
+> 3. Запустите `agentcall mission analytics --json`, чтобы получить агрегированную метрику: активности (`mission-actions.json`), perf-регрессии (`reports/perf/history/diff.json`) и состояние подтверждений (docs/quality/tasks/runtime).

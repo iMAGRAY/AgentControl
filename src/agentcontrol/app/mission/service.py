@@ -89,6 +89,7 @@ class MissionService:
         self._docs_service = DocsBridgeService()
         self._docs_command_service = DocsCommandService()
         self._command_service = CommandService(SETTINGS)
+        self._runtime_service = RuntimeService()
 
     def build_twin(self, project_root: Path) -> Dict[str, Any]:
         project_root = project_root.resolve()
@@ -116,6 +117,8 @@ class MissionService:
             "drilldown": drilldown,
             "palette": [entry.to_dict() for entry in palette],
             "activity": activity,
+            "acknowledgements": self._acknowledgements(project_root),
+            "perf": self._perf_overview(project_root),
         }
 
     def persist_twin(self, project_root: Path) -> TwinBuildResult:
@@ -177,6 +180,7 @@ class MissionService:
 
         if kind == "docs_sync":
             payload = self._docs_command_service.sync_sections(project_root, mode="repair")
+            self._update_acknowledgement(project_root, "docs", status="success")
             return MissionExecResult(
                 status="success",
                 playbook=None,
@@ -189,6 +193,7 @@ class MissionService:
             exit_code = self._command_service.run(project_id, "verify", [])
             status = "success" if exit_code == 0 else "warning"
             message = None if exit_code == 0 else "verify pipeline returned non-zero exit code"
+            self._update_acknowledgement(project_root, "quality", status=status, message=message)
             return MissionExecResult(
                 status=status,
                 playbook=None,
@@ -199,6 +204,7 @@ class MissionService:
 
         if kind == "mcp_status":
             status, action_payload, message = self._mcp_diagnostics(project_root)
+            self._update_acknowledgement(project_root, "mcp", status=status, message=message)
             return MissionExecResult(
                 status=status,
                 playbook=None,
@@ -212,6 +218,7 @@ class MissionService:
             exit_code = self._command_service.run(project_id, "status", [])
             status = "success" if exit_code == 0 else "warning"
             message = None if exit_code == 0 else "status pipeline returned non-zero exit code"
+            self._update_acknowledgement(project_root, "tasks", status=status, message=message)
             return MissionExecResult(
                 status=status,
                 playbook=None,
@@ -221,7 +228,8 @@ class MissionService:
             )
 
         if kind == "runtime_refresh":
-            manifest = RuntimeService().build_manifest(project_root)
+            manifest = self._runtime_service.build_manifest(project_root)
+            self._update_acknowledgement(project_root, "runtime", status="success")
             return MissionExecResult(
                 status="success",
                 playbook=None,
@@ -254,6 +262,7 @@ class MissionService:
         try:
             if category == "docs":
                 payload = self._docs_command_service.sync_sections(project_root, mode="repair")
+                self._update_acknowledgement(project_root, "docs", status="success")
                 return MissionExecResult(
                     status="success",
                     playbook=playbook,
@@ -264,6 +273,12 @@ class MissionService:
                 project_id = ProjectId.from_existing(project_root)
                 exit_code = self._command_service.run(project_id, "verify", [])
                 status = "success" if exit_code == 0 else "warning"
+                self._update_acknowledgement(
+                    project_root,
+                    "quality",
+                    status=status,
+                    message=None if exit_code == 0 else "verify pipeline returned non-zero exit code",
+                )
                 return MissionExecResult(
                     status=status,
                     playbook=playbook,
@@ -273,6 +288,7 @@ class MissionService:
                 )
             if category == "mcp":
                 status, action_payload, message = self._mcp_diagnostics(project_root)
+                self._update_acknowledgement(project_root, "mcp", status=status, message=message)
                 return MissionExecResult(
                     status=status,
                     playbook=playbook,
@@ -284,6 +300,12 @@ class MissionService:
                 project_id = ProjectId.from_existing(project_root)
                 exit_code = self._command_service.run(project_id, "status", [])
                 status = "success" if exit_code == 0 else "warning"
+                self._update_acknowledgement(
+                    project_root,
+                    "tasks",
+                    status=status,
+                    message=None if exit_code == 0 else "status pipeline returned non-zero exit code",
+                )
                 return MissionExecResult(
                     status=status,
                     playbook=playbook,
@@ -292,7 +314,8 @@ class MissionService:
                     message=None if exit_code == 0 else "status pipeline returned non-zero exit code",
                 )
             if category == "runtime":
-                manifest = RuntimeService().build_manifest(project_root)
+                manifest = self._runtime_service.build_manifest(project_root)
+                self._update_acknowledgement(project_root, "runtime", status="success")
                 return MissionExecResult(
                     status="success",
                     playbook=playbook,
@@ -693,6 +716,58 @@ class MissionService:
             "count": len(entries),
             "recent": recent[::-1],
             "logPath": str(log_path),
+        }
+
+    def _acknowledgements(self, project_root: Path) -> Dict[str, Any]:
+        ack_path = self._state_dir(project_root) / "mission_ack.json"
+        if not ack_path.exists():
+            return {}
+        try:
+            data = json.loads(ack_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+        return {}
+
+    def _update_acknowledgement(
+        self,
+        project_root: Path,
+        category: str,
+        *,
+        status: str,
+        message: Optional[str] = None,
+    ) -> None:
+        state_dir = self._state_dir(project_root)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        ack_path = state_dir / "mission_ack.json"
+        data = {}
+        if ack_path.exists():
+            try:
+                raw = json.loads(ack_path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    data = raw
+            except json.JSONDecodeError:
+                data = {}
+        data[category] = {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "message": message,
+        }
+        ack_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    def _perf_overview(self, project_root: Path) -> Dict[str, Any]:
+        diff_path = project_root / "reports" / "perf" / "history" / "diff.json"
+        if not diff_path.exists():
+            return {"regressions": [], "diffPath": str(diff_path)}
+        try:
+            diff = json.loads(diff_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {"regressions": [], "diffPath": str(diff_path)}
+        regressions = diff.get("regressions") or []
+        return {
+            "regressions": regressions,
+            "diffPath": str(diff_path),
         }
 
     def _perf_regression_playbook(self, project_root: Path) -> Optional[Dict[str, Any]]:

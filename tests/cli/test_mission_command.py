@@ -257,6 +257,10 @@ def test_mission_exec_with_issue(project: Path, capsys: pytest.CaptureFixture[st
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload['playbook']['issue'] == 'docs_drift'
+    log_path = project / "reports" / "automation" / "mission-actions.json"
+    log_entries = json.loads(log_path.read_text(encoding='utf-8'))
+    assert log_entries
+    assert log_entries[-1]['status'] == 'success'
 
 
 def test_log_palette_action(tmp_path: Path) -> None:
@@ -274,3 +278,22 @@ def test_log_palette_action(tmp_path: Path) -> None:
     payload = json.loads(log_path.read_text(encoding="utf-8"))
     assert len(payload) == 2
     assert payload[0]["status"] == "success"
+
+
+def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _prepare_docs(project)
+    overview = project / 'docs' / 'architecture' / 'overview.md'
+    overview.write_text('# Architecture Overview\n\nManual drift\n', encoding='utf-8')
+    cli_main.main(['mission', 'exec', str(project), '--json', '--issue', 'docs_drift'])
+    capsys.readouterr()
+    ack_path = project / '.agentcontrol' / 'state' / 'mission_ack.json'
+    assert ack_path.exists()
+    _seed_timeline(project)
+    exit_code = cli_main.main(['mission', 'analytics', str(project), '--json'])
+    assert exit_code == 0
+    analytics = json.loads(capsys.readouterr().out)
+    assert 'activity' in analytics
+    assert analytics['activity']['count'] >= 1
+    assert 'acknowledgements' in analytics
+    assert 'docs' in analytics['acknowledgements']
+    assert 'perf' in analytics

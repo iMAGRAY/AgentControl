@@ -873,6 +873,47 @@ def _render_mission_dashboard(
         print("Press Ctrl+C or 'q' to exit, 'r' to refresh now")
 
 
+def _print_mission_analytics(payload: dict[str, Any]) -> None:
+    activity = payload.get("activity") or {}
+    perf = payload.get("perf") or {}
+    acknowledgements = payload.get("acknowledgements") or {}
+
+    print("Mission Analytics")
+    print("=================")
+    print(f"activity count: {activity.get('count', 0)}")
+    recent = activity.get("recent") or []
+    if recent:
+        print("recent actions:")
+        for entry in recent[:5]:
+            timestamp = entry.get("timestamp")
+            label = entry.get("label") or entry.get("id")
+            status = entry.get("status")
+            print(f"  - [{timestamp}] {label} → {status}")
+    print()
+
+    if acknowledgements:
+        print("acknowledgements:")
+        for category, meta in acknowledgements.items():
+            status = meta.get("status")
+            updated_at = meta.get("updated_at")
+            message = meta.get("message")
+            note = f" ({message})" if message else ""
+            print(f"  - {category}: {status} @ {updated_at}{note}")
+        print()
+
+    regressions = perf.get("regressions") or []
+    print(f"open perf regressions: {len(regressions)}")
+    if regressions:
+        for reg in regressions[:5]:
+            operation = reg.get("operation")
+            delta = reg.get("delta_ms")
+            print(f"  - {operation}: Δ {delta} ms")
+    diff_path = perf.get("diffPath")
+    if diff_path:
+        print(f"diff file: {diff_path}")
+    print()
+
+
 def _mission_cmd(args: argparse.Namespace) -> int:
     bootstrap, _ = _build_services()
     project_path = _default_project_path(getattr(args, "path", None))
@@ -1029,6 +1070,47 @@ def _mission_exec_cmd(args: argparse.Namespace) -> int:
     }
     _log_palette_action(project_path, log_entry, result)
     return 0 if result.status in {"success", "noop"} else 1
+
+
+def _mission_analytics_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "mission", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = MissionService()
+    record_structured_event(
+        SETTINGS,
+        "mission.analytics",
+        status="start",
+        component="mission",
+        payload={"path": str(project_path)},
+    )
+    start = time.perf_counter()
+    result = service.persist_twin(project_path)
+    payload = result.twin
+    duration = (time.perf_counter() - start) * 1000
+
+    if getattr(args, "json", False):
+        summary = {
+            "activity": payload.get("activity", {}),
+            "acknowledgements": payload.get("acknowledgements", {}),
+            "perf": payload.get("perf", {}),
+        }
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        _print_mission_analytics(payload)
+
+    record_structured_event(
+        SETTINGS,
+        "mission.analytics",
+        status="success",
+        component="mission",
+        duration_ms=duration,
+        payload={"path": str(project_path)},
+    )
+    return 0
 
 
 def _mcp_cmd(args: argparse.Namespace) -> int:
@@ -2037,6 +2119,11 @@ def build_parser() -> argparse.ArgumentParser:
     mission_detail.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events to display")
     mission_detail.set_defaults(func=_mission_cmd, mission_command="detail")
 
+    mission_analytics = mission_sub.add_parser("analytics", help="Show mission analytics summary")
+    mission_analytics.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_analytics.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
+    mission_analytics.set_defaults(func=_mission_analytics_cmd)
+
     def make_pipeline(name: str, help_text: str) -> None:
         pipeline_cmd = sub.add_parser(name, help=help_text)
         pipeline_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
@@ -2079,7 +2166,7 @@ def _preprocess_argv(argv: list[str]) -> list[str]:
         return argv
     if argv[0] != "mission":
         return argv
-    mission_subcommands = {"summary", "ui", "detail", "exec"}
+    mission_subcommands = {"summary", "ui", "detail", "exec", "analytics"}
     if len(argv) >= 2:
         candidate = argv[1]
         if not candidate.startswith("-") and candidate not in mission_subcommands:
