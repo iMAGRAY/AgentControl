@@ -25,21 +25,21 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    pipx install agentcontrol  # alternatively: python3 -m pip install agentcontrol
    ```
    Templates are placed under `~/.agentcontrol/templates/<channel>/<version>` and `agentcall` is published to `PATH`.
-3. **Bootstrap и прогон пайплайнов.**
+3. **Bootstrap and run pipelines.**
    ```bash
    cd ~/workspace/project
    agentcall quickstart --template python
    ```
-   Команда создаст капсулу (`.agentcontrol/`), выполнит `setup` и `verify`. При необходимости можно добавить `--no-verify` или передать аргументы в `verify` через `--verify-arg`.
+   The command creates the capsule (`.agentcontrol/`), executes `setup`, and triggers `verify`. Use `--no-verify` or `--verify-arg` if you need to tweak verification.
 
-4. **Дополнительная настройка (опционально).**
+4. **Optional follow-ups.**
    ```bash
-   agentcall bootstrap --profile python   # захватить профиль
-   agentcall agents auth                  # авторизовать окружение
+   agentcall bootstrap --profile python   # capture profile answers
+   agentcall agents auth                  # authenticate agent tooling
    ```
-   Все артефакты (капсула, отчёты, .venv) живут внутри `project/.agentcontrol/`; хостовый репозиторий остаётся чистым.
+   All artefacts (capsule, reports, virtualenv) live under `project/.agentcontrol/`; the host repository stays untouched.
 
-   _Maintainer note:_ внутри исходников SDK команда `agentcall` не запускается — используйте `scripts/test-place.sh` для изолированной проверки.
+   _Maintainer note:_ inside the AgentControl SDK repository do not run `agentcall`; use `scripts/test-place.sh` for isolated checks.
 
 5. **Use the unified Make interface.**
    ```bash

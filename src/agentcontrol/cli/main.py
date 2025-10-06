@@ -288,7 +288,7 @@ def _bootstrap_cmd(args: argparse.Namespace) -> int:
     return 0
 
 def _print_quickstart_summary(project_path: Path, summary: list[tuple[str, int]]) -> None:
-    print(f"Проект готов: {project_path}")
+    print(f"Project ready: {project_path}")
     if not summary:
         print("  • setup/verify пропущены по флагам")
         return

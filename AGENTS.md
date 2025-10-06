@@ -1,11 +1,11 @@
 CONTEXT_INDEX:
-  - path: README.md                      # value prop, quick start
-  - path: architecture_plan.md           # strategic roadmap & phases
+  - path: README.md                      # value proposition, quick start
+  - path: architecture_plan.md           # strategic roadmap and phases
   - path: todo.machine.md                # program backlog (generated)
   - path: scripts/verify.sh              # canonical quality gate
-  - path: scripts/test-place.sh          # симуляция установки SDK в .test_place
-  - path: scripts/lib/quality_guard.py   # diff scanner & findings schema
-  - path: src/agentcontrol/cli/main.py   # CLI entrypoint / auto-bootstrap logic
+  - path: scripts/test-place.sh          # sandbox quickstart/verify simulation
+  - path: scripts/lib/quality_guard.py   # diff scanner and findings schema
+  - path: src/agentcontrol/cli/main.py   # CLI entry point / quickstart logic
   - path: src/agentcontrol/app           # application services (bootstrap, mission, docs)
   - path: src/agentcontrol/utils         # telemetry, updater, helpers
   - path: src/agentcontrol/templates/0.5.1  # packaged capsule templates
@@ -15,28 +15,28 @@ CONTEXT_INDEX:
 
 TASKS:
   - id: SDK-001
-    title: Восстановить и зафиксировать шаблоны капсулы 0.5.1
+    title: Seal template integrity for capsules 0.5.1
     status: done
     priority: p0
     ac:
-      - [Определить эталонный набор файлов .agentcontrol/, src/agentcontrol/templates/0.5.1, и убрать дубли/устаревшие директории, git status чистый]
-      - [Добавить авто-проверку checksum для packaged templates в verify, падение при расхождении]
+      - [Canonical template tree stored in src/agentcontrol/templates/0.5.1, old 0.5.0 assets removed, git status clean]
+      - [Verify pipeline fails on checksum drift via `template-integrity` step]
     owner: gpt-5-codex
   - id: SDK-002
-    title: Автогенерация agent-digest и SLA шагов пайплайна
+    title: Ship agent digest + pipeline SLA telemetry
     status: done
     priority: p1
     ac:
-      - [CLI формирует компактный контекстный digest (AGENTS, roadmap, verify summary) и сохраняет в .agentcontrol/state/agent_digest.json]
-      - [Каждый шаг scripts/verify.sh имеет configurable timeout и structured log события]
+      - [CLI produces compact agent digest (AGENTS, roadmap, verify summary) into `.test_place/state/agent_digest.json`]
+      - [Every step in `scripts/verify.sh` logs JSON with duration/timeout metadata]
     owner: gpt-5-codex
   - id: SDK-003
-    title: Расширить тестовое покрытие updater/mission сервисов
+    title: Extend updater/mission coverage
     status: done
     priority: p1
     ac:
-      - [Добавить unit tests для updater (network failure, cache fallback, dev guard) с >85% diff-cov]
-      - [Добавить mission service tests, проверяющие timeline ingest и palette persist]
+      - [Unit tests for updater cover network failure, cache fallback, dev guard]
+      - [Mission service tests validate timeline ingest and palette persistence]
     owner: gpt-5-codex
 
 HEALTH:
@@ -44,17 +44,17 @@ HEALTH:
   progress_pct: 100
   risks: []
   next:
-    - Поддерживать `scripts/test-place.sh` и `template-integrity` в актуальном состоянии.
-    - При выпуске новых версий обновлять капсулы/хэши и документацию.
+    - Keep `scripts/test-place.sh` and `template-integrity` up to date for future releases.
+    - Refresh capsules/checksums/docs whenever a new SDK version ships.
 
 SELF_TUNING:
-  - rule: Перед ship обязательно запускать `agentcall verify` и фиксировать `reports/verify.json` в git.
+  - rule: Run `agentcall verify` before ship and commit `reports/verify.json` with the change set.
     ttl: 2025-12-31
-  - rule: Все изменения governance-артефактов (AGENTS, architecture_plan, todo.machine) сопровождаем синхронным обновлением verify/reportов.
+  - rule: Any governance artefact changes (AGENTS, architecture_plan, todo.machine) must be synchronized with verify reports.
     ttl: 2025-11-30
-  - rule: Рабочие инструкции/временные файлы (например AGENTS1.md) не включаем в выпускаемый SDK; держим их вне артефактов agentclient.
+  - rule: Keep working drafts (e.g. AGENTS1.md) outside the release artefacts.
     ttl: 2025-11-30
-  - rule: Для интеграционных проверок используем `scripts/test-place.sh`, который создаёт/чистит `.test_place/` и разворачивает капсулу в изолированной среде.
+  - rule: Use `scripts/test-place.sh` for integration checks; it creates/cleans `.test_place/` and bootstraps a sandbox project.
     ttl: 2025-12-31
-  - rule: Внутри репозитория SDK запрещено создавать/использовать `.agentcontrol/` и вызывать `agentcall` — сам SDK нельзя запускать на себе; все симуляции и тесты выполняем только через `scripts/test-place.sh` в `.test_place/`.
+  - rule: Never create `.agentcontrol/` or run `agentcall` inside this SDK repository; all simulations must go through `.test_place/`.
     ttl: 2026-01-01

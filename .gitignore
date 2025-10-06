@@ -31,3 +31,4 @@ context/
 
 scripts/bin/
 .env
+scripts/update-global.sh
