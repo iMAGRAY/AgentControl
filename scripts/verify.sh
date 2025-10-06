@@ -127,13 +127,44 @@ run_step "ensure:.codexignore" "critical" "( sdk::ensure_file '.codexignore' )"
 run_step "ensure:data/tasks.board.json" "critical" "( sdk::ensure_file 'data/tasks.board.json' )"
 
 run_step "check:todo_sections" "critical" "grep -q '^## Program' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Epics' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Big Tasks' \"$SDK_ROOT/todo.machine.md\""
+run_step "make-alignment" "critical" "\"$SDK_ROOT/scripts/check-make-alignment.py\""
 
 run_step "shellcheck" "warning" "sdk::run_shellcheck_if_available"
 run_step "roadmap-status" "warning" "\"$SDK_ROOT/scripts/roadmap-status.sh\" compact"
 run_step "task-validate" "warning" "\"$SDK_ROOT/scripts/task.sh\" validate"
 run_step "template-integrity" "critical" "\"$SDK_ROOT/scripts/check-template-integrity.py\" --json"
+run_step "extension-integrity" "critical" "\"$SDK_ROOT/scripts/check-extension-integrity.py\" --json"
 run_step "agent-digest" "warning" "\"$SDK_ROOT/scripts/generate-agent-digest.py\""
 run_step "test-place" "warning" "\"$SDK_ROOT/scripts/test-place.sh\""
+run_step "mission-activity" "warning" "python3 - <<'PY'
+import json
+import pathlib
+from datetime import datetime
+
+report_dir = pathlib.Path(\"$SDK_ROOT\") / \"reports\"
+activity_path = report_dir / \"mission-activity.json\"
+if not activity_path.exists():
+    raise SystemExit(\"mission-activity.json missing\")
+try:
+    payload = json.loads(activity_path.read_text(encoding=\"utf-8\"))
+except json.JSONDecodeError as exc:
+    raise SystemExit(f\"mission-activity.json invalid JSON: {exc}\") from exc
+for key in (\"generated_at\", \"activity\"):
+    if key not in payload:
+        raise SystemExit(f\"mission-activity.json missing '{key}'\")
+try:
+    datetime.fromisoformat(str(payload[\"generated_at\"]).replace(\"Z\", \"+00:00\"))
+except ValueError as exc:
+    raise SystemExit(\"mission-activity.json generated_at not ISO8601\") from exc
+activity = payload[\"activity\"]
+if not isinstance(activity, dict):
+    raise SystemExit(\"mission-activity.activity must be an object\")
+for field in (\"count\", \"sources\", \"actors\", \"tags\"):
+    if field not in activity:
+        raise SystemExit(f\"mission-activity.activity missing '{field}'\")
+if not isinstance(activity.get(\"count\"), int):
+    raise SystemExit(\"mission-activity.activity.count must be int\")
+PY"
 
 # quality guard (diff against base commit)
 BASE_REF_DEFAULT="${VERIFY_BASE_REF:-origin/main}"

@@ -1,33 +1,47 @@
+## 0.5.2 — 2025-10-06
+- `agentcall help` выводит контекстную справку (статус verify, watch-регламенты, рекомендации, ссылки на документацию) и поддерживает `--json`.
+- `agentcall upgrade` auto-detects legacy `agentcontrol/` capsules, offers `--dry-run/--json`, migrates to `.agentcontrol/`, and keeps a timestamped backup.
+- Verify pipeline gains `make-alignment` guard: Makefile targets must mirror CLI pipelines; dry-run emits actionable hints.
+- Added unit coverage for upgrade scenarios (`tests/cli/test_upgrade_command.py`) and Makefile guard (`tests/scripts/test_make_alignment.py`).
+- `agentcall extension` CLI scaffolds/list/lints/publishes extensions with catalog export; sandbox verify checks an example extension.
+- Two reference extensions (`examples/extensions/auto_docs`, `auto_perf`) and a dedicated tutorial document the workflow.
+- `agentcall mission dashboard` provides curses TUI, static mode, and HTML snapshot for docs/quality/tasks/mcp/timeline sections.
+- `agentcall mission dashboard --serve` ships a stdlib web server (SSE feed + `/playbooks/<issue>` REST trigger) with `docs/mission/dashboard_web.md` as the operator guide.
+- Mission watcher actions now record `actorId`, `origin`, remediation outcomes, and taxonomy tags, feeding `watch.json`, `journal/task_events.jsonl`, and mission dashboards.
+- `agentcall mission watch` automates playbooks based on timeline events, writes `reports/automation/watch.json` & `sla.json`, and honours `.agentcontrol/config/watch.yaml` / `sla.yaml`.
+- Mission analytics/summary expose aggregated activity (sources/actors/tags, last operation), TUI headers reflect filters, a snapshot lands in `reports/mission-activity.json`, and verify checks its integrity.
+- GitHub Actions release workflow теперь автоматически запускается при push в `main` и публикует пакет на PyPI (при наличии `PYPI_TOKEN`).
+
 ## 0.4.4 — 2025-10-05
-- Perf remediation flow создаёт follow-up tasks (`reports/tasks/PERF-*.json`, `.agentcontrol/state/perf_tasks.json`), синхронизирует их статус и публикует таймлайн события `task.followup.*`.
-- Mission twin/analytics выводят список perf задач, рекомендованный action и обновляют dashboard (`reports/architecture-dashboard.json`).
-- `mission ui` отображает перф-задачи, `mission analytics --json` включает их в сводку.
+- The performance remediation flow now creates follow-up tasks (`reports/tasks/PERF-*.json`, `.agentcontrol/state/perf_tasks.json`), keeps their status in sync, and emits `task.followup.*` timeline events.
+- Mission twin/analytics list performance tasks with recommended actions and update the dashboard (`reports/architecture-dashboard.json`).
+- `mission ui` renders the performance tasks, and `mission analytics --json` includes them in the summary payload.
 
 ## 0.4.3 — 2025-10-05
-- Автоматизирован follow-up для perf регрессий: `scripts/perf/compare_history.py` пишет `reports/automation/perf_followup.json` (status+рекомендация) и события `perf.regression`.
-- Mission twin/analytics показывают activity, acknowledgements и perf follow-up; dashboard (`reports/architecture-dashboard.json`) обновляется вызовом `mission analytics`.
-- `mission ui` отображает acknowledgements и рекомендации, `mission exec`/autopilot обновляют `mission_ack.json`.
+- Automated performance regression follow-up: `scripts/perf/compare_history.py` writes `reports/automation/perf_followup.json` (status plus recommendation) and emits `perf.regression` events.
+- Mission twin/analytics expose activity, acknowledgements, and performance follow-ups; the dashboard (`reports/architecture-dashboard.json`) refreshes via `mission analytics`.
+- `mission ui` displays acknowledgements and recommendations, while `mission exec`/autopilot update `mission_ack.json`.
 
 ## 0.4.2 — 2025-10-05
-- `agentcall mission analytics` выводит activity/ack/perf сводку; mission summary отражает последние действия, ack-статусы и perf регрессии.
-- Autopilot действия обновляют `.agentcontrol/state/mission_ack.json` и `perf` overview; perf follow-up сохраняется в `reports/automation/perf_followup.json`.
-- `scripts/perf/compare_history.py` создаёт follow-up payload и таймлайн событие `perf.regression`; CLI dashboard показывает ack/perf сводку.
-- `mission ui` рендерит acknowledgements, perf diff, hotkeys; verify дополнился lint-скриптом `scripts/check_hint_docs.py`.
+- `agentcall mission analytics` now emits a combined activity/ack/performance summary; mission summary mirrors recent actions, acknowledgement states, and performance regressions.
+- Autopilot actions update `.agentcontrol/state/mission_ack.json` and the performance overview; follow-up payloads land in `reports/automation/perf_followup.json`.
+- `scripts/perf/compare_history.py` builds the follow-up payload and `perf.regression` timeline events; the CLI dashboard renders the acknowledgement/performance summary.
+- `mission ui` renders acknowledgements, performance deltas, and hotkeys; verify now includes the `scripts/check_hint_docs.py` lint stage.
 
 ## 0.4.1 — 2025-10-05
-- Mission twin теперь включает mission activity (`reports/automation/mission-actions.json`), а dashboard показывает последние действия.
-- Team playbooks пополнены задачами runtime/status и автоматическим плейбуком `perf_regression`; `agentcall mission exec --issue` поддерживает targeted execution.
-- `scripts/perf/compare_history.py` добавляет события `perf.regression` в timeline и закрыт тестом; timeline hints снабжены `hintId`/`docPath` с проверкой `scripts/check_hint_docs.py`.
-- Mission UI logирует palette actions, palette JSON экспортируется в `mission_palette.json`, CLI обрабатывает горячие клавиши и записи.
+- Mission twin now captures mission activity (`reports/automation/mission-actions.json`), and the dashboard surfaces the latest actions.
+- Team playbooks gained runtime/status tasks plus the automated `perf_regression` playbook; `agentcall mission exec --issue` supports targeted runs.
+- `scripts/perf/compare_history.py` appends `perf.regression` timeline events and ships with regression tests; timeline hints now include `hintId`/`docPath` validated by `scripts/check_hint_docs.py`.
+- Mission UI logs palette actions, exports palette JSON to `mission_palette.json`, and the CLI processes the associated hotkeys and entries.
 
 ## 0.4.0 — 2025-10-05
-- Mission UI command palette с hotkeys (`mission ui` ↔ `mission_palette.json`), интерактивным запуском playbooks/automation hooks и телеметрией `mission.ui.action`.
-- `mission exec --issue` и расширенные playbook экшены: quality reruns (`verify`) и MCP диагностика (warning при незаполненных endpoint), новые JSON telemetry поля (`category`, `action`).
-- Timeline events получили `hintId`/`docPath`, ведут к tutorials/architecture_plan; tutorials дополнены `perf_nightly` гайдом и GitHub Actions шаблоном (`examples/github/perf-nightly.yaml`).
-- Verify pipeline включает `perf-history` шаг и nightly workflow инструкции; automation hooks + palette сохраняются в `mission_palette.json`/`reports/automation` для агентов.
+- Mission UI command palette now supports hotkeys (`mission ui` ↔ `mission_palette.json`), interactive playbook/automation hook launches, and `mission.ui.action` telemetry.
+- `mission exec --issue` adds extended playbook actions: quality reruns (`verify`) and MCP diagnostics (warnings when endpoints are missing), plus new JSON telemetry fields (`category`, `action`).
+- Timeline events carry `hintId`/`docPath` pointers to tutorials and the architecture plan; tutorials add the `perf_nightly` guide and GitHub Actions example (`examples/github/perf-nightly.yaml`).
+- The verify pipeline includes the `perf-history` step and nightly workflow guidance; automation hooks and palettes persist in `mission_palette.json` and `reports/automation/` for agents.
 
 ## 0.3.31 — 2025-10-05
-- Governance: AGENTS charter закрепляет обязательное обновление версий (`pyproject.toml` + `agentcontrol/__init__.py`) и мгновенный git commit/push; введена шкала — major для крупных изменений, десятичные для функциональных, сотые для точечных корректировок.
+- Governance: the AGENTS charter now mandates immediate version bumps (`pyproject.toml` + `agentcontrol/__init__.py`) with instant git commit/push. Versioning uses majors for large changes, tenths for feature work, and hundredths for surgical fixes.
 
 ## 0.3.3 — 2025-10-05
 - `agentcall mission exec` now respects CLI shorthands (`mission exec <path>`) and emits structured telemetry payloads with playbook/action context; tests cover event logging.
@@ -37,14 +51,14 @@
 - Managed region engine writes using UTF-8 surrogatepass to preserve non-BMP inputs covered by property tests.
 
 ## 0.3.2 — 2025-10-04
-- Added `agentcall cache` helper (`download`, `add`, `list`, `verify`) to simplify подготовку оффлайн-колеса перед запуском в закрытых контурах.
-- Persisted auto-update telemetry summary into `reports/status.json` и `context/auto-update-summary.json`, что делает события fallback/succeeded доступными для mission control.
-- Ввели флаги `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` и `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` для безопасного моделирования отказов PyPI при локальной отладке.
-- Auto-update fallback теперь по умолчанию использует `~/.agentcontrol/cache`, даже если переменная `AGENTCONTROL_AUTO_UPDATE_CACHE` не задана, что устраняет массовые `fetch_failed` при наличии предзагруженных колёс.
-- `scripts/release.sh` создаёт временный изолированный venv, устанавливает build/twine и автоматически добавляет свежий wheel в оффлайн-кэш, упрощая поддержку закрытых сегментов.
-- CLI-подсказки и auto-bootstrap: `agentcall` сразу инициализирует капсулу, если нет запрета, и выводит сообщение "This directory is not an AgentControl project." для операторов.
-- Docs bridge: `.agentcontrol/config/docs.bridge.yaml` настраивает целевые файлы, а `architecture-sync` заполняет managed-блоки в существующей документации (без дублирования `docs/`).
-- `agentcall init` автоматически подхватывает уже существующий каталог `docs/` и прокладывает мост без перезаписи пользовательских файлов.
+- Added the `agentcall cache` helper (`download`, `add`, `list`, `verify`) to streamline preparing offline wheels before running in air-gapped environments.
+- Persisted auto-update telemetry summaries into `reports/status.json` and `context/auto-update-summary.json`, making fallback/success events visible to mission control.
+- Introduced `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` and `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` flags to safely simulate PyPI outages during local debugging.
+- Auto-update fallback now defaults to `~/.agentcontrol/cache` even when `AGENTCONTROL_AUTO_UPDATE_CACHE` is unset, eliminating widespread `fetch_failed` statuses when preloaded wheels exist.
+- `scripts/release.sh` builds an isolated temporary venv, installs build/twine, and automatically adds the fresh wheel to the offline cache to simplify closed-network support.
+- CLI hints and auto-bootstrap: `agentcall` auto-initialises the capsule when permitted and prints "This directory is not an AgentControl project." to orient operators.
+- Docs bridge: `.agentcontrol/config/docs.bridge.yaml` configures target files, and `architecture-sync` fills managed regions in existing documentation without duplicating `docs/`.
+- `agentcall init` now adopts an existing `docs/` directory, wiring the bridge without overwriting user files.
 
 ## 0.3.1 — 2025-10-04
 - Added automatic self-update before command execution with telemetry, configurable modes (`AGENTCONTROL_AUTO_UPDATE_MODE`), and environment-based overrides (`AGENTCONTROL_DISABLE_AUTO_UPDATE`, `AGENTCONTROL_AUTO_UPDATE=0`).

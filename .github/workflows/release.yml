@@ -7,6 +7,8 @@ on:
         description: "Version to publish (matches tag)"
         required: false
   push:
+    branches:
+      - main
     tags:
       - "v*"
 

@@ -1,102 +1,106 @@
 #!/usr/bin/env python3
-"""Unified helper CLI for the AgentControl Universal Agent SDK."""
+"""AgentControl SDK helper CLI.
+
+Commands:
+  publish  – build distributions, upload to PyPI, then update local installation.
+  local    – build distributions and update local installation only.
+"""
 
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts"
+DIST = ROOT / "dist"
+BUILD_ENV = ROOT / ".sdk-build-env"
 
 
-def run(command: list[str]) -> int:
-    proc = subprocess.run(command)
-    return proc.returncode
+def run(cmd: list[str]) -> None:
+    subprocess.run(cmd, check=True, text=True)
 
 
-def cmd_verify(args: argparse.Namespace) -> int:
-    return run([str(SCRIPTS / "verify.sh")])
+def env_python() -> Path:
+    if os.name == "nt":
+        return BUILD_ENV / "Scripts" / "python.exe"
+    return BUILD_ENV / "bin" / "python"
 
 
-def cmd_review(args: argparse.Namespace) -> int:
-    script = str(SCRIPTS / "review.sh")
-    if args.base:
-        return run(["env", f"REVIEW_BASE_REF={args.base}", script])
-    return run([script])
+def ensure_build_env() -> Path:
+    python_path = env_python()
+    if not python_path.exists():
+        BUILD_ENV.mkdir(parents=True, exist_ok=True)
+        run([sys.executable, "-m", "venv", str(BUILD_ENV)])
+        run([str(python_path), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
+    run([str(python_path), "-m", "pip", "install", "build", "twine"])
+    return python_path
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
-    return run([str(SCRIPTS / "doctor.sh")])
+def build_dist() -> tuple[list[Path], Path]:
+    python_path = ensure_build_env()
+    shutil.rmtree(DIST, ignore_errors=True)
+    run([str(python_path), "-m", "build"])
+    wheels = sorted(DIST.glob("*.whl"), key=lambda p: p.stat().st_mtime)
+    if not wheels:
+        raise SystemExit("build produced no wheel artifacts")
+    return wheels, python_path
 
 
-def cmd_status(args: argparse.Namespace) -> int:
-    return run([str(SCRIPTS / "status.sh")])
+def install_local(wheel: Path, *, force: bool) -> None:
+    if shutil.which("pipx"):
+        cmd = ["pipx", "install", str(wheel)]
+        if force:
+            cmd.append("--force")
+        run(cmd)
+    elif shutil.which("pip"):
+        cmd = [sys.executable, "-m", "pip", "install", str(wheel)]
+        if force:
+            cmd.append("--upgrade")
+        run(cmd)
+    else:
+        raise SystemExit("neither pipx nor pip available for local installation")
 
 
-def cmd_summary(args: argparse.Namespace) -> int:
-    script = ["python3", str(SCRIPTS / "lib" / "report_summary.py")]
-    return run(script)
+def publish_and_update(force: bool) -> None:
+    wheels, python_path = build_dist()
+    artifacts = [str(p) for p in sorted(DIST.iterdir())]
+    run([str(python_path), "-m", "twine", "upload", *artifacts])
+    install_local(wheels[-1], force=force)
 
 
-def cmd_task(args: argparse.Namespace) -> int:
-    return run([str(SCRIPTS / "task.sh"), *args.args])
-
-
-def cmd_call(args: argparse.Namespace) -> int:
-    return run(["agentcall", "run", args.target, *args.args])
-
-
-def cmd_qa(args: argparse.Namespace) -> int:
-    if cmd_verify(args) != 0:
-        return 1
-    return cmd_review(args)
+def local_update(force: bool) -> None:
+    wheels, _ = build_dist()
+    install_local(wheels[-1], force=force)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="sdk", description="AgentControl Universal Agent SDK helper")
+    parser = argparse.ArgumentParser(description="AgentControl SDK helper")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    verify = sub.add_parser("verify", help="Run agentcall verify")
-    verify.set_defaults(func=cmd_verify)
+    publish = sub.add_parser("publish", help="Build, upload to PyPI, then update local installation")
+    publish.add_argument("--force", action="store_true", help="Force reinstall local wheel")
 
-    review = sub.add_parser("review", help="Run agentcall review")
-    review.add_argument("--base", help="Base commit for diff", default=None)
-    review.set_defaults(func=cmd_review)
-
-    doctor = sub.add_parser("doctor", help="Environment and dependency doctor")
-    doctor.set_defaults(func=cmd_doctor)
-
-    status = sub.add_parser("status", help="agentcall status")
-    status.set_defaults(func=cmd_status)
-
-    summary = sub.add_parser("summary", help="Summarise verify/review/doctor reports")
-    summary.set_defaults(func=cmd_summary)
-
-    task = sub.add_parser("task", help="Proxy to scripts/task.sh")
-    task.add_argument("args", nargs=argparse.REMAINDER)
-    task.set_defaults(func=cmd_task)
-
-    call = sub.add_parser("run", help="Forward command to agentcall run <name>")
-    call.add_argument("target")
-    call.add_argument("args", nargs=argparse.REMAINDER)
-    call.set_defaults(func=cmd_call)
-
-    qa = sub.add_parser("qa", help="Run verify followed by review")
-    qa.add_argument("--base", help="Base commit for review", default=None)
-    qa.set_defaults(func=cmd_qa)
+    local = sub.add_parser("local", help="Build and update local installation only")
+    local.add_argument("--force", action="store_true", help="Force reinstall local wheel")
 
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.func(args)
+
+    if args.command == "publish":
+        publish_and_update(force=args.force)
+    elif args.command == "local":
+        local_update(force=args.force)
+    else:
+        parser.error("Unknown command")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
