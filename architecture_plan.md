@@ -12,13 +12,15 @@
 Each journey must expose machine-friendly APIs (JSON) and actionable events.
 
 ---
-## 2. Success Criteria
+## 2. Success Criteria (0.5.x hardening)
 | Category | Metric | Target |
 | --- | --- | --- |
+| Template Integrity | Packaged templates checksum == repo snapshot, `agentcall verify` enforces | 100% runs |
 | Init UX | `agentcall init` (existing docs) finishes ≤ 20s, zero manual prompts | 100% scenarios |
+| Agent Digest | `agentcall status --json` emits `agent_digest` payload ≤ 4 KB with latest AGENTS/todo summary | Every invocation |
+| Pipeline SLA | Each verify step emits structured log with duration ≤ configured timeout (default 90s) | 100% steps |
 | Docs Sync | Consecutive `architecture-sync` produces no diff | 0 unexpected diffs |
 | Error UX | All blocking errors emit structured code + remediation hint | 100% |
-| Agent API | `agentcall --json` responses conform to schema | 100% validation |
 | Compatibility | Legacy migration pass rate | 100% tested repos |
 | Quality | diff coverage ≥ 90%, pytest/verify green | Continuous |
 
@@ -69,31 +71,28 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 6. **Observability** – structured events/logs with correlation ids.
 
 ---
-## 4. Current Baseline (2025-10-05)
-- Docs bridge v1 with managed markers; lacks schema, removal, anchors.
-- CLI output mostly plain text.
-- No event stream/runtime API for agents.
-- Migration & external adapters missing.
+## 4. Current Baseline (2025-10-06)
+- Packaged capsule templates (0.5.1) exist in-tree, но git состояние содержит удалённые артефакты `.agentcontrol/` → `agentcall init/upgrade` ломаются.
+- Verify конвейер жёсткий, но отсутствуют SLA per-step timeouts и structured log/JSON сводки.
+- Нет компактного контекстного дайджеста: агентам приходится читать целый `AGENTS.md`/`todo.machine.md`.
+- Updater/mission сервисы покрыты тестами частично; сценарии с offline-cache, timeline ingest и dev guard остаются незафиксированными.
+- Docs bridge схемы и managed регионы стабильны, но отсутствует автоматический контроль целостности шаблонов.
 
 ---
 ## 5. Roadmap Phases
 ### Phase 0 – Foundation Hardening (current sprint)
 **Objectives**
-- Lock down docs bridge config + managed regions.
-- Provide machine-readable status/errors.
-- Bootstrap project digital twin & mission summary (replace legacy Memory Heart).
+- Восстановить эталонные шаблоны и `.agentcontrol/` капсулу, исключить дрейф и поломку auto-bootstrap.
+- Снизить когнитивную нагрузку агентов через автоматический digest и SLA по времени выполнения пайплайна.
+- Поднять покрытие критичных сервисов (updater, mission) для защиты от регрессий.
 
 **Deliverables & Acceptance**
-1. **Config Schema** – JSON schema + `agentcall docs diagnose` (exit 0/1, JSON report).  
-2. **Managed Region Engine** – supports add/update/remove, multiple sections per file, atomic writes. Tests: diff removal, marker corruption.
-3. **Status JSON** – `agentcall status --json` includes `docsBridge` section (root, warnings, last updates).
-4. **Error Codes** – all docs bridge failures emit code (e.g. `DOC_BRIDGE_INVALID_CONFIG`), message, `remediation` field.
-5. **Agent APIs** – `agentcall docs info --json` returns capabilities & sections.
-6. **Project Twin (v0)** – `.agentcontrol/state/twin.json` aggregates roadmap/tests/docs status; `agentcall mission --json` prints summary replacing Memory Heart context.
+1. **Template Integrity Wall** – `agentcall verify` выполняет шаг `template-integrity` (checksum diff → fail). Каталоги `.agentcontrol/` и `src/agentcontrol/templates/0.5.1` свернуты к эталону; git status чистый.
+2. **Agent Digest + SLA** – CLI формирует `.agentcontrol/state/agent_digest.json` (≤4 KB, содержит health/tasks summary). Каждый шаг `scripts/verify.sh` протоколирует JSON (`step`, `status`, `durationMs`, `timeoutMs`) и поддерживает конфигурируемый таймаут.
+3. **Coverage Expansion** – pytest модули для updater (force failure, cache fallback, dev guard) и mission twin (timeline ingest, palette persist) обеспечивают ≥90 % diff coverage по изменённым файлам.
+4. **Docs Refresh** – README, `docs/getting_started.md`, AGENTS.md, todo.machine.md отражают digest, template wall и SLA.
 
-**Sprint Outcome (2025-10-05):** All six deliverables implemented. New CLI surfaces `agentcall docs diagnose|info --json` and `agentcall mission --json`; status pipeline now emits `docsBridge` data; managed region engine upgraded with atomic writes, removal, and corruption detection; twin persisted under `.agentcontrol/state/twin.json`.
-
-**Update (2025-10-06):** Templates bumped to v0.5.0 so every pipeline executes from the hidden `.agentcontrol/` capsule, CLI exposes `setup`, `dev`, `progress`, and `roadmap` pipelines, `telemetry report --recent` enables bounded aggregation, and the root `Makefile` mirrors the unified pipelines for operator simplicity.
+**Phase update (2025-10-06):** Integrity guard и агентский digest внедрены: verify теперь включает `template-integrity`, генерирует `reports/verify_steps.jsonl` и `.agentcontrol/state/agent_digest.json`, а per-step SLA контролируется `VERIFY_STEP_TIMEOUT`. Unit-тесты для updater/mission добавлены. Остаётся синхронизировать исторические `.agentcontrol` артефакты и закрыть legacy warnings.
 
 ### Phase 1 – Bridge Evolution
 - Insertion anchors (`insert_after heading`, `insert_before marker`).

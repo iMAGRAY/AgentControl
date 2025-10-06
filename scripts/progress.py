@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
+for extra in (ROOT, ROOT / "src"):
+    extra_str = str(extra)
+    if extra_str not in sys.path:
+        sys.path.append(extra_str)
 
 import yaml
 

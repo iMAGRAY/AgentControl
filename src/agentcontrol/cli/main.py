@@ -60,6 +60,33 @@ def _state_directory_for(project_path: Path) -> Path:
     return SETTINGS.state_dir / digest
 
 
+def _is_sdk_source_tree(path: Path) -> bool:
+    """Return True when running inside the AgentControl SDK source tree.
+
+    The AgentControl project hosts its own templates under ``src/agentcontrol``
+    and declares the project metadata in ``pyproject.toml``. Scanning the
+    current directory and its parents for both conditions lets us short-circuit
+    the auto-bootstrap logic for every sub-path inside the SDK repository while
+    keeping behaviour unchanged for installed CLI users.
+    """
+
+    resolved = path.resolve()
+    candidates: Iterable[Path] = (resolved,) + tuple(resolved.parents)
+    for candidate in candidates:
+        if not (candidate / "src" / "agentcontrol").is_dir():
+            continue
+        pyproject = candidate / "pyproject.toml"
+        if not pyproject.exists():
+            continue
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if "name = \"agentcontrol\"" in content or "name = 'agentcontrol'" in content:
+            return True
+    return False
+
+
 def _build_services() -> tuple[BootstrapService, CommandService]:
     template_repo = FSTemplateRepository(SETTINGS.template_dir)
     bootstrap = BootstrapService(template_repo, SETTINGS)
@@ -124,6 +151,15 @@ def _auto_bootstrap_project(bootstrap: BootstrapService, project_path: Path, com
     auto_enabled = True if env_value is None or env_value.strip() == '' else _truthy_env('AGENTCONTROL_AUTO_INIT')
     if not auto_enabled:
         return None
+    # Skip auto-init when running inside the AgentControl SDK source tree.
+    if _is_sdk_source_tree(project_path):
+        record_event(
+            SETTINGS,
+            'autobootstrap.skip_sdk_repo',
+            {'command': command, 'cwd': str(project_path)},
+        )
+        return None
+
     capsule_dir = project_path / PROJECT_DIR
     descriptor = capsule_dir / PROJECT_DESCRIPTOR
     if descriptor.exists():

@@ -7,11 +7,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/common.sh"
 
-VENV_PIP="$SDK_ROOT/.venv/bin/pip"
+if [[ -x "$SDK_ROOT/.venv/bin/pip" ]]; then
+  VENV_PIP="$SDK_ROOT/.venv/bin/pip"
+elif [[ -x "$SDK_ROOT/.agentcontrol/.venv/bin/pip" ]]; then
+  VENV_PIP="$SDK_ROOT/.agentcontrol/.venv/bin/pip"
+else
+  VENV_PIP=""
+fi
 LOCK_SRC="$SDK_ROOT/requirements.txt"
 LOCK_FILE="$SDK_ROOT/requirements.lock"
 
-if [[ ! -x "$VENV_PIP" ]]; then
+if [[ -z "$VENV_PIP" ]]; then
   sdk::die "check-lock: missing $VENV_PIP — run agentcall setup"
 fi
 

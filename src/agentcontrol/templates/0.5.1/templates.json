@@ -1,0 +1,11 @@
+{
+  "version": "0.5.1",
+  "channel": "stable",
+  "templates": [
+    "default",
+    "monorepo",
+    "node",
+    "python",
+    "sandbox"
+  ]
+}

@@ -32,6 +32,8 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    All SDK artefacts live inside `project/.agentcontrol/`; the host repository remains untouched.
    (Set `AGENTCONTROL_AUTO_INIT=1` if you prefer `agentcall status` to bootstrap automatically.)
 
+   _Maintainer note:_ when working inside the AgentControl SDK source tree itself, the CLI now detects the repository and suppresses auto-bootstrap so the root stays free of `.agentcontrol/` capsules.
+
    Capture onboarding answers so agents inherit the delivery context:
    ```bash
    cd ~/workspace/project
@@ -99,7 +101,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `node` | Node.js service with ESLint and `node --test`. | npm workflows encapsulated within the capsule. |
 | `monorepo` | Python backend + Node front-end. | Coordinated pipelines across both packages. |
 
-Templates v0.5.0 align all pipeline executables with the hidden `.agentcontrol/` capsule to eliminate legacy layout drift.
+Templates v0.5.1 align all pipeline executables with the hidden `.agentcontrol/` capsule to eliminate legacy layout drift.
 
 Custom templates live under `src/agentcontrol/templates/<version>/<name>`; update `template.json` accordingly.
 

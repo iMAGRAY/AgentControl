@@ -18,6 +18,9 @@ CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
+SRC_DIR = PROJECT_ROOT / "src"
+if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 from agentcontrol.utils.docs_bridge import (
     DocsBridgeConfig,

@@ -1,93 +1,63 @@
-# AgentControl — Operations Charter (Linux)
+CONTEXT_INDEX:
+  - path: README.md                      # value prop, quick start
+  - path: architecture_plan.md           # strategic roadmap & phases
+  - path: todo.machine.md                # program backlog (generated)
+  - path: scripts/verify.sh              # canonical quality gate
+  - path: scripts/test-place.sh          # симуляция установки SDK в .test_place
+  - path: scripts/lib/quality_guard.py   # diff scanner & findings schema
+  - path: src/agentcontrol/cli/main.py   # CLI entrypoint / auto-bootstrap logic
+  - path: src/agentcontrol/app           # application services (bootstrap, mission, docs)
+  - path: src/agentcontrol/utils         # telemetry, updater, helpers
+  - path: src/agentcontrol/templates/0.5.1  # packaged capsule templates
+  - path: tests/                         # pytest suite, property tests, integrations
+  - path: reports/verify.json            # latest verify pipeline artefact
+  - path: Makefile                       # proxy targets wrapping scripts/*.sh
 
-```yaml
-agents_doc: v1
-updated_at: 2025-10-06T12:00:00Z
-owners: ["vibe-coder", "agentcontrol-core"]
-harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
-budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
-stacks: { runtime: "bash@5", build: "agentcall@0.5" }
-teach: true
-```
+TASKS:
+  - id: SDK-001
+    title: Восстановить и зафиксировать шаблоны капсулы 0.5.1
+    status: wip
+    priority: p0
+    ac:
+      - [Определить эталонный набор файлов .agentcontrol/, src/agentcontrol/templates/0.5.1, и убрать дубли/устаревшие директории, git status чистый]
+      - [Добавить авто-проверку checksum для packaged templates в verify, падение при расхождении]
+    owner: gpt-5-codex
+  - id: SDK-002
+    title: Автогенерация agent-digest и SLA шагов пайплайна
+    status: done
+    priority: p1
+    ac:
+      - [CLI формирует компактный контекстный digest (AGENTS, roadmap, verify summary) и сохраняет в .agentcontrol/state/agent_digest.json]
+      - [Каждый шаг scripts/verify.sh имеет configurable timeout и structured log события]
+    owner: gpt-5-codex
+  - id: SDK-003
+    title: Расширить тестовое покрытие updater/mission сервисов
+    status: done
+    priority: p1
+    ac:
+      - [Добавить unit tests для updater (network failure, cache fallback, dev guard) с >85% diff-cov]
+      - [Добавить mission service tests, проверяющие timeline ingest и palette persist]
+    owner: gpt-5-codex
 
-## 1. Command Surface
-- `agentcall status [PATH]` — dashboard plus capsule auto-bootstrap (tuned via `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`, `AGENTCONTROL_NO_AUTO_INIT`). JSON output now embeds `docsBridge` diagnostics.
-- `agentcall docs diagnose|info --json [PATH]` — schema validation, status/sections for in-place documentation bridge.
-- `agentcall docs list|diff|repair|adopt|rollback [--json] [PATH]` — managed documentation lifecycle (backups, anchor-aware updates, MkDocs/Docusaurus/Confluence adapters).
-- `agentcall docs sync [--mode repair|adopt] [--json] [PATH]` — автоматизированный diff→repair/adopt конвейер для managed секций.
-- `agentcall sandbox start|list|purge [PATH]` — provision disposable capsules under `.agentcontrol/sandbox/` for experimentation.
-- `agentcall mission summary|ui|detail|exec [--json] [PATH]` — generate twins, stream dashboard, drill into sections или автоматически выполнить топ-плейбук (`exec`).
-- `agentcall info [PATH] [--json]` — enumerate available capabilities, telemetry schema, and optional mission snapshot.
-- `agentcall mcp add|remove|status [PATH]` — manage per-project MCP server registry under `.agentcontrol/config/mcp/`.
-- `agentcall runtime status|events [PATH]` — refresh `.agentcontrol/runtime.json` and stream structured telemetry events.
-- `agentcall auto docs|tests|release [PATH] [--apply]` — run automation playbooks with dry-run guardrails by default.
-- `agentcall migrate [--apply] [PATH]` — detect and upgrade legacy `agentcontrol/` capsules; emits telemetry counters.
-- `agentcall self-update --mode <print|pip|pipx>` — manual override for updating the CLI (auto-update runs by default on launch and exits once an upgrade is applied).
-- `agentcall init / upgrade [PATH]` — template provisioning or migration.
-- `agentcall bootstrap [--profile <id>] [--json] [PATH]` — capture onboarding profile answers and persist `.agentcontrol/state/profile.json` plus `reports/bootstrap_summary.json`.
-- `agentcall setup [PATH]` — install capsule dependencies (`SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`).
-- `agentcall dev [PATH]` — developer cockpit (quickref + watch hooks from `config/commands.sh`).
-- `agentcall verify` — canonical quality gate (fmt/tests/security/docs/SBOM).
-- `agentcall fix` / `agentcall review` / `agentcall ship` — remediation, diff review, release gate.
-- `agentcall progress [PATH]` / `agentcall roadmap [PATH]` — roadmap + progress dashboards (`reports/architecture-dashboard.json`).
-- `agentcall doctor [PATH]` — environment diagnostics (`--bootstrap` surfaces profile drift, MCP, python).
-- `agentcall agents <install|auth|status|logs|workflow>` — agent CLI lifecycle management.
-- `agentcall templates` — list installed templates.
-- `agentcall telemetry <report|tail|clear>` — local telemetry management (`report --recent <n>` windowing).
-- `agentcall plugins <list|install|remove|info>` — plugin control via entry points.
-- `agentcall cache <list|add|download>` — curate offline update wheels used by auto-update fallback.
-- Offline cache auto-promotes newer wheels ahead of PyPI releases; ship fresh builds to keep agents aligned with the latest git commit.
-- `scripts/install_agentcontrol.sh` — one-time template installation on the workstation.
+HEALTH:
+  status: yellow
+  progress_pct: 65
+  risks:
+    - Исторические удаления `.agentcontrol/` и шаблонов 0.5.0 всё ещё висят в git status — ship заблокирован до синхронизации.
+    - Новые checksum'ы 0.5.1 пока локальны; без upstream фикса авто-bootstrap на других машинах разъедется.
+  next:
+    - Определить эталонное дерево `.agentcontrol/` и привести рабочее состояние к нему (либо зафиксировать новую версию в git).
+    - Финализировать перенос обновлённых шаблонов 0.5.1 (checksum, run.py, quality_guard) в release-пайплайн/документацию.
+    - Прогнать полный `python -m pytest` (после конвергенции git) и включить новые тесты в CI.
 
-## 2. Workflow Governance
-- **Workflow registry:** `config/agents.json`, overridable through env (`ASSIGN_AGENT`, `REVIEW_AGENT`, etc.).
-- **Agent logs:** stored under `reports/agents/` with metadata for each run.
-- **Micro tasks:** managed exclusively via the Update Plan Tool; must be empty before `agentcall ship`.
-- **Task board:** synchronised across `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
-- **Planning integrity (MANDATORY):** при любом изменении кода необходимо немедленно обновлять `architecture_plan.md` и `todo.md`: отмечать завершённые пункты, добавлять новые цели, поддерживать полноту и актуальность. Несоблюдение правила считается нарушением процесса.
-- **Unified make interface:** `Makefile` mirrors the core pipelines (`init`, `dev`, `verify`, `fix`, `review`, `ship`, `doctor`, `status`) and defaults to `make status`.
-- **Versioning discipline (MANDATORY):** каждое изменение сопровождаем актуализацией `pyproject.toml`/`agentcontrol/__init__.py` и немедленным git commit + push. Крупные изменения → мажорный шаг (3 → 4); заметные функциональные доработки → десятичный шаг (3.0 → 3.1); точечные исправления/документы → сотые и далее (3.120 → 3.121).
-
-## 3. Quality Controls
-- Mandatory artefacts: `AGENTS.md`, `architecture/manifest.yaml`, `todo.machine.md`, `.editorconfig`, `.codexignore`.
-- Reports: `reports/verify.json`, `reports/review.json`, `reports/status.json`, `reports/doctor.json`.
-- Release guard: `agentcall ship` blocks on failed checks or open micro tasks.
-
-## 4. Recovery Playbook
-- Pipeline tuning: adjust `SDK_*_COMMANDS` within `.agentcontrol/config/commands.sh`.
-- Emergency reset: restore `config/commands.sh` from the template, run `agentcall verify`.
-- Task board recovery: restore `data/tasks.board.json`, clear `state/task_selection.json`, archive `journal/task_events.jsonl`.
-- Agent credentials: remove `state/agents/` or run `agentcall agents logout`.
-
-## 7. Offline Update Cache Runbook
-1. Build or obtain the target wheel (see `docs/release.md`).
-2. Stage the artefact via:
-   ```bash
-   agentcall cache add ~/dist/agentcontrol-<version>-py3-none-any.whl
-   ```
-3. Export `AGENTCONTROL_AUTO_UPDATE_CACHE=/path/to/cache` (or rely on default `~/.agentcontrol/cache`).
-4. Validate inventory:
-   ```bash
-   agentcall cache list
-   ```
-5. Monitor fallback telemetry under `auto-update` events (`fallback_attempt`, `fallback_succeeded`, `fallback_failed`).
-6. For dry-runs inside the repository, export `AGENTCONTROL_ALLOW_AUTO_UPDATE_IN_DEV=1` and `AGENTCONTROL_FORCE_AUTO_UPDATE_FAILURE=1` to simulate PyPI outages; reset `~/.agentcontrol/state/update.json` between runs as needed.
-
-## 5. References
-- Architecture manifest: `architecture/manifest.yaml`.
-- Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
-- Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration, automation hooks).
-- Bootstrap checklist: `docs/getting_started.md`.
-- Performance guard: `docs/tutorials/perf_nightly.md` + `examples/github/perf-nightly.yaml` — nightly benchmark pipeline (`PERF_HISTORY_UPDATE=1`, diff history artefacts).
-- Troubleshooting: `docs/troubleshooting/docs_bridge.md`.
-- Planning artefacts: `architecture_plan.md`, `todo.md` — поддерживаются строго актуальными и полными (см. §2).
-- Docs bridge: `agentcall docs diagnose|info|list|diff|repair|adopt|rollback --json` работают поверх `.agentcontrol/config/docs.bridge.yaml`, управляя маркерами непосредственно в боевой документации; managed регионы находятся в исходных `docs/` файлах — дублирующих деревьев нет. Анкоры (`insert_after_heading`, `insert_before_marker`) управляют первой вставкой; адаптеры поддерживают MkDocs/Docusaurus/Confluence через `mode: external`.
-- Mission control & digital twin (roadmap): `agentcall mission --json` создаёт/читает `.agentcontrol/state/twin.json`, предоставляя агенту вектор текущего статуса (docs/tests/tasks/MCP).
-- **Self-hosting caveat:** при разработке самого SDK не используем встроенные системные команды (`agentcall init/status/...`) для управления проектом. Планирование ведём вручную в `architecture_plan.md` и `todo.md`, чтобы исключить рекурсивные побочные эффекты. Любые изменения фиксируем здесь.
-- Script inventory: `scripts/` (including `scripts/agents/*.sh`, `scripts/lib/*.py`).
-- Status snapshots: `reports/status.json`, `reports/architecture-dashboard.json`.
-- Agent authentication state: `state/agents/auth_status.json`.
-
-## 6. Escalation
-- Owners: AgentControl Core (see YAML header).
-- Raise issues via `agentcall agents workflow --task=<ID>` with SLA context; escalate directly to owners for critical incidents.
+SELF_TUNING:
+  - rule: Перед ship обязательно запускать `agentcall verify` и фиксировать `reports/verify.json` в git.
+    ttl: 2025-12-31
+  - rule: Все изменения governance-артефактов (AGENTS, architecture_plan, todo.machine) сопровождаем синхронным обновлением verify/reportов.
+    ttl: 2025-11-30
+  - rule: Рабочие инструкции/временные файлы (например AGENTS1.md) не включаем в выпускаемый SDK; держим их вне артефактов agentclient.
+    ttl: 2025-11-30
+  - rule: Для интеграционных проверок используем `scripts/test-place.sh`, который создаёт/чистит `.test_place/` и разворачивает капсулу в изолированной среде.
+    ttl: 2025-12-31
+  - rule: Внутри репозитория SDK запрещено создавать/использовать `.agentcontrol/` и вызывать `agentcall` — сам SDK нельзя запускать на себе; все симуляции и тесты выполняем только через `scripts/test-place.sh` в `.test_place/`.
+    ttl: 2026-01-01

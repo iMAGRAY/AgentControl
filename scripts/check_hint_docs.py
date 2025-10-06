@@ -6,11 +6,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
 from agentcontrol.app.mission.service import TIMELINE_DOC_REFERENCES
 
 
 def main() -> int:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = ROOT
     missing: list[str] = []
     for doc_path in sorted(set(TIMELINE_DOC_REFERENCES.values())):
         if not (repo_root / doc_path).exists():

@@ -26,6 +26,8 @@ reports/
 journal/
 state/
 context/
+.test_place/
+.hypothesis/
 
 scripts/bin/
 .env

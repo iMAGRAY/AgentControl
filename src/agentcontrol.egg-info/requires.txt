@@ -1,0 +1,9 @@
+PyYAML>=6.0.3
+packaging>=25.0
+jsonschema>=4.23.0
+
+[dev]
+pytest
+diff-cover
+detect-secrets
+pip-audit

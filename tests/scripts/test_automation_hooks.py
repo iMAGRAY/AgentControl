@@ -12,7 +12,7 @@ def _copy_template(template: Path, destination: Path) -> None:
 
 
 def test_automation_hooks_extend_verify_commands(tmp_path: Path) -> None:
-    template_root = Path("src/agentcontrol/templates/0.5.0/default/.agentcontrol")
+    template_root = Path("src/agentcontrol/templates/0.5.1/default/.agentcontrol")
     project_root = tmp_path / ".agentcontrol"
     _copy_template(template_root, project_root)
 
@@ -40,7 +40,7 @@ def test_automation_hooks_extend_verify_commands(tmp_path: Path) -> None:
     assert reports_dir.is_dir()
 
     expected = {
-        f'agentcall docs diff --json > "{reports_dir / "docs-diff.json"}"',
+        f'agentcall docs diff --json > "{reports_dir / "docs-diff.json"}" || agentcall docs adopt --json > "{reports_dir / "docs-diff.json"}"',
         f'agentcall mission summary --json --timeline-limit 20 > "{reports_dir / "mission-summary.json"}"',
         f'agentcall mcp status --json > "{reports_dir / "mcp-status.json"}" || true',
     }

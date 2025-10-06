@@ -68,6 +68,32 @@ def test_auto_bootstrap_respects_disable(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert not (project_path / ".agentcontrol").exists()
 
 
+def test_auto_bootstrap_skips_sdk_repository(tmp_path: Path, runtime_settings: RuntimeSettings) -> None:
+    bootstrap = _make_bootstrap(runtime_settings)
+    project_path = tmp_path / "agentcontrol-sdk"
+    (project_path / "src" / "agentcontrol" / "templates").mkdir(parents=True)
+    (project_path / "pyproject.toml").write_text("[project]\nname = \"agentcontrol\"\n", encoding="utf-8")
+
+    result = cli_main._auto_bootstrap_project(bootstrap, project_path, "status")
+    assert result is None
+    assert not (project_path / ".agentcontrol").exists()
+
+
+def test_auto_bootstrap_skips_sdk_repository_subdir(tmp_path: Path, runtime_settings: RuntimeSettings) -> None:
+    bootstrap = _make_bootstrap(runtime_settings)
+    root = tmp_path / "agentcontrol-sdk"
+    (root / "src" / "agentcontrol" / "templates").mkdir(parents=True)
+    (root / "pyproject.toml").write_text("[project]\nname = \"agentcontrol\"\n", encoding="utf-8")
+
+    project_path = root / "tests" / "cli"
+    project_path.mkdir(parents=True)
+
+    result = cli_main._auto_bootstrap_project(bootstrap, project_path, "status")
+    assert result is None
+    assert not (root / ".agentcontrol").exists()
+    assert not (project_path / ".agentcontrol").exists()
+
+
 def test_resolve_project_id_no_auto(tmp_path: Path, runtime_settings: RuntimeSettings, capsys: pytest.CaptureFixture[str]) -> None:
     bootstrap = _make_bootstrap(runtime_settings)
     project_path = tmp_path / "workspace"
