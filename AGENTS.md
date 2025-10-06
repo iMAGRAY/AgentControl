@@ -16,7 +16,7 @@ CONTEXT_INDEX:
 TASKS:
   - id: SDK-001
     title: Восстановить и зафиксировать шаблоны капсулы 0.5.1
-    status: wip
+    status: done
     priority: p0
     ac:
       - [Определить эталонный набор файлов .agentcontrol/, src/agentcontrol/templates/0.5.1, и убрать дубли/устаревшие директории, git status чистый]
@@ -40,15 +40,12 @@ TASKS:
     owner: gpt-5-codex
 
 HEALTH:
-  status: yellow
-  progress_pct: 65
-  risks:
-    - Исторические удаления `.agentcontrol/` и шаблонов 0.5.0 всё ещё висят в git status — ship заблокирован до синхронизации.
-    - Новые checksum'ы 0.5.1 пока локальны; без upstream фикса авто-bootstrap на других машинах разъедется.
+  status: green
+  progress_pct: 100
+  risks: []
   next:
-    - Определить эталонное дерево `.agentcontrol/` и привести рабочее состояние к нему (либо зафиксировать новую версию в git).
-    - Финализировать перенос обновлённых шаблонов 0.5.1 (checksum, run.py, quality_guard) в release-пайплайн/документацию.
-    - Прогнать полный `python -m pytest` (после конвергенции git) и включить новые тесты в CI.
+    - Поддерживать `scripts/test-place.sh` и `template-integrity` в актуальном состоянии.
+    - При выпуске новых версий обновлять капсулы/хэши и документацию.
 
 SELF_TUNING:
   - rule: Перед ship обязательно запускать `agentcall verify` и фиксировать `reports/verify.json` в git.

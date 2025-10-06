@@ -25,44 +25,28 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    pipx install agentcontrol  # alternatively: python3 -m pip install agentcontrol
    ```
    Templates are placed under `~/.agentcontrol/templates/<channel>/<version>` and `agentcall` is published to `PATH`.
-3. **Bootstrap a project capsule.**
-   ```bash
-   agentcall init --template python ~/workspace/project
-   ```
-   All SDK artefacts live inside `project/.agentcontrol/`; the host repository remains untouched.
-   (Set `AGENTCONTROL_AUTO_INIT=1` if you prefer `agentcall status` to bootstrap automatically.)
-
-   _Maintainer note:_ when working inside the AgentControl SDK source tree itself, the CLI now detects the repository and suppresses auto-bootstrap so the root stays free of `.agentcontrol/` capsules.
-
-   Capture onboarding answers so agents inherit the delivery context:
+3. **Bootstrap и прогон пайплайнов.**
    ```bash
    cd ~/workspace/project
- agentcall bootstrap --profile python
-  ```
-  See `docs/getting_started.md` for the full checklist and JSON automation options.
+   agentcall quickstart --template python
+   ```
+   Команда создаст капсулу (`.agentcontrol/`), выполнит `setup` и `verify`. При необходимости можно добавить `--no-verify` или передать аргументы в `verify` через `--verify-arg`.
 
-4. **Use the unified Make interface.**
+4. **Дополнительная настройка (опционально).**
+   ```bash
+   agentcall bootstrap --profile python   # захватить профиль
+   agentcall agents auth                  # авторизовать окружение
+   ```
+   Все артефакты (капсула, отчёты, .venv) живут внутри `project/.agentcontrol/`; хостовый репозиторий остаётся чистым.
+
+   _Maintainer note:_ внутри исходников SDK команда `agentcall` не запускается — используйте `scripts/test-place.sh` для изолированной проверки.
+
+5. **Use the unified Make interface.**
    ```bash
    make status
    make verify
    ```
    Targets map directly onto the `agentcall` pipelines (`init`, `dev`, `verify`, `fix`, `review`, `ship`, `doctor`, `status`).
-4. **Authenticate agents.**
-   ```bash
-   cd ~/workspace/project
-   agentcall agents auth
-   agentcall agents status
-   ```
-   Credentials are stored beneath `~/.agentcontrol/state/`.
-5. **Qualify the environment.**
-   ```bash
-   agentcall verify
-   ```
-   The pipeline runs formatting, tests, security checks, SBOM, architecture sync, mission control, and emits `reports/verify.json`.
-   Run targeted readiness checks at any time:
-   ```bash
-   agentcall doctor --bootstrap
-   ```
 
 ## 3.1 Automatic Updates
 - `agentcall` checks PyPI for newer public releases on first invocation (default interval: 6h) and upgrades itself automatically before executing the command.

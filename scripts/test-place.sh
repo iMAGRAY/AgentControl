@@ -18,7 +18,7 @@ python3 -m venv "$VENV_DIR"
 PIP_NO_WARN_SCRIPT_LOCATION=0 "$VENV_DIR/bin/pip" install --quiet "$SDK_ROOT" >/dev/null
 
 pushd "$PROJECT_DIR" >/dev/null
-"$VENV_DIR/bin/python" -m agentcontrol.cli.main init --template default . >/dev/null
+"$VENV_DIR/bin/python" -m agentcontrol.cli.main quickstart --template default --no-verify . >/dev/null
 "$VENV_DIR/bin/python" -m agentcontrol.cli.main info --json >"$STATUS_REPORT"
 popd >/dev/null
 

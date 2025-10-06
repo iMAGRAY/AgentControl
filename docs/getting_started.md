@@ -5,8 +5,8 @@ This guide accelerates the first 15 minutes on a new repository: capture the del
 
 ## 2. Prerequisites
 - Python interpreter meeting the profile minimum (Python ≥ 3.10 for the Python capsule).
-- `agentcall` CLI 0.5.1 or newer.
-- A project already initialised via `agentcall init` (capsule present under `./.agentcontrol/`).
+- `agentcall` CLI 0.5.1 или новее (установите один раз: `pipx install agentcontrol`).
+- В проекте уже выполнен `agentcall quickstart` (капсула лежит под `./.agentcontrol/`).
 
 Verify the CLI version:
 ```bash

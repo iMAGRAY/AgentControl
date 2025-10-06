@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable
+from textwrap import dedent
 
 from agentcontrol.adapters.bootstrap_profile.file_repository import FileBootstrapProfileRepository
 from agentcontrol.app.bootstrap_profile.service import BootstrapProfileService
@@ -43,6 +44,25 @@ from agentcontrol import __version__
 MISSION_FILTER_CHOICES = ("docs", "quality", "tasks", "timeline", "mcp")
 from agentcontrol.plugins.loader import load_plugins
 from agentcontrol.utils.updater import maybe_auto_update
+
+
+HELP_OVERVIEW = dedent(
+    """
+    Быстрый старт:
+      - установить CLI один раз: pipx install agentcontrol
+      - в проекте:   agentcall quickstart --template default [ПУТЬ]
+
+    Основные пайплайны:
+      - agentcall setup      — готовит .agentcontrol/, окружение и зависимости
+      - agentcall verify     — fmt/tests/security/perf/docs guard
+      - agentcall mission …  — миссионный дашборд и авто-playbooks
+
+    Анти-паттерны:
+      - не запускайте agentcall внутри исходников самого SDK
+      - не правьте .agentcontrol/ вручную — используйте quickstart/upgrade
+      - не пропускайте verify перед ship — релиз блокируется красными отчётами
+    """
+)
 
 
 def _truthy_env(var: str) -> bool:
@@ -266,6 +286,52 @@ def _bootstrap_cmd(args: argparse.Namespace) -> int:
     )
     print(f"Project initialised at {project_path}")
     return 0
+
+def _print_quickstart_summary(project_path: Path, summary: list[tuple[str, int]]) -> None:
+    print(f"Проект готов: {project_path}")
+    if not summary:
+        print("  • setup/verify пропущены по флагам")
+        return
+    for name, code in summary:
+        status = "ok" if code == 0 else f"exit {code}"
+        print(f"  • {name}: {status}")
+
+
+def _quickstart_cmd(args: argparse.Namespace) -> int:
+    bootstrap, command_service = _build_services()
+    project_path = _default_project_path(args.path)
+    project_id = ProjectId.for_new_project(project_path)
+
+    try:
+        bootstrap.bootstrap(
+            project_id,
+            args.channel,
+            template=args.template,
+            force=args.force,
+        )
+    except RuntimeError as exc:
+        print(f"quickstart failed: {exc}", file=sys.stderr)
+        return 1
+
+    project_id = ProjectId.from_existing(project_path)
+    summary: list[tuple[str, int]] = []
+
+    if not args.no_setup:
+        exit_setup = command_service.run(project_id, "setup", [])
+        summary.append(("setup", exit_setup))
+        if exit_setup != 0 and not args.force:
+            _print_quickstart_summary(project_path, summary)
+            return exit_setup
+
+    if not args.no_verify:
+        exit_verify = command_service.run(project_id, "verify", args.verify_args or [])
+        summary.append(("verify", exit_verify))
+        if exit_verify != 0 and not args.force:
+            _print_quickstart_summary(project_path, summary)
+            return exit_verify
+
+    _print_quickstart_summary(project_path, summary)
+    return 0 if all(code == 0 for _, code in summary) else 1
 
 
 def _bootstrap_profile_cmd(args: argparse.Namespace) -> int:
@@ -2195,10 +2261,24 @@ def _print_mission_detail(section: str, payload: Any, *, timeline_limit: int = 1
         return
     print('no detail available for requested section')
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agentcall", description="AgentControl SDK CLI")
+    parser = argparse.ArgumentParser(
+        prog="agentcall",
+        description=HELP_OVERVIEW,
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument('--version', action='version', version=f'agentcall {__version__}')
 
     sub = parser.add_subparsers(dest="command", required=True)
+
+    quickstart_cmd = sub.add_parser("quickstart", help="Bootstrap project and run setup/verify")
+    quickstart_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    quickstart_cmd.add_argument("--channel", default="stable", help="Template channel (default: stable)")
+    quickstart_cmd.add_argument("--template", default="default", help="Template name (default: default)")
+    quickstart_cmd.add_argument("--force", action="store_true", help="Recreate capsule if it already exists")
+    quickstart_cmd.add_argument("--no-setup", action="store_true", help="Skip setup pipeline")
+    quickstart_cmd.add_argument("--no-verify", action="store_true", help="Skip verify pipeline")
+    quickstart_cmd.add_argument("--verify-arg", dest="verify_args", action="append", default=[], help="Forward extra arguments to verify")
+    quickstart_cmd.set_defaults(func=_quickstart_cmd)
 
     init_cmd = sub.add_parser("init", help="Bootstrap a new project capsule")
     init_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
