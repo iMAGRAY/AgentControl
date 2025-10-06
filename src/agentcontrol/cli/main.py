@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import json
 import os
@@ -17,6 +18,8 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable
 
+from agentcontrol.adapters.bootstrap_profile.file_repository import FileBootstrapProfileRepository
+from agentcontrol.app.bootstrap_profile.service import BootstrapProfileService
 from agentcontrol.app.bootstrap_service import BootstrapService
 from agentcontrol.app.command_service import CommandService
 from agentcontrol.app.docs import DocsBridgeService, DocsBridgeServiceError, DocsCommandService
@@ -64,6 +67,11 @@ def _build_services() -> tuple[BootstrapService, CommandService]:
     bootstrap.ensure_bootstrap_prerequisites()
     _sync_packaged_templates()
     return bootstrap, command_service
+
+
+def _build_profile_service() -> BootstrapProfileService:
+    repository = FileBootstrapProfileRepository()
+    return BootstrapProfileService(repository)
 
 
 def _sync_packaged_templates() -> None:
@@ -124,7 +132,10 @@ def _auto_bootstrap_project(bootstrap: BootstrapService, project_path: Path, com
         return None
     channel = os.environ.get('AGENTCONTROL_DEFAULT_CHANNEL', 'stable')
     template = os.environ.get('AGENTCONTROL_DEFAULT_TEMPLATE', 'default')
-    print(f"agentcall: auto-initialising capsule in {capsule_dir} using {template}@{channel}")
+    print(
+        f"agentcall: auto-initialising capsule in {capsule_dir} using {template}@{channel}",
+        file=sys.stderr,
+    )
     project_id = ProjectId.for_new_project(project_path)
     try:
         bootstrap.bootstrap(project_id, channel, template=template, force=False)
@@ -138,7 +149,7 @@ def _auto_bootstrap_project(bootstrap: BootstrapService, project_path: Path, com
         record_event(SETTINGS, 'autobootstrap.missing_descriptor', {'command': command, 'cwd': str(project_path)})
         return None
     record_event(SETTINGS, 'autobootstrap.ok', {'command': command, 'cwd': str(project_path), 'template': template, 'channel': channel})
-    print('agentcall: capsule ready — continuing command execution')
+    print('agentcall: capsule ready — continuing command execution', file=sys.stderr)
     return confirmed
 
 
@@ -152,6 +163,54 @@ def _resolve_project_id(bootstrap: BootstrapService, project_path: Path, command
                 return project_id
         _print_project_hint(project_path, command)
         return None
+
+
+def _determine_operator() -> str:
+    operator = os.environ.get("AGENTCONTROL_OPERATOR")
+    if operator:
+        return operator.strip()
+    try:
+        return getpass.getuser()
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _prompt_profile_selection(profiles, *, selected_id: str | None = None):
+    definitions = list(profiles)
+    if not definitions:
+        raise RuntimeError("No bootstrap profiles available")
+    if selected_id:
+        for definition in definitions:
+            if definition.profile_id == selected_id:
+                return definition
+        available = ", ".join(definition.profile_id for definition in definitions)
+        raise KeyError(f"Unknown profile id '{selected_id}'. Available: {available}")
+    print("Available bootstrap profiles:")
+    for index, definition in enumerate(definitions, start=1):
+        req = definition.requirements
+        cicd = ", ".join(req.recommended_cicd) or "—"
+        print(f"  {index}. {definition.name} [{definition.profile_id}] — Python ≥ {req.python_min_version}; CI/CD: {cicd}")
+        print(f"     {definition.description}")
+    while True:
+        choice = input("Select profile [1]: ").strip()
+        if not choice:
+            return definitions[0]
+        if choice.isdigit():
+            index = int(choice)
+            if 1 <= index <= len(definitions):
+                return definitions[index - 1]
+        print(f"Enter a value between 1 and {len(definitions)}.")
+
+
+def _prompt_question(question) -> str:
+    while True:
+        print(question.prompt)
+        response = input("> ").strip()
+        if response:
+            return response
+        if getattr(question, "category", "") == "notes":
+            return ""
+        print("This answer is required.")
 
 
 def _bootstrap_cmd(args: argparse.Namespace) -> int:
@@ -170,6 +229,74 @@ def _bootstrap_cmd(args: argparse.Namespace) -> int:
         {"channel": args.channel, "template": args.template, "force": args.force},
     )
     print(f"Project initialised at {project_path}")
+    return 0
+
+
+def _bootstrap_profile_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "bootstrap", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = _build_profile_service()
+    try:
+        profile = _prompt_profile_selection(service.list_profiles(), selected_id=getattr(args, "profile", None))
+    except KeyError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except RuntimeError as exc:
+        print(f"bootstrap wizard unavailable: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Selected profile: {profile.name} [{profile.profile_id}]")
+
+    answers: dict[str, str] = {}
+    try:
+        for question in service.list_questions():
+            answers[question.question_id] = _prompt_question(question)
+    except KeyboardInterrupt:  # pragma: no cover - interactive interruption
+        print("\nBootstrap wizard cancelled.")
+        return 1
+
+    operator = _determine_operator()
+    try:
+        result = service.capture(project_id, profile.profile_id, answers, operator=operator)
+    except ValueError as exc:
+        print(f"Bootstrap failed: {exc}", file=sys.stderr)
+        return 1
+
+    profile_path = project_id.root / PROJECT_DIR / "state" / "profile.json"
+    summary_path = project_id.root / "reports" / "bootstrap_summary.json"
+    payload = result.snapshot.as_dict()
+    payload.update(
+        {
+            "profile_path": str(profile_path),
+            "summary_path": str(summary_path),
+            "recommendations": result.recommendations,
+        }
+    )
+    record_event(
+        SETTINGS,
+        "bootstrap.profile",
+        {
+            "project": str(project_id.root),
+            "profile": profile.profile_id,
+            "operator": operator,
+        },
+    )
+    if getattr(args, "json", False):
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Bootstrap profile '{profile.name}' captured for {project_id.root}")
+        print(f"Profile stored at {profile_path}")
+        print(f"Summary stored at {summary_path}")
+        if result.recommendations:
+            print("Recommendations:")
+            for recommendation in result.recommendations:
+                status = recommendation.get("status", "info")
+                message = recommendation.get("message", "")
+                print(f"  [{status}] {message}")
     return 0
 
 
@@ -205,6 +332,57 @@ def _run_pipeline(command: str, args: argparse.Namespace) -> int:
 
 def _run_cmd(args: argparse.Namespace) -> int:
     return _run_pipeline(args.command_name, args)
+
+
+def _doctor_cmd(args: argparse.Namespace) -> int:
+    if getattr(args, "bootstrap", False):
+        return _doctor_bootstrap_cmd(args)
+    return _run_pipeline("doctor", args)
+
+
+def _doctor_bootstrap_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "doctor", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    service = _build_profile_service()
+    report = service.diagnose(project_id)
+    checks_payload = [
+        {
+            "id": check.check_id,
+            "status": check.status,
+            "message": check.message,
+            "details": check.details,
+        }
+        for check in report.checks
+    ]
+    payload: dict[str, object] = {
+        "status": report.status,
+        "checks": checks_payload,
+        "profile_path": str(project_id.root / PROJECT_DIR / "state" / "profile.json"),
+        "summary_path": str(project_id.root / "reports" / "bootstrap_summary.json"),
+    }
+    if report.snapshot is not None:
+        payload["profile"] = report.snapshot.profile.as_dict()
+        payload["captured_at"] = report.snapshot.captured_at
+
+    record_structured_event(
+        SETTINGS,
+        "doctor.bootstrap",
+        payload=payload,
+        status=report.status,
+        component="doctor",
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Bootstrap readiness: {report.status}")
+        for check in checks_payload:
+            print(f"  - [{check['status']}] {check['id']}: {check['message']}")
+    return 0 if report.status != "fail" else 1
 
 
 def _list_cmd(args: argparse.Namespace) -> int:
@@ -265,7 +443,16 @@ def _templates_cmd(args: argparse.Namespace) -> int:
 
 def _telemetry_cmd(args: argparse.Namespace) -> int:
     if args.telemetry_command == "report":
-        events = list(telemetry_iter(SETTINGS))
+        recent = getattr(args, "recent", 0)
+        if recent and recent > 0:
+            from collections import deque
+
+            window = deque(maxlen=recent)
+            for evt in telemetry_iter(SETTINGS):
+                window.append(evt)
+            events = list(window)
+        else:
+            events = list(telemetry_iter(SETTINGS))
         summary = telemetry_summarize(events)
         print(json.dumps(summary, indent=2, ensure_ascii=False))
         return 0
@@ -1179,6 +1366,7 @@ def _mission_analytics_cmd(args: argparse.Namespace) -> int:
             "activity": payload.get("activity", {}),
             "acknowledgements": payload.get("acknowledgements", {}),
             "perf": payload.get("perf", {}),
+            "tasks": payload.get("tasks", {}),
         }
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:
@@ -1188,6 +1376,7 @@ def _mission_analytics_cmd(args: argparse.Namespace) -> int:
         "activity": payload.get("activity", {}),
         "acknowledgements": payload.get("acknowledgements", {}),
         "perf": payload.get("perf", {}),
+        "tasks": payload.get("tasks", {}),
     })
 
     record_structured_event(
@@ -1982,6 +2171,12 @@ def build_parser() -> argparse.ArgumentParser:
     init_cmd.add_argument("--force", action="store_true")
     init_cmd.set_defaults(func=_bootstrap_cmd)
 
+    bootstrap_profile_cmd = sub.add_parser("bootstrap", help="Run bootstrap onboarding wizard")
+    bootstrap_profile_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    bootstrap_profile_cmd.add_argument("--profile", help="Pre-select a default profile by id")
+    bootstrap_profile_cmd.add_argument("--json", action="store_true", help="Emit machine-readable summary output")
+    bootstrap_profile_cmd.set_defaults(func=_bootstrap_profile_cmd)
+
     upgrade_cmd = sub.add_parser("upgrade", help="Upgrade existing project to current template")
     upgrade_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
     upgrade_cmd.add_argument("--channel", default="stable")
@@ -2004,6 +2199,12 @@ def build_parser() -> argparse.ArgumentParser:
     telemetry_sub = telemetry_cmd.add_subparsers(dest="telemetry_command", required=True)
 
     telemetry_report = telemetry_sub.add_parser("report", help="Print aggregated telemetry stats")
+    telemetry_report.add_argument(
+        "--recent",
+        type=int,
+        default=0,
+        help="Limit aggregation to the last N telemetry events",
+    )
     telemetry_report.set_defaults(func=_telemetry_cmd)
 
     telemetry_clear = telemetry_sub.add_parser("clear", help="Remove telemetry log file")
@@ -2212,19 +2413,33 @@ def build_parser() -> argparse.ArgumentParser:
     mission_analytics.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
     mission_analytics.set_defaults(func=_mission_analytics_cmd)
 
+    doctor_cmd = sub.add_parser("doctor", help="Environment diagnostics")
+    doctor_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    doctor_cmd.add_argument("--bootstrap", action="store_true", help="Run bootstrap readiness checks")
+    doctor_cmd.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    doctor_cmd.add_argument(
+        "extra",
+        nargs="*",
+        help="Extra arguments passed to the project doctor pipeline when --bootstrap is not used",
+    )
+    doctor_cmd.set_defaults(func=_doctor_cmd, command_name="doctor")
+
     def make_pipeline(name: str, help_text: str) -> None:
         pipeline_cmd = sub.add_parser(name, help=help_text)
         pipeline_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
         pipeline_cmd.add_argument("extra", nargs=argparse.REMAINDER, help="Extra arguments passed to underlying steps")
         pipeline_cmd.set_defaults(func=_run_cmd, command_name=name)
 
+    make_pipeline("setup", "Run environment setup pipeline")
+    make_pipeline("dev", "Run development workflow pipeline")
     make_pipeline("verify", "Run the QA verification pipeline")
     make_pipeline("fix", "Run autofix pipeline")
     make_pipeline("review", "Run review pipeline")
     make_pipeline("ship", "Run release pipeline")
     make_pipeline("status", "Render project status")
+    make_pipeline("progress", "Render roadmap and progress dashboards")
+    make_pipeline("roadmap", "Render roadmap status overview")
     make_pipeline("agents", "Agent management commands")
-    make_pipeline("doctor", "Environment diagnostics")
 
     # Generic run entrypoint for custom commands
     run_cmd = sub.add_parser("run", help="Run arbitrary registered command")

@@ -1,0 +1,15 @@
+id: monorepo
+version: "1.0"
+name: Polyglot Monorepo Capsule
+description: Multi-language monorepo with coordinated Python and Node pipelines plus shared governance.
+requirements:
+  python_min_version: "3.11"
+  recommended_cicd:
+    - github_actions
+    - buildkite
+  mcp_required: true
+  repo_scale: multi
+  automation_focus: parallel-pipelines
+  notes: >-
+    Designed for organisations orchestrating concurrent services, requiring MCP brokers and
+    distributed automation hooks for docs and performance budgets.

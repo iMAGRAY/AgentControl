@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-from agentcontrol.domain.project import LEGACY_PROJECT_DIRS, PROJECT_DIR, ProjectCapsule, ProjectId
+from agentcontrol.domain.project import PROJECT_DIR, ProjectCapsule, ProjectId
 from agentcontrol.settings import RuntimeSettings
 from agentcontrol.utils.telemetry import record_event
 
@@ -88,7 +88,15 @@ class CommandService:
             args = step.exec
             if index == 0 and extra_args:
                 args = args + extra_args
-            result = subprocess.run(args, cwd=project_id.root, env=env)
+            try:
+                result = subprocess.run(args, cwd=project_id.root, env=env)
+            except FileNotFoundError as exc:
+                missing = args[0] if args else "<unknown>"
+                raise RuntimeError(
+                    "Command pipeline step executable missing: "
+                    f"command={pipeline.name} step={step.name} executable={missing}. "
+                    "Run `agentcall upgrade` to refresh the capsule or update agentcall.yaml."
+                ) from exc
             exit_code = result.returncode
             if exit_code != 0:
                 break
@@ -116,13 +124,7 @@ class CommandService:
         env["AGENTCONTROL_PROJECT_ROOT"] = str(project_id.root)
         env["AGENTCONTROL_STATE"] = str(state_dir)
         env["AGENTCONTROL_TEMPLATE"] = template
-        capsule_paths: list[str] = []
-        toolkit_dir = project_id.root / PROJECT_DIR
-        capsule_paths.append(str(toolkit_dir))
-        for legacy_name in LEGACY_PROJECT_DIRS:
-            legacy_dir = project_id.root / legacy_name
-            if legacy_dir.exists():
-                capsule_paths.append(str(legacy_dir))
+        capsule_paths = [str(project_id.root / PROJECT_DIR)]
         pythonpath = env.get("PYTHONPATH")
         capsule_pythonpath = os.pathsep.join(capsule_paths)
         if pythonpath:

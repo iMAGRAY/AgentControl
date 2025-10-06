@@ -12,7 +12,7 @@ def _copy_template(template: Path, destination: Path) -> None:
 
 
 def test_automation_hooks_extend_verify_commands(tmp_path: Path) -> None:
-    template_root = Path("src/agentcontrol/templates/0.3.0/default/.agentcontrol")
+    template_root = Path("src/agentcontrol/templates/0.5.0/default/.agentcontrol")
     project_root = tmp_path / ".agentcontrol"
     _copy_template(template_root, project_root)
 

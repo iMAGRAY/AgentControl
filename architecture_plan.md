@@ -93,6 +93,8 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 **Sprint Outcome (2025-10-05):** All six deliverables implemented. New CLI surfaces `agentcall docs diagnose|info --json` and `agentcall mission --json`; status pipeline now emits `docsBridge` data; managed region engine upgraded with atomic writes, removal, and corruption detection; twin persisted under `.agentcontrol/state/twin.json`.
 
+**Update (2025-10-06):** Templates bumped to v0.5.0 so every pipeline executes from the hidden `.agentcontrol/` capsule, CLI exposes `setup`, `dev`, `progress`, and `roadmap` pipelines, `telemetry report --recent` enables bounded aggregation, and the root `Makefile` mirrors the unified pipelines for operator simplicity.
+
 ### Phase 1 – Bridge Evolution
 - Insertion anchors (`insert_after heading`, `insert_before marker`).
 - External adapters: MkDocs nav (yaml merge), Docusaurus sidebar (json), Confluence REST (mode `external`).
@@ -141,6 +143,14 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 **Phase update (2025-10-05):** mission exec CLI фиксирует шорткаты и логирует playbook/action, verify hooks подгружаются автоматически через `.agentcontrol/config/automation.sh`, nightly perf сравнивается скриптом `scripts/perf/compare_history.py` (история+diff), mission UI получила command palette (hotkeys + JSON API `mission_palette.json`), а timeline hints теперь включают `hintId`/`docPath` и ведут в tutorials (`docs/tutorials/auto…`, `perf_nightly`, `mcp_integration`). Референс workflow (`examples/github/perf-nightly.yaml`) закрепляет nightly perf guard.
 
+### Phase 6 – Bootstrap & Profiles
+- Bootstrap wizard: capture stack, CI/CD, MCP, repo scale, automation focus, constraints.
+- Default profiles: python/monorepo/meta curated requirements & automation hints.
+- Onboarding docs: flagship getting-started guide linked from README/AGENTS.
+- Doctor enhancements: bootstrap-focused health checks with JSON output.
+
+**Phase update (2025-10-05):** `agentcall bootstrap` now persists `.agentcontrol/state/profile.json` and `reports/bootstrap_summary.json`, loading curated YAML profiles and emitting operator recommendations. `docs/getting_started.md` documents the checklist, with README/AGENTS linking directly. `agentcall doctor --bootstrap` validates Python runtime, packaged profile drift, and MCP connectivity, returning structured telemetry events.
+
 ---
 ## 6. Risk Register
 | Risk | Impact | Mitigation |
@@ -182,7 +192,7 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 ---
 ## 11. Immediate Next Steps (0.4.x → 0.5 Roadmap)
-- Bootstrap & profiles: `agentcall bootstrap` wizard, стандартные профили, улучшенный doctor/onboarding.
+- Bootstrap adoption telemetry: surface profile status in mission dashboard & doctor JSON feeds.
 - Extension ecosystem: CLI/API для кастомных playbooks/hooks/MCP, registry и tutorial.
 - Mission dashboard UX: TUI + web UI поверх twin/analytics, snapshot экспорт.
 - Automation watcher & notifications: фоновые auto playbooks, Slack/email/webhook алерты, SLA.

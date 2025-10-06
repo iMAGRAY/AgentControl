@@ -1,0 +1,16 @@
+id: meta
+version: "1.0"
+name: Meta-Workspace Capsule
+description: Federation layer overseeing 50+ repositories with mission analytics and distributed agents.
+requirements:
+  python_min_version: "3.11"
+  recommended_cicd:
+    - github_actions
+    - circleci
+    - airflow
+  mcp_required: true
+  repo_scale: meta
+  automation_focus: orchestration
+  notes: >-
+    Adds workspace descriptors, mission assignments, and shard-aware performance suites. Expect dedicated MCP
+    orchestrators and scheduled automation watchers.

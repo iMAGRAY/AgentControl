@@ -38,6 +38,10 @@
 - [x] Developer sandbox (`agentcall sandbox start`) for agent experimentation.
 - [x] Mission dashboard polish (filters, timeline, drill-down).
 
+## Phase 5
+- [ ] Automated upgrade step to rewrite legacy `./agentcontrol/` pipelines to the new `.agentcontrol/` capsule layout.
+- [ ] Verify/ship pipeline guard that ensures `Makefile` stays consistent with registered CLI pipelines.
+
 ## Phase 5 (Complete)
 - [x] `agentcall mission exec` auto-executes топовый плейбук и логирует результат в telemetry.
 - [x] Ship verify hook library (`.agentcontrol/config/automation.sh`) + программу for templates/Docs.
@@ -53,10 +57,10 @@
 - [x] Шаблоны 0.4.4 с актуальными скриптами и governance.
 
 ## Phase 6 — Bootstrap & Profiles
-- [ ] `agentcall bootstrap` wizard (опрос стека, CICD, MCP, repo scale) → `.agentcontrol/state/profile.json`, `reports/bootstrap_summary.json`.
-- [ ] Профили по умолчанию (`profiles/python.yaml`, `profiles/monorepo.yaml`, `profiles/meta.yaml`).
-- [ ] Onboarding checklist `docs/getting_started.md` + update README/AGENTS с ссылкой.
-- [ ] Doctor enhancements: `agentcall doctor --bootstrap` (проверка версий, MCP доступности, hints).
+- [x] `agentcall bootstrap` wizard (опрос стека, CICD, MCP, repo scale) → `.agentcontrol/state/profile.json`, `reports/bootstrap_summary.json`.
+- [x] Профили по умолчанию (`profiles/python.yaml`, `profiles/monorepo.yaml`, `profiles/meta.yaml`).
+- [x] Onboarding checklist `docs/getting_started.md` + update README/AGENTS с ссылкой.
+- [x] Doctor enhancements: `agentcall doctor --bootstrap` (проверка версий, MCP доступности, hints).
 
 ## Phase 7 — Extension Ecosystem
 - [ ] Extension SDK: `agentcall extension init|add|list|remove` с каталогом `extensions/`.

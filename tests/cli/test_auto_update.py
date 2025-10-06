@@ -203,6 +203,35 @@ def test_auto_update_uses_default_cache_directory(
     assert captured["path"].endswith("agentcontrol-0.4.1-py3-none-any.whl")
     assert captured["mode"] == "pip"
 
+def test_auto_update_prefers_cache_when_remote_stale(
+    runtime_settings: RuntimeSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_dir = runtime_settings.state_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    wheel_path = cache_dir / "agentcontrol-0.4.2-py3-none-any.whl"
+    wheel_path.write_bytes(b"")
+
+    monkeypatch.setenv("AGENTCONTROL_AUTO_UPDATE_CACHE", str(cache_dir))
+    monkeypatch.setattr(updater, "_fetch_remote_version", lambda: "0.3.2")
+
+    captured: dict[str, str] = {}
+
+    def fake_local_install(path: Path, mode: str) -> CompletedProcess[bytes]:
+        captured["path"] = str(path)
+        captured["mode"] = mode
+        return CompletedProcess(args=[str(path)], returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(updater, "_install_local_package", fake_local_install)
+
+    with pytest.raises(SystemExit) as exc_info:
+        updater.maybe_auto_update(runtime_settings, "0.3.2", command="status")
+
+    assert exc_info.value.code == 0
+    assert captured["path"].endswith("agentcontrol-0.4.2-py3-none-any.whl")
+    assert captured["mode"] == "pip"
+
+
 def test_auto_update_local_cache_failure(runtime_settings: RuntimeSettings, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     cache_dir = runtime_settings.state_dir / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)

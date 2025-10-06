@@ -11,35 +11,19 @@ from typing import Any
 
 PROJECT_DESCRIPTOR = "agentcontrol.project.json"
 PROJECT_DIR = ".agentcontrol"
-LEGACY_PROJECT_DIRS: tuple[str, ...] = ("agentcontrol",)
 COMMAND_DESCRIPTOR = "agentcall.yaml"
 
 
-def _capsule_dirs(root: Path) -> list[Path]:
-    """Return capsule directories prioritising the new hidden layout."""
-
-    seen: set[str] = set()
-    directories: list[Path] = []
-    for name in (PROJECT_DIR, *LEGACY_PROJECT_DIRS):
-        if name in seen:
-            continue
-        directories.append(root / name)
-        seen.add(name)
-    return directories
+def _capsule_dir(root: Path) -> Path:
+    return root / PROJECT_DIR
 
 
 def _descriptor_candidates(root: Path) -> list[Path]:
-    """Return possible descriptor locations for backward compatibility."""
-
-    candidates = [(capsule_dir / PROJECT_DESCRIPTOR) for capsule_dir in _capsule_dirs(root)]
-    candidates.append(root / PROJECT_DESCRIPTOR)
-    return candidates
+    return [_capsule_dir(root) / PROJECT_DESCRIPTOR]
 
 
 def command_descriptor_candidates(root: Path) -> list[Path]:
-    candidates = [(capsule_dir / COMMAND_DESCRIPTOR) for capsule_dir in _capsule_dirs(root)]
-    candidates.append(root / COMMAND_DESCRIPTOR)
-    return candidates
+    return [_capsule_dir(root) / COMMAND_DESCRIPTOR]
 
 
 class ProjectNotInitialisedError(RuntimeError):
@@ -60,20 +44,18 @@ class ProjectId:
     @classmethod
     def from_existing(cls, path: Path) -> "ProjectId":
         resolved = path.expanduser().resolve()
-        for descriptor in _descriptor_candidates(resolved):
-            if descriptor.exists():
-                return cls(root=resolved)
-        raise ProjectNotInitialisedError(
-            f"Path {resolved} is not an AgentControl project."
-        )
+        descriptor = _descriptor_candidates(resolved)[0]
+        if descriptor.exists():
+            return cls(root=resolved)
+        raise ProjectNotInitialisedError(f"Path {resolved} is not an AgentControl project.")
 
     def descriptor_path(self) -> Path:
         return self.root / PROJECT_DIR / PROJECT_DESCRIPTOR
 
     def command_descriptor_path(self) -> Path:
-        for candidate in command_descriptor_candidates(self.root):
-            if candidate.exists():
-                return candidate
+        candidate = command_descriptor_candidates(self.root)[0]
+        if candidate.exists():
+            return candidate
         # default preferred location inside capsule
         return self.root / PROJECT_DIR / COMMAND_DESCRIPTOR
 
@@ -121,11 +103,7 @@ class ProjectCapsule:
     def load(cls, project_id: ProjectId) -> "ProjectCapsule":
         descriptor_path = project_id.descriptor_path()
         if not descriptor_path.exists():
-            legacy_path = project_id.root / PROJECT_DESCRIPTOR
-            if legacy_path.exists():
-                descriptor_path = legacy_path
-            else:
-                raise FileNotFoundError(descriptor_path)
+            raise FileNotFoundError(descriptor_path)
         data = json.loads(descriptor_path.read_text("utf-8"))
         checksum = data.pop("checksum", "")
         expected = sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()

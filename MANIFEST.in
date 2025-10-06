@@ -1,2 +1,3 @@
 graft src/agentcontrol/templates
 recursive-include src/agentcontrol/resources *.json
+recursive-include src/agentcontrol/resources *.yaml

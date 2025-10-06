@@ -2,11 +2,11 @@
 
 ```yaml
 agents_doc: v1
-updated_at: 2025-10-05T12:00:00Z
+updated_at: 2025-10-06T12:00:00Z
 owners: ["vibe-coder", "agentcontrol-core"]
 harness: { approvals: "never", sandbox: { fs: "danger-full-access", net: "enabled" } }
 budgets: { p99_ms: 0, memory_mb: 0, bundle_kb: 0 }
-stacks: { runtime: "bash@5", build: "agentcall@0.3" }
+stacks: { runtime: "bash@5", build: "agentcall@0.5" }
 teach: true
 ```
 
@@ -24,13 +24,19 @@ teach: true
 - `agentcall migrate [--apply] [PATH]` — detect and upgrade legacy `agentcontrol/` capsules; emits telemetry counters.
 - `agentcall self-update --mode <print|pip|pipx>` — manual override for updating the CLI (auto-update runs by default on launch and exits once an upgrade is applied).
 - `agentcall init / upgrade [PATH]` — template provisioning or migration.
+- `agentcall bootstrap [--profile <id>] [--json] [PATH]` — capture onboarding profile answers and persist `.agentcontrol/state/profile.json` plus `reports/bootstrap_summary.json`.
+- `agentcall setup [PATH]` — install capsule dependencies (`SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`).
+- `agentcall dev [PATH]` — developer cockpit (quickref + watch hooks from `config/commands.sh`).
 - `agentcall verify` — canonical quality gate (fmt/tests/security/docs/SBOM).
 - `agentcall fix` / `agentcall review` / `agentcall ship` — remediation, diff review, release gate.
+- `agentcall progress [PATH]` / `agentcall roadmap [PATH]` — roadmap + progress dashboards (`reports/architecture-dashboard.json`).
+- `agentcall doctor [PATH]` — environment diagnostics (`--bootstrap` surfaces profile drift, MCP, python).
 - `agentcall agents <install|auth|status|logs|workflow>` — agent CLI lifecycle management.
 - `agentcall templates` — list installed templates.
-- `agentcall telemetry <report|tail|clear>` — local telemetry management.
+- `agentcall telemetry <report|tail|clear>` — local telemetry management (`report --recent <n>` windowing).
 - `agentcall plugins <list|install|remove|info>` — plugin control via entry points.
 - `agentcall cache <list|add|download>` — curate offline update wheels used by auto-update fallback.
+- Offline cache auto-promotes newer wheels ahead of PyPI releases; ship fresh builds to keep agents aligned with the latest git commit.
 - `scripts/install_agentcontrol.sh` — one-time template installation on the workstation.
 
 ## 2. Workflow Governance
@@ -39,6 +45,7 @@ teach: true
 - **Micro tasks:** managed exclusively via the Update Plan Tool; must be empty before `agentcall ship`.
 - **Task board:** synchronised across `data/tasks.board.json`, `state/task_state.json`, and `journal/task_events.jsonl`.
 - **Planning integrity (MANDATORY):** при любом изменении кода необходимо немедленно обновлять `architecture_plan.md` и `todo.md`: отмечать завершённые пункты, добавлять новые цели, поддерживать полноту и актуальность. Несоблюдение правила считается нарушением процесса.
+- **Unified make interface:** `Makefile` mirrors the core pipelines (`init`, `dev`, `verify`, `fix`, `review`, `ship`, `doctor`, `status`) and defaults to `make status`.
 - **Versioning discipline (MANDATORY):** каждое изменение сопровождаем актуализацией `pyproject.toml`/`agentcontrol/__init__.py` и немедленным git commit + push. Крупные изменения → мажорный шаг (3 → 4); заметные функциональные доработки → десятичный шаг (3.0 → 3.1); точечные исправления/документы → сотые и далее (3.120 → 3.121).
 
 ## 3. Quality Controls
@@ -70,6 +77,7 @@ teach: true
 - Architecture manifest: `architecture/manifest.yaml`.
 - Change control: `docs/changes.md`, `docs/adr/`, `docs/rfc/`.
 - Tutorials: `docs/tutorials/` (docs bridge adoption, mission control walkthrough, MCP integration, automation hooks).
+- Bootstrap checklist: `docs/getting_started.md`.
 - Performance guard: `docs/tutorials/perf_nightly.md` + `examples/github/perf-nightly.yaml` — nightly benchmark pipeline (`PERF_HISTORY_UPDATE=1`, diff history artefacts).
 - Troubleshooting: `docs/troubleshooting/docs_bridge.md`.
 - Planning artefacts: `architecture_plan.md`, `todo.md` — поддерживаются строго актуальными и полными (см. §2).

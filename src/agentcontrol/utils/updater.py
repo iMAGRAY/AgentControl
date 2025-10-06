@@ -165,6 +165,58 @@ def _select_cached_release(cache_dir: Path | None, current: Version | None) -> t
     return path, version
 
 
+def _install_from_cache(
+    settings: RuntimeSettings,
+    cached: tuple[Path, Version],
+    *,
+    state: UpdateState,
+    now: datetime,
+    current_version: str,
+    command: str | None,
+    pipeline: str | None,
+    attempt_status: str,
+    success_status: str,
+    failure_status: str,
+) -> None:
+    path, cached_version = cached
+    mode = _determine_update_mode()
+    payload = {
+        "mode": mode,
+        "cache_path": str(path),
+        "current": current_version,
+        "cached": str(cached_version),
+        "command": command,
+        "pipeline": pipeline,
+    }
+    record_event(
+        settings,
+        "auto-update",
+        payload | {"status": attempt_status},
+    )
+    result = _install_local_package(path, mode)
+    status = success_status if result.returncode == 0 else failure_status
+    record_event(
+        settings,
+        "auto-update",
+        payload | {"status": status, "exit_code": result.returncode},
+    )
+    if result.returncode == 0:
+        state.last_checked = now
+        state.latest_version = str(cached_version)
+        state.status = "local"
+        _store_state(settings, state)
+        sys.stderr.write("agentcall: auto-updated from local cache. Please re-run your command.\n")
+        raise SystemExit(0)
+
+    state.last_checked = now
+    state.latest_version = None
+    state.status = "error"
+    _store_state(settings, state)
+    sys.stderr.write(
+        "agentcall: local cache update failed. Run `agentcall self-update --mode pipx` or `pip install --upgrade agentcontrol`.\n"
+    )
+
+
 def _extract_version_from_filename(filename: str) -> Version | None:
     # Wheel: agentcontrol-<version>-py3-none-any.whl
     if filename.startswith("agentcontrol-"):
@@ -193,6 +245,9 @@ def maybe_auto_update(settings: RuntimeSettings, current_version: str, *, comman
     state = _load_state(settings)
     now = datetime.now(timezone.utc)
     remote_version: str | None = None
+    current_parsed = _parse_version(current_version)
+    cache_dir = _resolve_cache_dir(os.environ.get(CACHE_ENV))
+    cached_release = _select_cached_release(cache_dir, current_parsed)
 
     use_cache = False
     if state.last_checked and now - state.last_checked < CHECK_INTERVAL:
@@ -214,72 +269,34 @@ def maybe_auto_update(settings: RuntimeSettings, current_version: str, *, comman
     if remote_version is None:
         remote_version = _fetch_remote_version()
         if remote_version is None:
-            cache_dir = _resolve_cache_dir(os.environ.get(CACHE_ENV))
-            current_version_parsed = _parse_version(current_version)
-            cached = _select_cached_release(cache_dir, current_version_parsed)
-            if cached is None:
-                state.last_checked = now
-                state.latest_version = None
-                state.status = "error"
-                _store_state(settings, state)
-                record_event(settings, "auto-update", {"status": "fetch_failed", "command": command, "pipeline": pipeline})
+            if cached_release is not None:
+                _install_from_cache(
+                    settings,
+                    cached_release,
+                    state=state,
+                    now=now,
+                    current_version=current_version,
+                    command=command,
+                    pipeline=pipeline,
+                    attempt_status="fallback_attempt",
+                    success_status="fallback_succeeded",
+                    failure_status="fallback_failed",
+                )
                 return
-
-            path, cached_version = cached
-            mode = _determine_update_mode()
-            record_event(
-                settings,
-                "auto-update",
-                {
-                    "status": "fallback_attempt",
-                    "mode": mode,
-                    "cache_path": str(path),
-                    "current": current_version,
-                    "cached": str(cached_version),
-                    "command": command,
-                    "pipeline": pipeline,
-                },
-            )
-            result = _install_local_package(path, mode)
-            status = "fallback_succeeded" if result.returncode == 0 else "fallback_failed"
-            record_event(
-                settings,
-                "auto-update",
-                {
-                    "status": status,
-                    "mode": mode,
-                    "cache_path": str(path),
-                    "exit_code": result.returncode,
-                    "current": current_version,
-                    "cached": str(cached_version),
-                    "command": command,
-                    "pipeline": pipeline,
-                },
-            )
-            if result.returncode == 0:
-                state.last_checked = now
-                state.latest_version = str(cached_version)
-                state.status = "local"
-                _store_state(settings, state)
-                sys.stderr.write("agentcall: auto-updated from local cache. Please re-run your command.\n")
-                raise SystemExit(0)
 
             state.last_checked = now
             state.latest_version = None
             state.status = "error"
             _store_state(settings, state)
-            sys.stderr.write(
-                "agentcall: local cache update failed. Run `agentcall self-update --mode pipx` or `pip install --upgrade agentcontrol`.\n"
-            )
+            record_event(settings, "auto-update", {"status": "fetch_failed", "command": command, "pipeline": pipeline})
             return
         state.last_checked = now
         state.latest_version = remote_version
         state.status = "ok"
         _store_state(settings, state)
 
-    current = _parse_version(current_version)
     remote = _parse_version(remote_version)
-    if current is None or remote is None:
+    if current_parsed is None or remote is None:
         record_event(
             settings,
             "auto-update",
@@ -287,7 +304,40 @@ def maybe_auto_update(settings: RuntimeSettings, current_version: str, *, comman
         )
         return
 
-    if remote <= current:
+    if cached_release is not None:
+        _, cached_version = cached_release
+        if (current_parsed is None or cached_version > current_parsed) and (remote is None or cached_version > remote):
+            _install_from_cache(
+                settings,
+                cached_release,
+                state=state,
+                now=now,
+                current_version=current_version,
+                command=command,
+                pipeline=pipeline,
+                attempt_status="cache_attempt",
+                success_status="cache_succeeded",
+                failure_status="cache_failed",
+            )
+            return
+
+    if remote <= current_parsed:
+        if cached_release is not None:
+            _, cached_version = cached_release
+            if cached_version > current_parsed:
+                _install_from_cache(
+                    settings,
+                    cached_release,
+                    state=state,
+                    now=now,
+                    current_version=current_version,
+                    command=command,
+                    pipeline=pipeline,
+                    attempt_status="cache_attempt",
+                    success_status="cache_succeeded",
+                    failure_status="cache_failed",
+                )
+                return
         if not use_cache:
             record_event(
                 settings,
