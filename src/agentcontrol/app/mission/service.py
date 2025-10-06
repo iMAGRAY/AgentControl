@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import yaml
 
@@ -16,7 +17,6 @@ from agentcontrol.app.command_service import CommandService
 from agentcontrol.domain.mcp import MCPConfigRepository
 from agentcontrol.domain.project import ProjectId
 from agentcontrol.settings import SETTINGS
-from agentcontrol.app.runtime.service import RuntimeService
 from agentcontrol.app.runtime.service import RuntimeService
 
 MISSION_FILTERS = ("docs", "quality", "tasks", "timeline", "mcp")
@@ -90,6 +90,7 @@ class MissionService:
         self._docs_command_service = DocsCommandService()
         self._command_service = CommandService(SETTINGS)
         self._runtime_service = RuntimeService()
+        self._action_log_lock = threading.Lock()
 
     def build_twin(self, project_root: Path) -> Dict[str, Any]:
         project_root = project_root.resolve()
@@ -689,7 +690,7 @@ class MissionService:
         if category == "tasks":
             task_ref = payload.get("task") or payload.get("id") or payload.get("summary")
             label = f" `{task_ref}`" if task_ref else ""
-            text = f"Task event{label}; sync architecture_plan.md & todo.md, then run `agentcall mission detail tasks --json`"
+            text = f"Task event{label}; sync architecture_plan.md & AGENTS.md (todo), then run `agentcall mission detail tasks --json`"
             return TimelineHint(text=text, hint_id="tasks.sync", doc_path=TIMELINE_DOC_REFERENCES["tasks"])
 
         if category == "timeline":
@@ -704,19 +705,48 @@ class MissionService:
     def _mission_activity(self, project_root: Path) -> Dict[str, Any]:
         log_path = project_root / "reports" / "automation" / "mission-actions.json"
         if not log_path.exists():
-            return {"count": 0, "recent": []}
+            return {"count": 0, "recent": [], "sources": {}, "actors": {}, "tags": {}}
         try:
             entries = json.loads(log_path.read_text(encoding="utf-8"))
             if not isinstance(entries, list):
-                return {"count": 0, "recent": []}
+                return {"count": 0, "recent": [], "sources": {}, "actors": {}, "tags": {}}
         except json.JSONDecodeError:
-            return {"count": 0, "recent": []}
+            return {"count": 0, "recent": [], "sources": {}, "actors": {}, "tags": {}}
+
+        sources: Dict[str, int] = {}
+        actors: Dict[str, int] = {}
+        tags: Dict[str, int] = {}
+        last_operation_id: Optional[str] = None
+        last_timestamp: Optional[str] = None
+        for entry in entries:
+            source = entry.get("source") or entry.get("origin")
+            if isinstance(source, str) and source:
+                sources[source] = sources.get(source, 0) + 1
+            actor = entry.get("actorId")
+            if isinstance(actor, str) and actor:
+                actors[actor] = actors.get(actor, 0) + 1
+            entry_tags = entry.get("tags")
+            if isinstance(entry_tags, list):
+                for tag in entry_tags:
+                    if isinstance(tag, str) and tag:
+                        tags[tag] = tags.get(tag, 0) + 1
+            op_id = entry.get("operationId")
+            if isinstance(op_id, str) and op_id:
+                last_operation_id = op_id
+            ts = entry.get("timestamp")
+            if isinstance(ts, str):
+                last_timestamp = ts
 
         recent = entries[-5:]
         return {
             "count": len(entries),
             "recent": recent[::-1],
             "logPath": str(log_path),
+            "sources": sources,
+            "actors": actors,
+            "tags": tags,
+            "lastOperationId": last_operation_id,
+            "lastTimestamp": last_timestamp,
         }
 
     def _acknowledgements(self, project_root: Path) -> Dict[str, Any]:
@@ -730,6 +760,140 @@ class MissionService:
         except json.JSONDecodeError:
             pass
         return {}
+
+    def record_action(
+        self,
+        project_root: Path,
+        *,
+        action_id: str,
+        label: str,
+        action: Dict[str, Any] | None,
+        result: MissionExecResult,
+        source: str | None = None,
+        operation_id: str | None = None,
+        actor_id: str | None = None,
+        origin: str | None = None,
+        tags: Iterable[str] | None = None,
+        append_timeline: bool = False,
+        timeline_event: str | None = None,
+        timeline_payload: Dict[str, Any] | None = None,
+    ) -> Path:
+        """Append mission action metadata to the automation log.
+
+        The log powers telemetry, mission activity, and watcher reconciliation. Callers
+        pass their own identifiers to keep responses idempotent across transports.
+        """
+
+        project_root = project_root.resolve()
+        report_dir = project_root / "reports" / "automation"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        log_path = report_dir / "mission-actions.json"
+
+        with self._action_log_lock:
+            entries: List[Dict[str, Any]]
+            try:
+                payload = json.loads(log_path.read_text(encoding="utf-8"))
+                entries = payload if isinstance(payload, list) else []
+            except (json.JSONDecodeError, FileNotFoundError):
+                entries = []
+
+            log_entry: Dict[str, Any] = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "id": action_id,
+                "label": label,
+                "status": result.status,
+            }
+            if action is not None:
+                log_entry["action"] = dict(action)
+            if result.action:
+                log_entry["resultAction"] = dict(result.action)
+            if result.playbook:
+                log_entry["playbook"] = dict(result.playbook)
+            if result.message:
+                log_entry["message"] = result.message
+            if source:
+                log_entry["source"] = source
+            if origin and origin != source:
+                log_entry["origin"] = origin
+            if actor_id:
+                log_entry["actorId"] = actor_id
+            if tags:
+                unique_tags = sorted({tag for tag in tags if tag})
+                if unique_tags:
+                    log_entry["tags"] = unique_tags
+            if operation_id:
+                log_entry["operationId"] = operation_id
+
+            entries.append(log_entry)
+            log_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        if append_timeline:
+            if timeline_event is None:
+                timeline_event = f"mission.action.{action_id}"
+            timeline_payload = dict(timeline_payload or {})
+            if tags:
+                timeline_payload.setdefault("tags", sorted({tag for tag in tags if tag}))
+            if actor_id:
+                timeline_payload.setdefault("actorId", actor_id)
+            if origin or source:
+                timeline_payload.setdefault("origin", origin or source)
+            outcome = timeline_payload.setdefault(
+                "outcome",
+                {
+                    "status": result.status,
+                    "message": result.message,
+                },
+            )
+            if result.status and outcome.get("status") is None:
+                outcome["status"] = result.status
+            if result.message and not outcome.get("message"):
+                outcome["message"] = result.message
+            if result.action:
+                outcome.setdefault("action", result.action)
+            if result.playbook:
+                outcome.setdefault("playbook", result.playbook)
+            category = timeline_payload.get("category")
+            if not category and tags:
+                category = next((tag for tag in tags if tag), None)
+            if not category:
+                category = "mission"
+            timeline_payload.setdefault("category", category)
+            timeline_payload.setdefault("status", result.status)
+            timeline_payload.setdefault("playbook", result.playbook)
+            timeline_payload.setdefault("label", label)
+            if operation_id:
+                timeline_payload.setdefault("operationId", operation_id)
+            timeline_payload.setdefault("actionId", action_id)
+            self.append_timeline_event(
+                project_root,
+                event=timeline_event,
+                payload=timeline_payload,
+            )
+        return log_path
+
+    def append_timeline_event(
+        self,
+        project_root: Path,
+        *,
+        event: str,
+        payload: Dict[str, Any],
+        timestamp: str | None = None,
+    ) -> Path:
+        project_root = project_root.resolve()
+        journal_dir = project_root / "journal"
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        events_path = journal_dir / "task_events.jsonl"
+        record = {
+            "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            "payload": payload,
+        }
+        category = payload.get("category")
+        if category:
+            record["category"] = category
+        with events_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return events_path
 
     def _update_acknowledgement(
         self,

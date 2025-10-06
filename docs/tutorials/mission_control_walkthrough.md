@@ -31,7 +31,7 @@ The response includes chronological events with `timestamp`, `category`, and `ev
 Every entry now surfaces a `hint` that spells out the next automation step. Examples:
 - Docs drift → `agentcall docs sync --json` + inspect `reports/automation/docs-diff.json`.
 - QA degradation → `agentcall auto tests --apply` + review `reports/verify.json`.
-- Task events → double-check `architecture_plan.md` / `todo.md`, then re-run `mission detail tasks --json`.
+- Task events → double-check `architecture_plan.md` / AGENTS.md (todo section), then re-run `mission detail tasks --json`.
 
 ## Step 4 — Stream for Live Operations
 During long-running tasks run:
@@ -40,7 +40,14 @@ agentcall mission ui --filter quality --filter tasks --interval 1.5
 ```
 The dashboard refreshes every 1.5 seconds, printing quality gate status and task progress only. A termination (Ctrl+C) emits a structured telemetry event so the orchestrator knows the session ended intentionally.
 
-> Новое: Mission UI теперь содержит command palette — нажмите `1…9`, `a`, `v`, `m`, `t`, `r` или `e`, чтобы мгновенно выполнить соответствующий playbook/automation. Статистика записывается в `reports/automation/mission-actions.json` и телеметрию `mission.ui.action`.
+> New: Mission UI ships with a command palette—press `1...9`, `a`, `v`, `m`, `t`, `r`, or `e` to run the mapped playbook or automation instantly. Usage is logged to `reports/automation/mission-actions.json`, emits `mission.ui.action` telemetry, and appends an event (`mission.ui.<actionId>`) to `journal/task_events.jsonl` so downstream watchers can react.
+
+### Step 4.1 — Interactive Dashboard
+When a richer overview is needed, launch the dedicated dashboard:
+```bash
+agentcall mission dashboard --filter docs --filter quality
+```
+Hotkeys mirror `mission ui`, and `--snapshot <path>` exports an HTML report for async review.
 
 ## Step 5 — React via Playbooks
 When the twin exposes `playbooks`, execute them in priority order. Example entry:
@@ -53,7 +60,13 @@ When the twin exposes `playbooks`, execute them in priority order. Example entry
 ```
 Invoke the command, then refresh the twin to confirm the playbook cleared.
 
-> С версии 0.3.2 доступна команда `agentcall mission exec`, которая автоматически выбирает плейбук с максимальным приоритетом и выполняет его (например, `docs sync`). Запустите её и проверьте обновлённый twin.
+> Since 0.3.2 the command `agentcall mission exec` automatically selects the highest-priority playbook (for example `docs sync`) and executes it. Run it and verify the refreshed twin.
+
+Need to isolate just the playbooks you triggered? Use the new analytics filters:
+```bash
+agentcall mission analytics --json --source mission.exec --tag docs_sync
+```
+This recomputes counts and recent actions on the fly, so the report contains only your remediation run.
 
 ## Step 6 — Persist Findings
 Agents should persist the twin path (`.agentcontrol/state/twin.json`) in case logs are needed later. The file is overwritten on each summary call, so archive it when capturing RCA artifacts.
@@ -61,4 +74,5 @@ Agents should persist the twin path (`.agentcontrol/state/twin.json`) in case lo
 > **Next:**
 > 1. Register MCP servers using the [MCP integration tutorial](./mcp_integration.md) — timeline hints will link to `agentcall mcp status --json` outputs stored in `reports/automation/mcp-status.json`.
 > 2. Schedule nightly perf comparisons via `python3 scripts/perf/compare_history.py --report reports/perf/docs_benchmark.json --history-dir reports/perf/history --update-history` or the [Perf Nightly workflow](./perf_nightly.md).
-> 3. Запустите `agentcall mission analytics --json`, чтобы получить агрегированную метрику: активности (`mission-actions.json`), perf-регрессии (`reports/perf/history/diff.json`) и состояние подтверждений (docs/quality/tasks/runtime).
+> 3. Run `agentcall mission analytics --json` to gather aggregated metrics: activity (`mission-actions.json`), performance regressions (`reports/perf/history/diff.json`), and acknowledgement state (docs/quality/tasks/runtime).
+> 4. Configure `.agentcontrol/config/watch.yaml` + `sla.yaml` and execute `agentcall mission watch --once` to confirm automation triggers and SLA checks.

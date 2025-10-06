@@ -5,7 +5,7 @@
 ## 1. Agent Personas & Journeys
 | Persona | Goals | Core Journey |
 | --- | --- | --- |
-| **AgentInitializer** | Bootstrap SDK in legacy repo, map existing docs, run first sync | Detect project doc setup → `agentcall init` → configure bridge → `architecture-sync` → report results |
+| **AgentInitializer** | Bootstrap SDK in legacy repo, map existing docs, run first sync | Detect project doc setup → `agentcall quickstart` (init + verify) → configure bridge → `architecture-sync` → report results |
 | **AgentMaintainer** | Keep docs/architecture aligned during work | Change manifest → `agentcall run architecture-sync` → inspect doc diff → commit |
 | **MigrationAgent** | Upgrade legacy `agentcontrol/docs` projects | `agentcall migrate --dry-run` → human approval → migration → rollback if desired |
 
@@ -16,13 +16,14 @@ Each journey must expose machine-friendly APIs (JSON) and actionable events.
 | Category | Metric | Target |
 | --- | --- | --- |
 | Template Integrity | Packaged templates checksum == repo snapshot, `agentcall verify` enforces | 100% runs |
-| Init UX | `agentcall init` (existing docs) finishes ≤ 20s, zero manual prompts | 100% scenarios |
+| Init UX | `agentcall quickstart` finishes ≤ 20s, zero manual prompts, emits structured report | 100% scenarios |
 | Agent Digest | `agentcall status --json` emits `agent_digest` payload ≤ 4 KB with latest AGENTS/todo summary | Every invocation |
 | Pipeline SLA | Each verify step emits structured log with duration ≤ configured timeout (default 90s) | 100% steps |
 | Docs Sync | Consecutive `architecture-sync` produces no diff | 0 unexpected diffs |
 | Error UX | All blocking errors emit structured code + remediation hint | 100% |
 | Compatibility | Legacy migration pass rate | 100% tested repos |
 | Quality | diff coverage ≥ 90%, pytest/verify green | Continuous |
+| Sandbox Discipline | `.test_place/` remains the only in-repo sandbox; packaged SDK never bundles development artefacts | Always |
 
 ## 0. Phase 4 Delivery Contract
 AC::FUNC-7::command_exists::agentcall sandbox start::—::scope=.agentcontrol
@@ -69,30 +70,39 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 4. **Explainable Failure** – error code + message + remediation.
 5. **Transactional Safety** – atomic writes, backups, rollback utilities.
 6. **Observability** – structured events/logs with correlation ids.
+7. **No Recursive Hosting** – the SDK repository never instantiates `.agentcontrol/`; all simulations live under `.test_place/` or external fixtures.
 
 ---
-## 4. Current Baseline (2025-10-06)
-- Packaged capsule templates (0.5.1) exist in-tree, но git состояние содержит удалённые артефакты `.agentcontrol/` → `agentcall init/upgrade` ломаются.
-- Verify конвейер жёсткий, но отсутствуют SLA per-step timeouts и structured log/JSON сводки.
-- Нет компактного контекстного дайджеста: агентам приходится читать целый `AGENTS.md`/`todo.machine.md`.
-- Updater/mission сервисы покрыты тестами частично; сценарии с offline-cache, timeline ingest и dev guard остаются незафиксированными.
-- Docs bridge схемы и managed регионы стабильны, но отсутствует автоматический контроль целостности шаблонов.
+## 4. Self-Hosting Sandbox Discipline
+- Development-only assets (`.test_place/**`, `state/**`, `reports/**` produced by `scripts/test-place.sh`) stay ignored and are pruned before packaging.
+- Packaged templates stamp `AGENTS.md` alongside `.agentcontrol/`; developer governance files from this repo never ship inside the capsule.
+- Integration tests must call `scripts/test-place.sh` or dedicated fixtures, never `agentcall …` directly inside the SDK repo.
+- Global installers (`scripts/update-global.sh`) remain user-local helpers and stay excluded from wheels/published artefacts.
+- Verify pipeline guards (`template-integrity`, `make-alignment`, upcoming `extension-integrity`) enforce the boundary automatically.
 
 ---
-## 5. Roadmap Phases
+## 5. Current Baseline (2025-10-06)
+- Packaged capsule templates (0.5.1) are present in-tree, but git still lists removed `.agentcontrol/` artefacts, breaking `agentcall init/upgrade`.
+- The verify pipeline is strict, yet lacks per-step SLA timeouts and structured JSON step summaries.
+- No compact contextual digest exists: agents must read the entire `AGENTS.md`/`todo.machine.md`.
+- Updater/mission services have partial coverage; offline-cache, timeline ingest, and dev guard scenarios are untested.
+- Docs bridge schemas and managed regions are stable, but there is no automated template integrity enforcement.
+
+---
+## 6. Roadmap Phases
 ### Phase 0 – Foundation Hardening (current sprint)
 **Objectives**
-- Восстановить эталонные шаблоны и `.agentcontrol/` капсулу, исключить дрейф и поломку auto-bootstrap.
-- Снизить когнитивную нагрузку агентов через автоматический digest и SLA по времени выполнения пайплайна.
-- Поднять покрытие критичных сервисов (updater, mission) для защиты от регрессий.
+- Restore the canonical templates and `.agentcontrol/` capsule to eliminate drift and auto-bootstrap failures.
+- Reduce agent cognitive load through an automatic digest and per-step pipeline SLAs.
+- Increase coverage of critical services (updater, mission) to guard against regressions.
 
 **Deliverables & Acceptance**
-1. **Template Integrity Wall** – `agentcall verify` выполняет шаг `template-integrity` (checksum diff → fail). Каталоги `.agentcontrol/` и `src/agentcontrol/templates/0.5.1` свернуты к эталону; git status чистый.
-2. **Agent Digest + SLA** – CLI формирует `.agentcontrol/state/agent_digest.json` (≤4 KB, содержит health/tasks summary). Каждый шаг `scripts/verify.sh` протоколирует JSON (`step`, `status`, `durationMs`, `timeoutMs`) и поддерживает конфигурируемый таймаут.
-3. **Coverage Expansion** – pytest модули для updater (force failure, cache fallback, dev guard) и mission twin (timeline ingest, palette persist) обеспечивают ≥90 % diff coverage по изменённым файлам.
-4. **Docs Refresh** – README, `docs/getting_started.md`, AGENTS.md, todo.machine.md отражают digest, template wall и SLA.
+1. **Template Integrity Wall** – `agentcall verify` runs the `template-integrity` step (checksum drift fails the build). `.agentcontrol/` and `src/agentcontrol/templates/0.5.1` match the canonical tree; git status is clean.
+2. **Agent Digest + SLA** – CLI writes `.agentcontrol/state/agent_digest.json` (≤4 KB with health/task summary). Every `scripts/verify.sh` step logs JSON (`step`, `status`, `durationMs`, `timeoutMs`) with configurable timeouts.
+3. **Coverage Expansion** – pytest modules for updater (forced failure, cache fallback, dev guard) and mission twin (timeline ingest, palette persistence) deliver ≥90% diff coverage on touched files.
+4. **Docs Refresh** – README, `docs/getting_started.md`, AGENTS.md, and todo.machine.md describe the digest, template guard, and SLA expectations.
 
-**Phase update (2025-10-06):** Integrity guard и агентский digest внедрены: verify теперь включает `template-integrity`, генерирует `reports/verify_steps.jsonl` и `.agentcontrol/state/agent_digest.json`, а per-step SLA контролируется `VERIFY_STEP_TIMEOUT`. Unit-тесты для updater/mission добавлены. Остаётся синхронизировать исторические `.agentcontrol` артефакты и закрыть legacy warnings.
+**Phase update (2025-10-06):** Integrity guard и agent digest активны; verify включает `template-integrity`, пишет `reports/verify_steps.jsonl`, управляется `VERIFY_STEP_TIMEOUT`. Добавлены unit-тесты updater/mission. Legacy `agentcontrol/` → `.agentcontrol/` авто-монтаж через `agentcall upgrade` (dry-run/JSON + бэкап), verify пополнился `make-alignment` guard, `agentcall extension` закрывает экосистему расширений (CLI/catalog/примеры), а mission dashboard получил curses TUI/HTML snapshot. Осталось синхронизировать исторические артефакты и закрыть legacy warnings.
 
 ### Phase 1 – Bridge Evolution
 - Insertion anchors (`insert_after heading`, `insert_before marker`).
@@ -131,16 +141,16 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 - Developer sandbox: `agentcall sandbox start` spins up disposable workspace with sample data.
 - Mission dashboard polish (filters, drill-down, timeline view).
 
-**Phase update (2025-10-05):** Hypothesis-powered property/fuzz tests cover managed regions and CLI JSON, sandbox CLI ships with templated capsule + unit tests, mission dashboard добавляет `--filter`/`detail`, ранжирует плейбуки по приоритету с подсказками, а docs включают tutorials (включая automation hooks), troubleshooting и sample MCP/sandbox репозитории. Performance benchmark (`scripts/perf/docs_benchmark.py`) фиксирует `docs diagnose` p95=646 мс на 1 200 секций, verify теперь гоняет связку `perf-docs`/`check_docs_perf` и держит порог ≤60 с на 1000 секций; кэширование конфигов и регионов снижает повторный I/O практически до нуля.
+**Phase update (2025-10-05):** Hypothesis-powered property/fuzz tests cover managed regions and CLI JSON. The sandbox CLI ships with templated capsules plus unit tests. Mission dashboard adds `--filter`/`detail`, ranks playbooks by priority with hints, and documentation now bundles tutorials (automation hooks), troubleshooting, and sample MCP/sandbox repos. Performance benchmark (`scripts/perf/docs_benchmark.py`) records `docs diagnose` p95 = 646 ms for 1,200 sections; verify now runs the `perf-docs`/`check_docs_perf` pair and keeps the ≤60 s target for 1,000 sections. Config/region caching trims repeat I/O nearly to zero.
 
 ### Phase 5 – Autonomous Ops Assist
-- Mission autopilot: `agentcall mission exec` запускает рекомендованный плейбук, логирует исход.
-- Actionable telemetry: timeline события тегируются хинтами + remediate scripts.
-- Verify hook library: пакет `automation/hooks.sh` с типовыми `SDK_VERIFY_COMMANDS` (docs sync, perf, QA).
-- Continuous perf guard: `perf-docs` выносится в nightly + сравнение с историей.
-- Agent UX polish: command palette / cheatsheet для основных автоматизаций.
+- Mission autopilot: `agentcall mission exec` runs the recommended playbook and logs the outcome.
+- Actionable telemetry: timeline events carry hints plus remediation scripts.
+- Verify hook library: `automation/hooks.sh` packages standard `SDK_VERIFY_COMMANDS` (docs sync, perf, QA).
+- Continuous perf guard: `perf-docs` promoted to nightly runs alongside history comparisons.
+- Agent UX polish: command palette and cheat sheet for core automations.
 
-**Phase update (2025-10-05):** mission exec CLI фиксирует шорткаты и логирует playbook/action, verify hooks подгружаются автоматически через `.agentcontrol/config/automation.sh`, nightly perf сравнивается скриптом `scripts/perf/compare_history.py` (история+diff), mission UI получила command palette (hotkeys + JSON API `mission_palette.json`), а timeline hints теперь включают `hintId`/`docPath` и ведут в tutorials (`docs/tutorials/auto…`, `perf_nightly`, `mcp_integration`). Референс workflow (`examples/github/perf-nightly.yaml`) закрепляет nightly perf guard.
+**Phase update (2025-10-05):** mission exec CLI records shortcuts and playbook/actions, verify hooks autoload via `.agentcontrol/config/automation.sh`, nightly perf comparisons run through `scripts/perf/compare_history.py` (history plus diff), mission UI received the command palette (hotkeys and JSON API `mission_palette.json`), and timeline hints now ship `hintId`/`docPath` pointing to tutorials (`docs/tutorials/automation_hooks.md`, `perf_nightly.md`, `mcp_integration.md`). The reference workflow (`examples/github/perf-nightly.yaml`) locks in the nightly perf guard.
 
 ### Phase 6 – Bootstrap & Profiles
 - Bootstrap wizard: capture stack, CI/CD, MCP, repo scale, automation focus, constraints.
@@ -151,7 +161,7 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 **Phase update (2025-10-05):** `agentcall bootstrap` now persists `.agentcontrol/state/profile.json` and `reports/bootstrap_summary.json`, loading curated YAML profiles and emitting operator recommendations. `docs/getting_started.md` documents the checklist, with README/AGENTS linking directly. `agentcall doctor --bootstrap` validates Python runtime, packaged profile drift, and MCP connectivity, returning structured telemetry events.
 
 ---
-## 6. Risk Register
+## 7. Risk Register
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Conflicting manual edits | Broken managed region | Detect at sync → emit `DOC_BRIDGE_CONFLICT` with diff, require approve/diff |
@@ -161,7 +171,7 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 | Migration rollback | Lost docs | Automatic backups + `rollback` command |
 
 ---
-## 7. Quality & Testing Strategy
+## 8. Quality & Testing Strategy
 - **Unit**: doc parser, config validation, CLI JSON schema tests.
 - **Integration**: agent journeys (init, sync, migrate) scripted via CLI JSON outputs.
 - **Property**: fuzz managed region editing (random whitespace, multiple markers).
@@ -169,13 +179,13 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 - **Manual QA**: weekly run across sample stacks (python/node/monorepo).
 
 ---
-## 8. Observability & Telemetry
+## 9. Observability & Telemetry
 - Structured logs `doc_bridge` with fields: `section`, `mode`, `target`, `duration`, `status`.
 - Event stream schema (JSON): `{type, section, stage, severity, remediationHint}`.
 - Telemetry counters for init/sync success/failure, migration stats.
 
 ---
-## 9. Migration Blueprint
+## 10. Migration Blueprint
 1. Detect legacy artifacts (`agentcontrol/docs`, missing bridge config).
 2. Generate migration plan: mapping, new config, diffs.
 3. Present via `agentcall migrate --dry-run --json`.
@@ -183,21 +193,20 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 5. Provide rollback instructions with timestamp.
 
 ---
-## 10. Communication Plan
+## 11. Communication Plan
 - Update `AGENTS.md` (self-hosting caveat, docs bridge usage).
 - Release notes per phase (Changelog entries).
 - Publish tutorials + sample repos.
 - Telemetry dashboards for adoption metrics.
 
 ---
-## 11. Immediate Next Steps (0.4.x → 0.5 Roadmap)
-- Bootstrap adoption telemetry: surface profile status in mission dashboard & doctor JSON feeds.
-- Extension ecosystem: CLI/API для кастомных playbooks/hooks/MCP, registry и tutorial.
-- Mission dashboard UX: TUI + web UI поверх twin/analytics, snapshot экспорт.
-- Automation watcher & notifications: фоновые auto playbooks, Slack/email/webhook алерты, SLA.
-- Task integration: синхронизировать perf follow-up с `data/tasks.board.json` + внешние PM (Jira/GitHub).
-- Knowledge & docs DX: портал, lint coverage, auto changelog.
-- Meta-repo readiness: workspace descriptor, distributed agents, шардированные perf.
-- Distribution UX: bootstrap installer, cache doctor, telemetry opt-in.
+## 12. Immediate Next Steps (0.5.1 → 0.6 Roadmap)
+1. **Phase 7 – Extension Ecosystem Hardening**: deliver command parity, packaging policy, and deterministic help UX (todo `P7.1–P7.3`). Extend verify with `extension-integrity` once manifests land.
+2. **Phase 8 – Mission Dashboard Web Mode**: ✅ delivered (stateless `--serve`, SSE feed, `/playbooks/<id>` POST, docs in `docs/mission/dashboard_web.md`).
+3. **Phase 9 – Automation Watcher Telemetry**: ✅ watcher actions now emit `actorId`, `origin`, remediation outcome, and taxonomy tags into `watch.json` + `journal/task_events.jsonl` (see `tests/mission/test_watch.py`).
+4. **Phase 10 – Task Ecosystem Integration**: build provider-agnostic sync core, then Jira/GitHub connectors with encryption and mission backfeed.
+5. **Phase 11 – Knowledge & Documentation DX**: generate docs portal, knowledge lint, automated release notes, and sample gallery under package size guard.
+6. **Phase 12 – Meta-Repo & Scale Readiness**: introduce workspace descriptors, distributed agent scheduler, sharded perf harness, and stress testing.
+7. **Phase 13 – Install & Distribution UX**: ship bootstrap installer, cache doctor, standalone bundle research, and telemetry opt-in wizard ensuring zero-sudo installs.
 
-> **Self-hosting constraint:** development tracked via `architecture_plan.md` + `todo.md`; no recursive usage of agentcall automation on the SDK itself.
+> **Self-hosting constraint:** development tracked via `architecture_plan.md` + AGENTS.md (todo section); no recursive usage of agentcall automation on the SDK itself; all system-level tests run in isolated sandboxes (e.g. `.test_place/`).

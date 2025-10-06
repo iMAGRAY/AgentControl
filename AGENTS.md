@@ -56,5 +56,9 @@ SELF_TUNING:
     ttl: 2025-11-30
   - rule: Use `scripts/test-place.sh` for integration checks; it creates/cleans `.test_place/` and bootstraps a sandbox project.
     ttl: 2025-12-31
+  - rule: The authoritative todo list lives inside AGENTS.md; do not maintain standalone `todo.md`.
+    ttl: 2026-01-01
+  - rule: Before starting and after finishing work, reconcile AGENTS.md (todo section) and `architecture_plan.md` with the latest progress/decisions.
+    ttl: 2026-01-01
   - rule: Never create `.agentcontrol/` or run `agentcall` inside this SDK repository; all simulations must go through `.test_place/`.
     ttl: 2026-01-01
