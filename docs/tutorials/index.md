@@ -10,3 +10,4 @@
 - [Sample gallery](sample_gallery.md)
 - [Release notes automation](release_notes.md)
 - [Task sync automation](tasks_sync.md)
+- [Workspace summary](workspace_summary.md)

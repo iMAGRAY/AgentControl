@@ -73,6 +73,8 @@ src/agentcontrol/app/runtime/service.py
 src/agentcontrol/app/sandbox/service.py
 src/agentcontrol/app/tasks/__init__.py
 src/agentcontrol/app/tasks/service.py
+src/agentcontrol/app/workspace/__init__.py
+src/agentcontrol/app/workspace/service.py
 src/agentcontrol/cli/main.py
 src/agentcontrol/domain/project.py
 src/agentcontrol/domain/template.py

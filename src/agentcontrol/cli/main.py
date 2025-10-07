@@ -61,6 +61,7 @@ from agentcontrol.app.sandbox.service import SandboxService
 from agentcontrol.app.extension.service import ExtensionService
 from agentcontrol.app.release_notes import ReleaseNotesError, ReleaseNotesGenerator
 from agentcontrol.app.gallery.service import GalleryError, GalleryService
+from agentcontrol.app.workspace.service import WorkspaceError, WorkspaceService
 from agentcontrol.app.tasks import TaskSyncError, TaskSyncResult, TaskSyncService
 from agentcontrol.domain.project import (
     PROJECT_DESCRIPTOR,
@@ -1064,6 +1065,64 @@ def _release_notes_cmd(args: argparse.Namespace) -> int:
         if payload["json"]:
             print(f"JSON summary saved to {payload['json']}")
         print(f"Commits analysed: {payload['summary']['commit_count']}")
+    return 0
+
+
+def _mission_summary_cmd(args: argparse.Namespace) -> int:
+    project_path = _default_project_path(getattr(args, "path", None))
+    as_json = bool(getattr(args, "json", False))
+    if getattr(args, "workspace", False):
+        service = WorkspaceService(project_path)
+        try:
+            summary = service.summarise()
+        except WorkspaceError as exc:
+            print(f"workspace error: {exc}", file=sys.stderr)
+            return 1
+        output_path = getattr(args, "output", None)
+        if output_path:
+            target = Path(output_path).expanduser()
+            if not target.is_absolute():
+                target = (project_path / target).resolve()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        record_event(SETTINGS, "mission.summary", {"mode": "workspace", "projects": len(summary.get("projects", []))})
+        if as_json:
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        else:
+            projects = summary.get("projects", [])
+            print(f"Workspace projects: {len(projects)} (generated_at={summary['generated_at']})")
+            for project in projects:
+                progress = project.get("program", {}).get("progress_pct")
+                verify = project.get("verify", {}).get("status")
+                tags = ", ".join(project.get("tags", [])) or "-"
+                print(f"- {project['id']}: progress={progress} verify={verify} [{tags}] -> {project['path']}")
+        return 0
+
+    mission = MissionService()
+    twin = mission.build_twin(project_path)
+    summary = {
+        "generated_at": twin.get("generated_at"),
+        "program": twin.get("program", {}),
+        "quality": twin.get("quality", {}),
+        "tasks": twin.get("tasks", {}),
+        "docs": twin.get("docsBridge", {}),
+    }
+    if getattr(args, "output", None):
+        output_path = Path(args.output).expanduser()
+        if not output_path.is_absolute():
+            output_path = (project_path / output_path).resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    record_event(SETTINGS, "mission.summary", {"mode": "project"})
+    if as_json:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        program = summary.get("program", {})
+        progress = program.get("program", {}).get("progress_pct") if isinstance(program, dict) else None
+        verify_status = summary.get("quality", {}).get("verify", {}).get("status")
+        print(f"Mission summary generated_at={summary['generated_at']}")
+        print(f"Program progress: {progress}")
+        print(f"Verify status: {verify_status}")
     return 0
 
 
@@ -3944,12 +4003,12 @@ def build_parser() -> argparse.ArgumentParser:
     mission_cmd.set_defaults(func=_mission_cmd, mission_command="summary")
     mission_sub = mission_cmd.add_subparsers(dest="mission_command")
 
-    mission_summary = mission_sub.add_parser("summary", help="Generate mission twin summary")
+    mission_summary = mission_sub.add_parser("summary", help="Render mission summary")
     mission_summary.add_argument("path", nargs="?", help="Project path (default: current directory)")
-    mission_summary.add_argument("--json", action="store_true", help="Emit machine-readable JSON twin")
-    mission_summary.add_argument("--filter", dest="filters", action="append", choices=MISSION_FILTER_CHOICES, help="Filter sections to display")
-    mission_summary.add_argument("--timeline-limit", type=int, default=5, help="Number of timeline events to display")
-    mission_summary.set_defaults(func=_mission_cmd, mission_command="summary")
+    mission_summary.add_argument("--workspace", action="store_true", help="Aggregate workspace.yaml instead of single project")
+    mission_summary.add_argument("--output", help="Write summary JSON to the given path")
+    mission_summary.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    mission_summary.set_defaults(func=_mission_summary_cmd)
 
     mission_ui = mission_sub.add_parser("ui", help="Stream mission dashboard updates")
     mission_ui.add_argument("path", nargs="?", help="Project path (default: current directory)")

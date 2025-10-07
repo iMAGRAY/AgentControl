@@ -132,7 +132,7 @@ TASKS:
       - [Quickstart docs link to gallery entries]
   - id: P12-001
     title: Workspace descriptor & aggregation
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`workspace.yaml` schema defined and validated]

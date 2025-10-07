@@ -84,6 +84,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall mission watch` | Headless automation daemon reacting to mission events. | Configured via `.agentcontrol/config/watch.yaml`. |
 | `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
 | `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider config. | `--config config/tasks.provider.json` или `--provider file --input <json>`, `--apply`, `--json` → `reports/tasks_sync.json`. |
+| `agentcall mission summary` | Summarise current project or workspace. | `--workspace --json --output reports/workspace_summary.json`. |
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report [--recent N]`, `tail --limit`, `clear`. |
 | `agentcall gallery …` | Discover/fetch sample projects. | Subcommands: `list`, `fetch <sample-id> [--dest PATH] [--directory]`. |

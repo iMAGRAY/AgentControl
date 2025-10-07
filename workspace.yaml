@@ -1,0 +1,7 @@
+version: 1
+projects:
+  - id: agentcontrol-sdk
+    name: AgentControl SDK
+    path: .
+    tags: ["sdk", "core"]
+    description: Primary repository for AgentControl SDK.
