@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,9 @@ class RuntimeSettings:
 
 
 def _default_home_dir() -> Path:
+    override = os.environ.get("AGENTCONTROL_HOME")
+    if override:
+        return Path(override).expanduser().resolve()
     return Path.home() / ".agentcontrol"
 
 

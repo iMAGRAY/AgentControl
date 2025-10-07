@@ -2,7 +2,7 @@
   "python": [
     {
       "name": "attrs",
-      "version": "25.3.0",
+      "version": "25.4.0",
       "summary": "Classes Without Boilerplate"
     },
     {

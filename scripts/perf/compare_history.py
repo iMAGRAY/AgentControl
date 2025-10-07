@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -276,8 +278,19 @@ def _write_perf_followup(project_root: Path, diff: Dict[str, Any]) -> None:
         task_path.write_text(json.dumps(task_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _state_directory_for(project_root: Path) -> Path:
+    override = os.environ.get("AGENTCONTROL_STATE_DIR")
+    if override:
+        base = Path(override).expanduser()
+        if any(part.startswith(".test_place") for part in base.parts):
+            digest = hashlib.sha256(str(project_root.resolve()).encode("utf-8", "surrogatepass")).hexdigest()
+            return base / digest
+        return base
+    return project_root / ".agentcontrol" / "state"
+
+
 def _sync_perf_followup_task(project_root: Path, followup: Dict[str, Any]) -> str | None:
-    state_dir = project_root / ".agentcontrol" / "state"
+    state_dir = _state_directory_for(project_root)
     state_dir.mkdir(parents=True, exist_ok=True)
     tasks_path = state_dir / "perf_tasks.json"
     tasks: list[dict[str, Any]] = []

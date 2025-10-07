@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Ensure mission timeline hint documentation references exist."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+SRC_DIR = PROJECT_ROOT / "src"
+if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
+from agentcontrol.app.mission.service import TIMELINE_DOC_REFERENCES
+
+
+def main() -> int:
+    repo_root = PROJECT_ROOT
+    missing: list[str] = []
+    for doc_path in sorted(set(TIMELINE_DOC_REFERENCES.values())):
+        if not (repo_root / doc_path).exists():
+            missing.append(doc_path)
+    if missing:
+        for path in missing:
+            print(f"missing timeline hint doc: {path}")
+        return 1
+    print("timeline hint docs verified")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

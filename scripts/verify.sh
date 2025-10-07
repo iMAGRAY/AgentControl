@@ -206,6 +206,7 @@ if [[ "${PERF_HISTORY_UPDATE:-0}" == "1" ]]; then
 fi
 run_step "perf-history" "warning" "$PERF_HISTORY_CMD"
 run_step "hint-docs" "warning" "\"$SDK_ROOT/scripts/check_hint_docs.py\""
+run_step "docs-knowledge" "critical" "PYTHONPATH=\"$SDK_ROOT/src:${PYTHONPATH:-}\" python3 -m agentcontrol.cli.main docs \"$SDK_ROOT\" lint --knowledge --json --max-age-hours 168"
 # custom verification commands (do not interrupt script)
 if [[ ${#SDK_VERIFY_COMMANDS[@]} -eq 0 ]]; then
   sdk::log "INF" "SDK_VERIFY_COMMANDS empty — skipping"

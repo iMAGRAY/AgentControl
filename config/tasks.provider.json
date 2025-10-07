@@ -1,0 +1,6 @@
+{
+  "type": "file",
+  "options": {
+    "path": "state/provider/tasks_snapshot.json"
+  }
+}

@@ -167,6 +167,9 @@ def test_mission_command_generates_twin(project: Path, runtime_settings: Runtime
     assert output["palette"]
     assert output["activity"]["count"] == 0
     assert output["activity"]["recent"] == []
+    assert output["activity"]["sources"] == {}
+    assert output["activity"]["actors"] == {}
+    assert output["activity"]["tags"] == {}
     first_playbook = output["playbooks"][0]
     assert "priority" in first_playbook and "hint" in first_playbook
     twin_path = project / ".agentcontrol" / "state" / "twin.json"
@@ -278,6 +281,12 @@ def test_log_palette_action(tmp_path: Path) -> None:
     payload = json.loads(log_path.read_text(encoding="utf-8"))
     assert len(payload) == 2
     assert payload[0]["status"] == "success"
+    assert payload[0]["source"] == "cli"
+    assert payload[0]["tags"] == ["docs_sync"]
+    timeline_path = project / "journal" / "task_events.jsonl"
+    assert timeline_path.exists()
+    events = [json.loads(line) for line in timeline_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(event.get("event", "").startswith("cli.docs") for event in events)
 
 
 def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -294,6 +303,10 @@ def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str
     analytics = json.loads(capsys.readouterr().out)
     assert 'activity' in analytics
     assert analytics['activity']['count'] >= 1
+    assert 'mission.exec' in analytics['activity']['sources']
+    assert analytics['activity']['sources']['mission.exec'] >= 1
+    assert 'tags' in analytics['activity']
+    assert 'lastOperationId' in analytics['activity']
     assert 'acknowledgements' in analytics
     assert 'docs' in analytics['acknowledgements']
     assert 'perf' in analytics
@@ -302,3 +315,43 @@ def test_mission_analytics_json(project: Path, capsys: pytest.CaptureFixture[str
     dashboard_payload = json.loads(dashboard.read_text(encoding='utf-8'))
     assert 'mission' in dashboard_payload
     assert 'tasks' in analytics
+    activity_report = project / 'reports' / 'mission-activity.json'
+    assert activity_report.exists()
+    activity_payload = json.loads(activity_report.read_text(encoding='utf-8'))
+    assert activity_payload['activity']['sources']['mission.exec'] >= 1
+
+
+def test_mission_analytics_filters(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _prepare_docs(project)
+    overview = project / 'docs' / 'architecture' / 'overview.md'
+    overview.write_text('# Architecture Overview\n\nManual drift\n', encoding='utf-8')
+    cli_main.main(['mission', 'exec', str(project), '--issue', 'docs_drift'])
+    capsys.readouterr()
+
+    entry = {
+        "id": "docs:auto",
+        "label": "Docs Auto",
+        "action": {"kind": "docs_sync"},
+    }
+    result = MissionExecResult(status="success", playbook=None, action={"type": "docs_sync"}, twin={}, message=None)
+    cli_main._log_palette_action(project, entry, result, source="cli.test")
+
+    exit_code = cli_main.main(['mission', 'analytics', str(project), '--json', '--source', 'mission.exec'])
+    assert exit_code == 0
+    analytics = json.loads(capsys.readouterr().out)
+    assert analytics['filters']['sources'] == ['mission.exec']
+    assert analytics['activity']['count'] >= 1
+    assert all((item.get('source') or item.get('origin')) == 'mission.exec' for item in analytics['activity']['recent'])
+
+    exit_code = cli_main.main(['mission', 'analytics', str(project), '--json', '--actor', 'docs:auto'])
+    assert exit_code == 0
+    analytics = json.loads(capsys.readouterr().out)
+    assert analytics['filters']['actors'] == ['docs:auto']
+    assert analytics['activity']['count'] >= 1
+    assert all(item.get('actorId') == 'docs:auto' for item in analytics['activity']['recent'])
+
+    exit_code = cli_main.main(['mission', 'analytics', str(project), '--json', '--tag', 'docs_sync'])
+    assert exit_code == 0
+    analytics = json.loads(capsys.readouterr().out)
+    assert analytics['filters']['tags'] == ['docs_sync']
+    assert analytics['activity']['count'] >= 1

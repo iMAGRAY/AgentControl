@@ -32,6 +32,10 @@ src/agentcontrol.egg-info/top_level.txt
 src/agentcontrol/adapters/fs_template_repo.py
 src/agentcontrol/adapters/bootstrap_profile/file_repository.py
 src/agentcontrol/adapters/tasks/file_provider.py
+src/agentcontrol/adapters/tasks/github_provider.py
+src/agentcontrol/adapters/tasks/jira_provider.py
+src/agentcontrol/adapters/tasks/providers.py
+src/agentcontrol/adapters/tasks/utils.py
 src/agentcontrol/app/bootstrap_service.py
 src/agentcontrol/app/command_service.py
 src/agentcontrol/app/architecture/__init__.py
@@ -39,14 +43,18 @@ src/agentcontrol/app/architecture/generator.py
 src/agentcontrol/app/architecture/progress.py
 src/agentcontrol/app/bootstrap_profile/service.py
 src/agentcontrol/app/docs/__init__.py
+src/agentcontrol/app/docs/knowledge.py
 src/agentcontrol/app/docs/operations.py
+src/agentcontrol/app/docs/portal.py
 src/agentcontrol/app/docs/service.py
+src/agentcontrol/app/docs/utils.py
 src/agentcontrol/app/docs/adapters/__init__.py
 src/agentcontrol/app/docs/adapters/confluence.py
 src/agentcontrol/app/docs/adapters/docusaurus.py
 src/agentcontrol/app/docs/adapters/mkdocs.py
 src/agentcontrol/app/extension/__init__.py
 src/agentcontrol/app/extension/integrity.py
+src/agentcontrol/app/extension/schema.py
 src/agentcontrol/app/extension/service.py
 src/agentcontrol/app/info/__init__.py
 src/agentcontrol/app/info/service.py
@@ -90,6 +98,7 @@ src/agentcontrol/ports/template_repo.py
 src/agentcontrol/ports/tasks/provider.py
 src/agentcontrol/resources/__init__.py
 src/agentcontrol/resources/docs_bridge.schema.json
+src/agentcontrol/resources/extension_manifest.schema.json
 src/agentcontrol/resources/telemetry.schema.json
 src/agentcontrol/resources/profiles/meta.yaml
 src/agentcontrol/resources/profiles/monorepo.yaml

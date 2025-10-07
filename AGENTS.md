@@ -61,7 +61,7 @@ TASKS:
       - [Schema validation + fixtures under `tests/extensions`]
   - id: P7-002
     title: Extension registry & documentation
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`reports/extensions.json` enumerates installed extensions with metadata]
@@ -83,11 +83,10 @@ TASKS:
       - [Recent actions surface in `mission-actions.json` and analytics]
   - id: P9-002
     title: Notification adapters & SLA policies
-    status: todo
+    status: removed
     priority: p1
     ac:
-      - [Slack/email/webhook adapters configurable via `.agentcontrol/config/alerts.yaml`]
-      - [SLA policies trigger escalations when follow-ups exceed thresholds]
+      - [Removed per AI-only scope; communication adapters intentionally omitted]
   - id: P10-001
     title: Task sync core
     status: done

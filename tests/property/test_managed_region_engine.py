@@ -56,5 +56,5 @@ def test_insertion_policies_anchor(content: str, heading: str) -> None:
         target.write_text(f"# {heading}\n\nBody\n", encoding="utf-8")
         policy = InsertionPolicy(kind="after_heading", value=f"# {heading}")
         ENGINE.apply(target, {"alpha": (content, policy)})
-        text = target.read_text(encoding="utf-8")
+        text = target.read_text(encoding="utf-8", errors="surrogatepass")
         assert "agentcontrol:start:alpha" in text

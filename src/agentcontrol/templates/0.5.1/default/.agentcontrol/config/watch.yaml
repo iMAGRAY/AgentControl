@@ -1,0 +1,11 @@
+events:
+  - id: perf_regression
+    event: "perf.regression"
+    playbook: "perf_regression"
+    debounce_minutes: 30
+    max_retries: 3
+  - id: docs_drift
+    event: "docs.drift"
+    playbook: "docs_sync"
+    debounce_minutes: 15
+    max_retries: 3

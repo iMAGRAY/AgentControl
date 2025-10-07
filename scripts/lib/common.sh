@@ -4,6 +4,36 @@
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly SDK_ROOT
 
+AGENTCONTROL_SANDBOX_HOME="$SDK_ROOT/.test_place/global-home"
+AGENTCONTROL_SANDBOX_STATE="$SDK_ROOT/.test_place/state"
+
+sdk::ensure_isolated_home() {
+  local configured_home="${AGENTCONTROL_HOME:-}"
+  if [[ -z "$configured_home" ]]; then
+    configured_home="$AGENTCONTROL_SANDBOX_HOME"
+    export AGENTCONTROL_HOME="$configured_home"
+  fi
+
+  case "$configured_home" in
+    "$SDK_ROOT"/.agentcontrol* )
+      sdk::die "AGENTCONTROL_HOME cannot point to the SDK repository. Use .test_place or another external path."
+      ;;
+  esac
+
+  if [[ -d "$SDK_ROOT/.agentcontrol" ]]; then
+    sdk::die "Detected .agentcontrol/ inside the SDK repository. Remove it and rerun the command."
+  fi
+
+  mkdir -p "$configured_home" >/dev/null 2>&1 || sdk::die "Unable to prepare AGENTCONTROL_HOME at $configured_home"
+
+  if [[ -z "${AGENTCONTROL_STATE_DIR:-}" && "$configured_home" == "$AGENTCONTROL_SANDBOX_HOME" ]]; then
+    export AGENTCONTROL_STATE_DIR="$AGENTCONTROL_SANDBOX_STATE"
+  fi
+  if [[ -n "${AGENTCONTROL_STATE_DIR:-}" ]]; then
+    mkdir -p "$AGENTCONTROL_STATE_DIR" >/dev/null 2>&1 || sdk::die "Unable to prepare AGENTCONTROL_STATE_DIR at $AGENTCONTROL_STATE_DIR"
+  fi
+}
+
 sdk::log() {
   local level="$1"; shift
   printf ' [%s] %s\n' "$level" "$*"
@@ -15,6 +45,7 @@ sdk::die() {
 }
 
 sdk::load_commands() {
+  sdk::ensure_isolated_home
   local file="$SDK_ROOT/config/commands.sh"
   if [[ -f "$file" ]]; then
     # shellcheck disable=SC1090

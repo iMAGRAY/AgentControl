@@ -1,5 +1,5 @@
-"""Task synchronization package."""
+"""Task synchronisation application layer."""
 
-from .service import TaskSyncService, build_provider  # noqa: F401
+from .service import TaskSyncError, TaskSyncResult, TaskSyncService
 
-__all__ = ["TaskSyncService", "build_provider"]
+__all__ = ["TaskSyncError", "TaskSyncResult", "TaskSyncService"]

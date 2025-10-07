@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 from agentcontrol import __version__
 from agentcontrol.cli import main as cli_main
@@ -76,6 +79,33 @@ def _write_config(project_path: Path, *, valid: bool = True) -> Path:
     else:
         config.write_text("version: 1\nroot: docs\nsections: {}\n", encoding="utf-8")
     return config
+
+
+def _write_manifest(project_path: Path) -> Path:
+    manifest = {
+        "version": "0.1.0",
+        "updated_at": "2025-10-01T00:00:00Z",
+        "program": {
+            "meta": {
+                "program": "v1",
+                "program_id": "test",
+                "name": "Docs Portal Test",
+                "objectives": [],
+            },
+            "progress": {"progress_pct": 100, "health": "green"},
+            "milestones": [],
+        },
+        "systems": [],
+        "tasks": [],
+        "big_tasks": [],
+        "epics": [],
+        "adr": [],
+        "rfc": [],
+    }
+    manifest_path = project_path / "architecture" / "manifest.yaml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+    return manifest_path
 
 
 def _load_events(settings: RuntimeSettings) -> list[dict[str, object]]:
@@ -208,3 +238,224 @@ def test_docs_sync_repair_path(project: Path, capsys: pytest.CaptureFixture[str]
     assert "architecture_overview" in payload.get("sections", [])
     updated = overview.read_text(encoding="utf-8")
     assert "agentcontrol:start:agentcontrol-architecture-overview" in updated
+
+
+def test_docs_portal_generates_site(
+    project: Path,
+    runtime_settings: RuntimeSettings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_manifest(project)
+    _write_config(project)
+    tutorials = project / "docs" / "tutorials"
+    tutorials.mkdir(parents=True, exist_ok=True)
+    (tutorials / "mission.md").write_text(
+        "# Mission Control Walkthrough\n\nЗапуск панели миссии и обзор возможностей.",
+        encoding="utf-8",
+    )
+    example_root = project / "examples" / "portal"
+    example_root.mkdir(parents=True, exist_ok=True)
+    (example_root / "README.md").write_text(
+        "# Sample Workflow\n\nЭтот пример демонстрирует nightly guard.",
+        encoding="utf-8",
+    )
+
+    exit_code = cli_main.main(["docs", str(project), "portal", "--json"])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    portal_dir = Path(payload["path"])
+    assert portal_dir.exists()
+    assert (portal_dir / "index.html").exists()
+    assert (portal_dir / "assets" / "app.js").exists()
+    index_content = (portal_dir / "index.html").read_text(encoding="utf-8")
+    assert "AgentControl Docs Portal" in index_content
+    assert payload["inventory"].get("tutorial", 0) >= 1
+    assert payload["inventory"].get("example", 0) >= 1
+    events = [evt for evt in _load_events(runtime_settings) if evt.get("event") == "docs.portal"]
+    assert events and events[-1].get("status") in {"success", "warning"}
+
+
+def test_docs_portal_respects_budget(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_manifest(project)
+    _write_config(project)
+    (project / "docs" / "tutorials").mkdir(parents=True, exist_ok=True)
+    (project / "docs" / "tutorials" / "short.md").write_text("# Short\n\nSummary.", encoding="utf-8")
+
+    exit_code = cli_main.main(["docs", str(project), "portal", "--json", "--budget", "256"])
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["error"]["code"] == "DOCS_PORTAL_SIZE_BUDGET_EXCEEDED"
+
+
+def test_docs_lint_knowledge_success(
+    project: Path,
+    runtime_settings: RuntimeSettings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    (tutorials_root / "index.md").write_text("- [Knowledge Base](getting_started.md)\n", encoding="utf-8")
+    mission_root = project / "docs" / "mission"
+    mission_root.mkdir(parents=True, exist_ok=True)
+    (mission_root / "watchers.md").write_text(
+        "# Mission Watch\n\nКомплексный обзор автоматизаций, правил и метрик Mission Watch.\n",
+        encoding="utf-8",
+    )
+    (tutorials_root / "getting_started.md").write_text(
+        "\n".join(
+            [
+                "# Getting Started",
+                "",
+                "Эта страница описывает полный процесс инициализации капсулы AgentControl, включая bootstrap, verify, аналитические отчёты и последующие операции.",
+                "",
+                "См. [Mission Watch](../mission/watchers.md) для подробностей об автоматизации и SLA.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    adr_root = project / "docs" / "adr"
+    adr_root.mkdir(parents=True, exist_ok=True)
+    (adr_root / "index.md").write_text("- [ADR-0001](ADR-0001.md)\n", encoding="utf-8")
+    (adr_root / "ADR-0001.md").write_text(
+        "# ADR-0001\n\nПодробное описание архитектурного решения и его последствий для сервисов и операторов.\n",
+        encoding="utf-8",
+    )
+    rfc_root = project / "docs" / "rfc"
+    rfc_root.mkdir(parents=True, exist_ok=True)
+    (rfc_root / "index.md").write_text("", encoding="utf-8")
+
+    exit_code = cli_main.main(["docs", str(project), "lint", "--knowledge", "--json"])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    report_path = Path(payload["report_path"])
+    assert report_path.exists()
+    events = [evt for evt in _load_events(runtime_settings) if evt.get("event") == "docs.lint.knowledge"]
+    if events:
+        assert events[-1].get("status") in {"success", "warning"}
+
+
+def test_docs_lint_knowledge_detects_issues(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    (tutorials_root / "README.md").write_text("# Tutorials\n\n- Overview\n", encoding="utf-8")
+    (tutorials_root / "overview.md").write_text(
+        "Содержание без заголовка и короткое описание.",
+        encoding="utf-8",
+    )
+
+    exit_code = cli_main.main(["docs", str(project), "lint", "--knowledge", "--json"])
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    codes = {issue["code"] for issue in payload["issues"]}
+    assert "KNOWLEDGE_MISSING_TITLE" in codes
+    assert "KNOWLEDGE_ORPHAN_TUTORIAL" in codes
+
+
+def test_docs_lint_knowledge_detects_adr_orphan(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    (tutorials_root / "index.md").write_text("- [Guide](guide.md)\n", encoding="utf-8")
+    (tutorials_root / "guide.md").write_text("# Guide\n\nПолное руководство по запуску.\n", encoding="utf-8")
+
+    adr_root = project / "docs" / "adr"
+    adr_root.mkdir(parents=True, exist_ok=True)
+    (adr_root / "index.md").write_text("- [ADR-0001](ADR-0001.md)\n", encoding="utf-8")
+    (adr_root / "ADR-0001.md").write_text("# ADR-0001\n\nОписание решения.\n", encoding="utf-8")
+    (adr_root / "ADR-0002.md").write_text("# ADR-0002\n\nВторое решение.\n", encoding="utf-8")
+
+    exit_code = cli_main.main(["docs", str(project), "lint", "--knowledge", "--json"])
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    codes = {issue["code"] for issue in payload["issues"]}
+    assert "KNOWLEDGE_ADR_ORPHAN" in codes
+
+
+def test_docs_lint_knowledge_warns_insecure_link(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    (tutorials_root / "index.md").write_text("- [Guide](guide.md)\n", encoding="utf-8")
+    (tutorials_root / "guide.md").write_text(
+        "# Guide\n\nСм. [HTTP link](http://example.com) и продолжайте работу.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = cli_main.main(["docs", str(project), "lint", "--knowledge", "--json"])
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    codes = {issue["code"] for issue in payload["issues"]}
+    assert "KNOWLEDGE_INSECURE_LINK" in codes
+
+
+def test_docs_lint_knowledge_external_validation(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    (tutorials_root / "index.md").write_text("- [Guide](guide.md)\n", encoding="utf-8")
+    (tutorials_root / "guide.md").write_text(
+        "# Guide\n\nСм. [Service](https://status.example.com/api).\n",
+        encoding="utf-8",
+    )
+
+    def fake_check(self, url: str, *, timeout: float) -> bool:
+        return False
+
+    monkeypatch.setattr("agentcontrol.app.docs.knowledge.KnowledgeLintService._check_external_link", fake_check)
+
+    exit_code = cli_main.main(
+        [
+            "docs",
+            str(project),
+            "lint",
+            "--knowledge",
+            "--json",
+            "--validate-external",
+            "--link-timeout",
+            "0.1",
+        ]
+    )
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    codes = {issue["code"] for issue in payload["issues"]}
+    assert "KNOWLEDGE_EXTERNAL_UNREACHABLE" in codes
+
+
+def test_docs_lint_knowledge_stale_detection(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _write_manifest(project)
+    _write_config(project)
+
+    tutorials_root = project / "docs" / "tutorials"
+    tutorials_root.mkdir(parents=True, exist_ok=True)
+    tutorial = tutorials_root / "history.md"
+    tutorial.write_text("# History\n\nХронология изменений.\n", encoding="utf-8")
+    stale_time = time.time() - 3600 * 48
+    os.utime(tutorial, (stale_time, stale_time))
+
+    exit_code = cli_main.main(
+        ["docs", str(project), "lint", "--knowledge", "--json", "--max-age-hours", "24"]
+    )
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert any(issue["code"] == "KNOWLEDGE_FILE_STALE" for issue in payload["issues"])

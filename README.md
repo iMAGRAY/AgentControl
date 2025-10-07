@@ -38,6 +38,8 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    agentcall agents auth                  # authenticate agent tooling
    agentcall extension init auto_docs     # scaffold an automation extension
    agentcall mission watch --once         # run automation watchers one cycle
+   agentcall docs portal --json           # publish static knowledge portal
+   agentcall docs lint --knowledge --json # generate docs coverage report
    agentcall help --json                  # inspect verify/watch status & tips
    ```
    All artefacts (capsule, reports, virtualenv) live under `project/.agentcontrol/`; the host repository stays untouched.
@@ -79,7 +81,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall mission dashboard` | Interactive mission dashboard (curses/static/snapshot/web). | Use `--snapshot` for HTML or `--serve` for SSE web mode. |
 | `agentcall mission watch` | Headless automation daemon reacting to mission events. | Configured via `.agentcontrol/config/watch.yaml`. |
 | `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
-| `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider input. | `--provider file --input path` (JSON snapshot), `--dry-run`, `reports/tasks/sync.json`. |
+| `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider config. | `--config config/tasks.provider.json` или `--provider file --input <json>`, `--apply`, `--json` → `reports/tasks_sync.json`. |
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report [--recent N]`, `tail --limit`, `clear`. |
 | `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |

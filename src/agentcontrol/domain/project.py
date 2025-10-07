@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from hashlib import sha256
-import json
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +102,10 @@ class ProjectCapsule:
     @classmethod
     def load(cls, project_id: ProjectId) -> "ProjectCapsule":
         descriptor_path = project_id.descriptor_path()
+        return cls.from_descriptor_file(project_id, descriptor_path)
+
+    @classmethod
+    def from_descriptor_file(cls, project_id: ProjectId, descriptor_path: Path) -> "ProjectCapsule":
         if not descriptor_path.exists():
             raise FileNotFoundError(descriptor_path)
         data = json.loads(descriptor_path.read_text("utf-8"))

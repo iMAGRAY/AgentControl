@@ -5,8 +5,8 @@ This guide accelerates the first 15 minutes on a new repository: capture the del
 
 ## 2. Prerequisites
 - Python interpreter meeting the profile minimum (Python ≥ 3.10 for the Python capsule).
-- `agentcall` CLI 0.5.1 или новее (установите один раз: `pipx install agentcontrol`).
-- В проекте уже выполнен `agentcall quickstart` (капсула лежит под `./.agentcontrol/`).
+- `agentcall` CLI 0.5.1 or newer (install once: `pipx install agentcontrol`).
+- The project has already run `agentcall quickstart` (the capsule lives under `./.agentcontrol/`).
 
 Verify the CLI version:
 ```bash
@@ -61,5 +61,6 @@ agentcall doctor --bootstrap --json > reports/bootstrap_doctor.json
 
 ## 7. Next Checkpoints
 - Finish onboarding by running `agentcall verify` (ensures diff coverage, SBOM, docs sync).
+- Use `agentcall help` to review project health (watchers, verify status, recommended next steps) or `agentcall help --json` for automation dashboards.
 - Schedule `agentcall telemetry report --recent 50` to confirm no bootstrap warnings remain.
 - Document tenant-specific nuances in `docs/tutorials/` and link them from `reports/bootstrap_summary.json` metadata if required.

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import shutil
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from agentcontrol.domain.project import (
     PROJECT_DIR,
+    PROJECT_DESCRIPTOR,
     ProjectCapsule,
     ProjectId,
     ProjectNotInitialisedError,
@@ -17,6 +20,25 @@ from agentcontrol.domain.project import (
 from agentcontrol.domain.template import TemplateDescriptor
 from agentcontrol.ports.template_repo import TemplateRepository
 from agentcontrol.settings import RuntimeSettings
+
+
+@dataclass(frozen=True)
+class LegacyMigrationReport:
+    performed: bool
+    reason: str | None = None
+    backup_path: str | None = None
+    new_path: str | None = None
+    actions: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class UpgradeReport:
+    dry_run: bool
+    legacy_migration: LegacyMigrationReport
+    template_name: str | None
+    template_version: str | None
+    channel: str
+    actions: List[str]
 
 
 class BootstrapService:
@@ -56,15 +78,66 @@ class BootstrapService:
         capsule.store()
         self._register_project(capsule)
 
-    def upgrade(self, project_id: ProjectId, channel: str, template: str | None = None) -> None:
+    def upgrade(
+        self,
+        project_id: ProjectId,
+        channel: str,
+        template: str | None = None,
+        *,
+        legacy_migrate: bool = True,
+        dry_run: bool = False,
+    ) -> UpgradeReport:
+        legacy_report = LegacyMigrationReport(
+            performed=False,
+            reason="legacy capsule not detected",
+            new_path=str(project_id.root / PROJECT_DIR),
+        )
+        legacy_descriptor = project_id.root / "agentcontrol" / PROJECT_DESCRIPTOR
+
         try:
             existing = ProjectCapsule.load(project_id)
         except (ProjectNotInitialisedError, FileNotFoundError) as exc:
-            raise RuntimeError("Project not initialised; run agentcall init first.") from exc
+            if not legacy_migrate or not legacy_descriptor.exists():
+                raise RuntimeError("Project not initialised; run agentcall init first.") from exc
+            if dry_run:
+                legacy_report = self._migrate_legacy_capsule(project_id, dry_run=True)
+                existing = ProjectCapsule.from_descriptor_file(project_id, legacy_descriptor)
+            else:
+                legacy_report = self._migrate_legacy_capsule(project_id, dry_run=False)
+                if not legacy_report.performed:
+                    message = legacy_report.reason or "legacy capsule migration failed"
+                    raise RuntimeError(message) from exc
+                existing = ProjectCapsule.load(project_id)
+        else:
+            if legacy_migrate and legacy_descriptor.exists() and dry_run:
+                preview = self._migrate_legacy_capsule(project_id, dry_run=True)
+                if preview.performed:
+                    legacy_report = preview
+
+        if existing is None:
+            raise RuntimeError("Unable to resolve project capsule after migration")
+
         template_name = template or existing.template_name
         template_descriptor = self._templates.ensure_available(
             self._settings.cli_version, channel, template_name
         )
+
+        actions: list[str] = []
+        actions.extend(legacy_report.actions)
+
+        if dry_run:
+            actions.append(
+                f"would apply template {template_descriptor.template}@{template_descriptor.version} (channel {channel})"
+            )
+            return UpgradeReport(
+                dry_run=True,
+                legacy_migration=legacy_report,
+                template_name=template_descriptor.template,
+                template_version=template_descriptor.version,
+                channel=channel,
+                actions=actions,
+            )
+
         self._copy_template(template_descriptor, project_id.root, force=True)
         capsule = ProjectCapsule(
             project_id=project_id,
@@ -78,6 +151,17 @@ class BootstrapService:
         )
         capsule.store()
         self._register_project(capsule)
+        actions.append(
+            f"applied template {template_descriptor.template}@{template_descriptor.version} (channel {channel})"
+        )
+        return UpgradeReport(
+            dry_run=False,
+            legacy_migration=legacy_report,
+            template_name=template_descriptor.template,
+            template_version=template_descriptor.version,
+            channel=channel,
+            actions=actions,
+        )
 
     def _copy_template(self, template: TemplateDescriptor, destination: Path, *, force: bool) -> None:
         template.validate()
@@ -144,3 +228,74 @@ class BootstrapService:
         self._settings.home_dir.mkdir(parents=True, exist_ok=True)
         self._settings.template_dir.mkdir(parents=True, exist_ok=True)
         self._settings.state_dir.mkdir(parents=True, exist_ok=True)
+
+    def _migrate_legacy_capsule(
+        self,
+        project_id: ProjectId,
+        *,
+        dry_run: bool,
+    ) -> LegacyMigrationReport:
+        legacy_root = project_id.root / "agentcontrol"
+        new_root = project_id.root / PROJECT_DIR
+        actions: list[str] = []
+
+        if not legacy_root.exists():
+            return LegacyMigrationReport(
+                performed=False,
+                reason="legacy capsule not found",
+                new_path=str(new_root),
+                actions=actions,
+            )
+        if new_root.exists():
+            return LegacyMigrationReport(
+                performed=False,
+                reason="target .agentcontrol already exists",
+                new_path=str(new_root),
+                actions=actions,
+            )
+        descriptor = legacy_root / PROJECT_DESCRIPTOR
+        if not descriptor.exists():
+            return LegacyMigrationReport(
+                performed=False,
+                reason="legacy descriptor missing",
+                new_path=str(new_root),
+                actions=actions,
+            )
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup_root = project_id.root / f"agentcontrol.legacy-{timestamp}"
+        candidate = backup_root
+        counter = 1
+        while candidate.exists():
+            candidate = project_id.root / f"agentcontrol.legacy-{timestamp}-{counter}"
+            counter += 1
+        backup_root = candidate
+
+        actions.append(f"rename {legacy_root.name} -> {backup_root.name}")
+        actions.append(f"copy {backup_root.name} -> {new_root.name}")
+
+        if dry_run:
+            return LegacyMigrationReport(
+                performed=True,
+                reason="dry-run",
+                backup_path=str(backup_root),
+                new_path=str(new_root),
+                actions=actions,
+            )
+
+        legacy_root.rename(backup_root)
+        try:
+            shutil.copytree(backup_root, new_root)
+        except Exception:
+            if new_root.exists():
+                shutil.rmtree(new_root)
+            backup_root.rename(legacy_root)
+            raise
+
+        return LegacyMigrationReport(
+            performed=True,
+            reason=None,
+            backup_path=str(backup_root),
+            new_path=str(new_root),
+            actions=actions,
+        )

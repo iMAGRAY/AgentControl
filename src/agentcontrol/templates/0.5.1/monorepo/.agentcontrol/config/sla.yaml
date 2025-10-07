@@ -1,0 +1,9 @@
+slas:
+  - id: docs_followup
+    acknowledgement: "docs"
+    max_minutes: 60
+    severity: warning
+  - id: perf_followup
+    acknowledgement: "perf"
+    max_minutes: 120
+    severity: critical

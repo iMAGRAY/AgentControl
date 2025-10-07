@@ -38,4 +38,4 @@
    ```
    Capture results in `reports/release-validation.json` if required.
 
-> **Docs bridge:** убедитесь, что `.agentcontrol/config/docs.bridge.yaml` отражает целевые файлы и маркеры в `docs/`. `agentcall run architecture-sync` обновляет только помеченные блоки, не трогая остальную часть документа.
+> **Docs bridge:** ensure `.agentcontrol/config/docs.bridge.yaml` mirrors the target files and markers in `docs/`. `agentcall run architecture-sync` updates only the managed blocks and leaves the rest of each document untouched.

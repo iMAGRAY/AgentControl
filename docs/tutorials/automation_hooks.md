@@ -1,9 +1,9 @@
 # Tutorial: Automation Hooks with `SDK_VERIFY_COMMANDS`
 
-AgentControl позволяет расширять `agentcall verify` и другие пайплайны, не правя системные скрипты. Все, что требуется, — задать переменную окружения `SDK_VERIFY_COMMANDS` со списком команд.
+AgentControl lets you extend `agentcall verify` and other pipelines without touching the system scripts. Set the environment variable `SDK_VERIFY_COMMANDS` with the commands you want to run.
 
-## Быстрый старт
-1. Создайте скрипт, который выполняет нужный шаг, например, локальный линтер:
+## Quick Start
+1. Create a script for the desired check, for example a local linter:
    ```bash
    cat > scripts/custom/lint.sh <<'SH'
    #!/usr/bin/env bash
@@ -12,27 +12,27 @@ AgentControl позволяет расширять `agentcall verify` и дру�
    SH
    chmod +x scripts/custom/lint.sh
    ```
-2. Вызовите verify с `SDK_VERIFY_COMMANDS`:
+2. Run verify with `SDK_VERIFY_COMMANDS` defined:
    ```bash
    SDK_VERIFY_COMMANDS=("scripts/custom/lint.sh") agentcall verify
    ```
-   Каждая команда выполняется в конце пайплайна и попадает в отчёт `reports/verify.json`.
+   Each command executes at the end of the pipeline and appears in `reports/verify.json`.
 
-## JSON-ориентированный режим
-Все команды исполняются в контексте проекта. Если требуется JSON-выход для агентов, используйте `--json` или сериализацию самостоятельно — verify сохраняет хвост логов и статус.
+## JSON-Friendly Mode
+All commands run in the project context. When agents need structured output, add `--json` or serialise manually—the verify step records the log tail and exit status.
 
-## Составные пайплайны
-Можно передать несколько команд:
+## Composite Pipelines
+Provide multiple commands when needed:
 ```bash
 SDK_VERIFY_COMMANDS=(
   "agentcall docs sync --json"
   "pytest --maxfail=1 --disable-warnings"
 ) agentcall verify --json
 ```
-Команды выполняются последовательно; при отказе результат фиксируется со статусом `fail`, но основной verify продолжит работу (если не задан `EXIT_ON_FAIL=1`).
+Commands execute sequentially. Failures are recorded with `status=fail`, but the main verify continues unless `EXIT_ON_FAIL=1` is set.
 
-## Автоматизация через CI
-В CI достаточно экспортировать переменную в шаге запуска verify:
+## CI Automation
+In CI, export the variable in the verify step:
 ```yaml
 env:
   SDK_VERIFY_COMMANDS: |
@@ -40,16 +40,16 @@ env:
     pytest --maxfail=1
 run: agentcall verify --json
 ```
-Используйте `SDK_VERIFY_COMMANDS+=(...)` в shell-скриптах, если необходимо дополнять список из разных модулей.
+Use `SDK_VERIFY_COMMANDS+=(...)` in shell scripts when multiple modules need to append entries.
 
-> **Совет:** храните набор команд в `.agentcontrol/config/automation.sh` и source-ите файл в CI, чтобы агенты могли автоматически монтировать общие сценарии.
+> **Tip:** store the shared list in `.agentcontrol/config/automation.sh` and source the file in CI so every agent mounts the same commands automatically.
 
-## Управляемые automation hooks
-- Каждый новый проект, инициализированный SDK, содержит файл `.agentcontrol/config/automation.sh`.
-- Скрипт автоматически подгружается во время `sdk::load_commands` и добавляет три команды:
-  1. `agentcall docs diff --json` → отчёт `reports/automation/docs-diff.json`.
+## Managed Automation Hooks
+- Every project initialised by the SDK includes `.agentcontrol/config/automation.sh`.
+- The script is sourced during `sdk::load_commands` and appends three defaults:
+  1. `agentcall docs diff --json` → `reports/automation/docs-diff.json`.
   2. `agentcall mission summary --json --timeline-limit 20` → `reports/automation/mission-summary.json`.
-  3. `agentcall mcp status --json` → `reports/automation/mcp-status.json` (толерантен к отсутствию MCP, завершается `|| true`).
-- Используйте функции `sdk::ensure_array_value` и стандартные массивы, чтобы дополнять/заменять эти команды без дублирования.
+  3. `agentcall mcp status --json` → `reports/automation/mcp-status.json` (tolerant to missing MCP servers, exits with `|| true`).
+- Use helpers such as `sdk::ensure_array_value` to add or replace commands without duplicates.
 
-> Скрипт идемпотентен: повторный вызов `sdk::load_commands` не создаёт дублей в `SDK_VERIFY_COMMANDS`, а директория `reports/automation` создаётся автоматически.
+> The automation script is idempotent: successive calls to `sdk::load_commands` do not duplicate entries in `SDK_VERIFY_COMMANDS`, and `reports/automation` is created automatically.

@@ -17,7 +17,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Dict, Iterable
 from textwrap import dedent
 import textwrap
 
@@ -25,7 +25,17 @@ from agentcontrol.adapters.bootstrap_profile.file_repository import FileBootstra
 from agentcontrol.app.bootstrap_profile.service import BootstrapProfileService
 from agentcontrol.app.bootstrap_service import BootstrapService, UpgradeReport
 from agentcontrol.app.command_service import CommandService
-from agentcontrol.app.docs import DocsBridgeService, DocsBridgeServiceError, DocsCommandService
+from agentcontrol.app.docs import (
+    DEFAULT_EXTERNAL_TIMEOUT,
+    DEFAULT_REPORT_PATH,
+    DocsBridgeService,
+    DocsBridgeServiceError,
+    DocsCommandService,
+    DocsPortalGenerator,
+    DocsPortalError,
+    KnowledgeLintService,
+    PORTAL_DEFAULT_BUDGET,
+)
 from agentcontrol.app.mission.service import MissionService, MissionExecResult
 from agentcontrol.app.mission.dashboard import (
     MissionDashboardRenderer,
@@ -49,8 +59,7 @@ from agentcontrol.app.info import InfoService
 from agentcontrol.app.migration.service import MigrationService
 from agentcontrol.app.sandbox.service import SandboxService
 from agentcontrol.app.extension.service import ExtensionService
-from agentcontrol.app.tasks.service import TaskSyncService, build_provider as build_task_provider
-from agentcontrol.app.tasks.service import TaskSyncService, build_provider as build_task_provider
+from agentcontrol.app.tasks import TaskSyncError, TaskSyncResult, TaskSyncService
 from agentcontrol.domain.project import (
     PROJECT_DESCRIPTOR,
     PROJECT_DIR,
@@ -758,6 +767,70 @@ def _upgrade_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_provider_option_value(raw: str) -> Any:
+    value = raw.strip()
+    if value == "":
+        return ""
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _assign_provider_option(options: Dict[str, Any], key: str, value: Any) -> None:
+    parts = [segment.strip() for segment in key.split(".") if segment.strip()]
+    if not parts:
+        raise ValueError("provider option key must be non-empty")
+    target: Dict[str, Any] = options
+    for part in parts[:-1]:
+        current = target.get(part)
+        if current is None:
+            current = {}
+            target[part] = current
+        elif not isinstance(current, dict):
+            raise ValueError(f"provider option '{part}' already set as a non-object value")
+        target = current
+    target[parts[-1]] = value
+
+
+def _resolve_provider_input(raw: str, project_path: Path) -> str:
+    value = raw.strip()
+    if not value:
+        raise ValueError("input path must not be empty")
+    expanded = Path(value).expanduser()
+    if expanded.is_absolute():
+        return str(expanded)
+    return value
+
+
+def _build_inline_provider_config(
+    provider_type: str,
+    args: argparse.Namespace,
+    project_path: Path,
+) -> Dict[str, Any]:
+    provider = provider_type.strip()
+    if not provider:
+        raise ValueError("provider type must not be empty")
+    options: Dict[str, Any] = {}
+    inline_input = getattr(args, "provider_input", None)
+    if inline_input:
+        key = "path" if provider.lower() == "file" else "snapshot_path"
+        resolved = _resolve_provider_input(inline_input, project_path)
+        _assign_provider_option(options, key, resolved)
+    for raw_option in getattr(args, "provider_option", []) or []:
+        if "=" not in raw_option:
+            raise ValueError(
+                f"invalid provider option '{raw_option}': expected key=value"
+            )
+        opt_key, opt_value = raw_option.split("=", 1)
+        opt_key = opt_key.strip()
+        if not opt_key:
+            raise ValueError("provider option key must not be empty")
+        parsed_value = _parse_provider_option_value(opt_value)
+        _assign_provider_option(options, opt_key, parsed_value)
+    return {"type": provider, "options": options}
+
+
 def _tasks_sync_cmd(args: argparse.Namespace) -> int:
     bootstrap, _ = _build_services()
     project_path = _default_project_path(getattr(args, "path", None))
@@ -765,43 +838,118 @@ def _tasks_sync_cmd(args: argparse.Namespace) -> int:
     if project_id is None:
         return 1
 
+    service = TaskSyncService(project_id)
+
+    def _resolve_path(raw: str | None) -> Path | None:
+        if raw is None:
+            return None
+        candidate = Path(raw)
+        if candidate.is_absolute():
+            return candidate
+        return (project_path / candidate).resolve()
+
+    provider_arg = getattr(args, "provider", None)
+    provider_options = list(getattr(args, "provider_option", []) or [])
+    if provider_arg is None and provider_options:
+        print("--provider-option requires --provider", file=sys.stderr)
+        return 1
+    if provider_arg is None and getattr(args, "provider_input", None):
+        print("--input requires --provider", file=sys.stderr)
+        return 1
+
+    inline_config: Dict[str, Any] | None = None
+    config_path: Path | None = None
+    if provider_arg is not None:
+        try:
+            inline_config = _build_inline_provider_config(provider_arg, args, project_path)
+        except ValueError as exc:
+            print(f"tasks.sync.config_invalid: {exc}", file=sys.stderr)
+            return 1
+    else:
+        config_path = _resolve_path(getattr(args, "config", None))
+
     try:
-        provider = build_task_provider(args.provider, input_path=args.input)
-    except ValueError as exc:
+        result = service.sync(
+            config_path=config_path,
+            provider=inline_config,
+            apply=getattr(args, "apply", False),
+            output_path=_resolve_path(getattr(args, "output", None)),
+        )
+    except TaskSyncError as exc:
         print(str(exc), file=sys.stderr)
-        return 2
+        return 1
 
-    service = TaskSyncService(project_id, provider)
-    report = service.sync(dry_run=args.dry_run)
+    _print_task_sync_result(
+        result,
+        as_json=getattr(args, "json", False),
+        project_root=project_path,
+    )
 
-    status = "dry_run" if args.dry_run else "applied"
+    summary = result.plan.summary()
+    status = "applied" if result.applied else "dry-run"
+    provider_type = (result.provider_config or {}).get("type")
     record_structured_event(
         SETTINGS,
         "tasks.sync",
         status=status,
         component="tasks",
         payload={
-            "provider": args.provider,
-            "operations": len(report["operations"]),
-            "dry_run": args.dry_run,
+            "create": summary["create"],
+            "update": summary["update"],
+            "close": summary["close"],
+            "unchanged": summary["unchanged"],
+            "report_path": str(result.report_path),
+            "applied": result.applied,
+            "provider_type": provider_type,
         },
     )
-
-    if args.json:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-    else:
-        print(
-            f"Tasks sync ({args.provider}) — {len(report['operations'])} operations"
-        )
-        for op in report["operations"]:
-            desc = op.get("type")
-            task_id = op.get("task_id")
-            print(f"  - {desc} {task_id}")
-        if args.dry_run:
-            print("Dry run: no changes applied")
-        else:
-            print("Board updated and report stored in reports/tasks/sync.json")
     return 0
+
+
+def _print_task_sync_result(
+    result: TaskSyncResult,
+    *,
+    as_json: bool,
+    project_root: Path,
+) -> None:
+    if as_json:
+        payload = result.to_dict(project_root=project_root)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    summary = result.plan.summary()
+    provider_type = (result.provider_config or {}).get("type")
+    print(
+        "Tasks sync: create={create} update={update} close={close} unchanged={unchanged}".format(
+            **summary
+        )
+    )
+    if provider_type:
+        print(f"Provider: {provider_type}")
+    if result.plan.actions:
+        print("Plan:")
+        for action in result.plan.actions:
+            if action.op == TaskSyncOp.CREATE and action.task is not None:
+                print(
+                    f"  + create {action.task.id}: {action.task.title} [{action.task.status}]"
+                )
+            elif action.op == TaskSyncOp.UPDATE and action.task_id:
+                changes = action.changes or {}
+                changes_repr = ", ".join(
+                    f"{field}={change['from']}→{change['to']}" for field, change in changes.items()
+                )
+                print(f"  ~ update {action.task_id}: {changes_repr}")
+            elif action.op == TaskSyncOp.CLOSE and action.task_id:
+                reason = action.reason or "provider_removed"
+                print(f"  - close {action.task_id}: {reason}")
+    else:
+        print("Plan: no changes detected")
+
+    if result.applied:
+        print(f"Board updated at {result.board_path}")
+    else:
+        print("Dry-run only; use --apply to persist changes")
+    print(f"Report stored at {result.report_path}")
 
 
 def _run_pipeline(command: str, args: argparse.Namespace) -> int:
@@ -1194,13 +1342,19 @@ def _plugins_cmd(args: argparse.Namespace) -> int:
 def _docs_cmd(args: argparse.Namespace) -> int:
     bootstrap, _ = _build_services()
     project_path = _default_project_path(getattr(args, "path", None))
-    project_id = _resolve_project_id(bootstrap, project_path, "docs", allow_auto=True)
-    if project_id is None:
-        return 1
-
+    command = args.docs_command
+    if command in {"lint", "portal"}:
+        try:
+            project_id = ProjectId.from_existing(project_path)
+        except ProjectNotInitialisedError:
+            project_id = None
+    else:
+        project_id = _resolve_project_id(bootstrap, project_path, "docs", allow_auto=True)
+        if project_id is None:
+            return 1
+    project_root = project_id.root if project_id is not None else project_path.resolve()
     bridge_service = DocsBridgeService()
     command_service = DocsCommandService()
-    command = args.docs_command
     as_json = getattr(args, "json", False)
     event_context = {"command": command, "path": str(project_path)}
     record_structured_event(
@@ -1297,6 +1451,126 @@ def _docs_cmd(args: argparse.Namespace) -> int:
             else:
                 _print_docs_sync(payload)
             exit_code = 0 if payload.get("status") == "ok" else 1
+        elif command == "lint":
+            if not getattr(args, "knowledge", False):
+                print("docs lint: specify --knowledge to run knowledge coverage lint", file=sys.stderr)
+                event_context.update({"error": "missing_target"})
+                exit_code = 2
+            else:
+                lint_service = KnowledgeLintService()
+                output_override = getattr(args, "output", None)
+                output_path = Path(output_override).expanduser() if output_override else None
+                max_age_hours = getattr(args, "max_age_hours", None)
+                if max_age_hours is not None:
+                    event_context["max_age_hours"] = max_age_hours
+                validate_external = getattr(args, "validate_external", False)
+                link_timeout = getattr(args, "link_timeout", None)
+                if validate_external:
+                    event_context["validate_external"] = True
+                if link_timeout is not None:
+                    event_context["link_timeout"] = link_timeout
+                try:
+                    report = lint_service.lint(
+                        project_root,
+                        output_path=output_path,
+                        max_age_hours=max_age_hours,
+                        validate_external=validate_external,
+                        external_timeout=link_timeout or DEFAULT_EXTERNAL_TIMEOUT,
+                    )
+                except FileNotFoundError as exc:
+                    payload = {
+                        "status": "error",
+                        "error": {
+                            "code": "KNOWLEDGE_ROOT_MISSING",
+                            "message": str(exc),
+                        },
+                    }
+                    if as_json:
+                        print(json.dumps(payload, ensure_ascii=False, indent=2))
+                    else:
+                        print(f"docs lint knowledge error: {exc}", file=sys.stderr)
+                    event_context.update({"error_code": "KNOWLEDGE_ROOT_MISSING"})
+                    exit_code = 1
+                else:
+                    issues = report.get("issues", [])
+                    errors = sum(1 for issue in issues if issue.get("severity") == "error")
+                    warnings = sum(1 for issue in issues if issue.get("severity") == "warning")
+                    event_context.update(
+                        {
+                            "output": report.get("report_path"),
+                            "issues": {"error": errors, "warning": warnings},
+                        }
+                    )
+                    if as_json:
+                        print(json.dumps(report, ensure_ascii=False, indent=2))
+                    else:
+                        print(
+                            f"knowledge lint status={report.get('status')} "
+                            f"errors={errors} warnings={warnings} -> {report.get('report_path')}"
+                        )
+                        if errors or warnings:
+                            for issue in issues[:10]:
+                                print(
+                                    f"  [{issue.get('severity')}] {issue.get('code')}: "
+                                    f"{issue.get('path')} — {issue.get('message')}"
+                                )
+                            if len(issues) > 10:
+                                print(f"  ... {len(issues) - 10} more issues")
+                    exit_code = 1 if report.get("status") == "error" else 0
+        elif command == "portal":
+            generator = DocsPortalGenerator(command_service)
+            output_override = getattr(args, "output", None)
+            budget_override = getattr(args, "budget", None)
+            budget_limit = int(budget_override) if budget_override is not None else None
+            default_output = (project_root / "reports/docs/portal").resolve()
+            event_context.update(
+                {
+                    "output": str(Path(output_override).expanduser().resolve()) if output_override else str(default_output),
+                    "budget": budget_limit if budget_limit is not None else PORTAL_DEFAULT_BUDGET,
+                }
+            )
+            try:
+                result = generator.generate(
+                    project_root,
+                    output_dir=Path(output_override).expanduser() if output_override else None,
+                    budget=budget_limit,
+                    force=getattr(args, "force", False),
+                )
+            except DocsPortalError as exc:
+                payload = {
+                    "status": "error",
+                    "error": {
+                        "code": exc.code,
+                        "message": str(exc),
+                        "remediation": exc.remediation,
+                    },
+                }
+                if as_json:
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                else:
+                    print(f"docs portal error: {exc.code}: {exc}", file=sys.stderr)
+                    if exc.remediation:
+                        print(f"  remediation: {exc.remediation}", file=sys.stderr)
+                event_context.update({"error_code": exc.code})
+                exit_code = 1
+            else:
+                response = {
+                    "status": "ok",
+                    "path": str(result.output_path),
+                    "files": result.file_count,
+                    "size_bytes": result.total_size_bytes,
+                    "generated_at": result.generated_at,
+                    "inventory": result.inventory_counts,
+                }
+                if as_json:
+                    print(json.dumps(response, ensure_ascii=False, indent=2))
+                else:
+                    print(
+                        f"docs portal generated at {response['path']} "
+                        f"({response['files']} files, {response['size_bytes']} bytes)",
+                    )
+                event_context.update({"files": result.file_count, "size_bytes": result.total_size_bytes})
+                exit_code = 0
         else:
             record_structured_event(
                 SETTINGS,
@@ -3179,15 +3453,51 @@ def build_parser() -> argparse.ArgumentParser:
     tasks_cmd = sub.add_parser(
         "tasks",
         help="Task board operations",
+        description="Synchronise data/tasks.board.json against external providers",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     tasks_sub = tasks_cmd.add_subparsers(dest="tasks_command", required=True)
 
-    tasks_sync_cmd = tasks_sub.add_parser("sync", help="Synchronise tasks with a provider")
+    tasks_sync_cmd = tasks_sub.add_parser(
+        "sync",
+        help="Diff local board against configured provider",
+    )
     tasks_sync_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
-    tasks_sync_cmd.add_argument("--provider", default="file", help="Provider name (default: file)")
-    tasks_sync_cmd.add_argument("--input", help="Provider input (e.g. JSON file path)")
-    tasks_sync_cmd.add_argument("--dry-run", action="store_true", help="Preview operations without applying")
-    tasks_sync_cmd.add_argument("--json", action="store_true", help="Emit machine-readable report")
+    provider_group = tasks_sync_cmd.add_mutually_exclusive_group()
+    provider_group.add_argument(
+        "--config",
+        help="Provider config path (default: config/tasks.provider.json)",
+    )
+    provider_group.add_argument(
+        "--provider",
+        help="Inline provider type (file/jira/github)",
+    )
+    tasks_sync_cmd.add_argument(
+        "--input",
+        dest="provider_input",
+        help="Inline provider snapshot/input path (used with --provider)",
+    )
+    tasks_sync_cmd.add_argument(
+        "--provider-option",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Set inline provider option (repeatable, dot notation supported)",
+    )
+    tasks_sync_cmd.add_argument(
+        "--output",
+        help="Override report path (default: reports/tasks_sync.json)",
+    )
+    tasks_sync_cmd.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply detected changes to data/tasks.board.json",
+    )
+    tasks_sync_cmd.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit plan as JSON",
+    )
     tasks_sync_cmd.set_defaults(func=_tasks_sync_cmd)
 
     extension_help = dedent(
@@ -3364,6 +3674,36 @@ def build_parser() -> argparse.ArgumentParser:
     docs_sync.add_argument("--entry", dest="entries", action="append", help="Filter entries (adr/rfc ids)")
     docs_sync.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     docs_sync.set_defaults(func=_docs_cmd, docs_command="sync")
+
+    docs_lint = docs_sub.add_parser("lint", help="Run documentation lint checks")
+    docs_lint.add_argument("--knowledge", action="store_true", help="Run knowledge coverage lint")
+    docs_lint.add_argument("--output", help="Override report output path")
+    docs_lint.add_argument(
+        "--max-age-hours",
+        type=float,
+        dest="max_age_hours",
+        help="Fail when knowledge files are older than the specified number of hours",
+    )
+    docs_lint.add_argument(
+        "--validate-external",
+        action="store_true",
+        help="Validate external HTTP(S) links",
+    )
+    docs_lint.add_argument(
+        "--link-timeout",
+        type=float,
+        dest="link_timeout",
+        help="Timeout for external link validation (seconds)",
+    )
+    docs_lint.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_lint.set_defaults(func=_docs_cmd, docs_command="lint")
+
+    docs_portal = docs_sub.add_parser("portal", help="Generate static documentation portal")
+    docs_portal.add_argument("--output", help="Output directory (default: reports/docs/portal)")
+    docs_portal.add_argument("--force", action="store_true", help="Overwrite output directory if it exists")
+    docs_portal.add_argument("--budget", type=int, help="Size budget in bytes (default: 1048576)")
+    docs_portal.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    docs_portal.set_defaults(func=_docs_cmd, docs_command="portal")
 
     info_cmd = sub.add_parser("info", help="Display AgentControl capabilities")
     info_cmd.add_argument("path", nargs="?", help="Project path (optional)")

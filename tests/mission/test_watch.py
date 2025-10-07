@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Iterable
 
@@ -144,14 +144,20 @@ def test_mission_watcher_triggers_playbook(project_root: Path) -> None:
     assert "tags" in payload and "perf" in payload["tags"]
 
 
-def test_mission_watcher_uses_latest_event(project_root: Path) -> None:
-    newer = datetime.now(timezone.utc).isoformat()
-    older = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+@pytest.mark.parametrize("order", ["ascending", "descending"])
+def test_mission_watcher_uses_latest_event(order: str, project_root: Path) -> None:
+    base = datetime.now(timezone.utc)
+    older = (base - timedelta(minutes=5)).isoformat()
+    newer = base.isoformat()
+
+    def make_timeline(*timestamps: str) -> list[dict[str, str]]:
+        entries = [{"timestamp": ts, "event": "perf.regression"} for ts in timestamps]
+        if order == "descending":
+            entries.reverse()
+        return entries
+
     twin = {
-        "timeline": [
-            {"timestamp": newer, "event": "perf.regression"},
-            {"timestamp": older, "event": "perf.regression"},
-        ],
+        "timeline": make_timeline(older, newer),
         "acknowledgements": {},
     }
     service = FakeMissionService(twin)
@@ -169,16 +175,14 @@ def test_mission_watcher_uses_latest_event(project_root: Path) -> None:
     assert state["perf_regression"]["last_event_ts"] == newer
     assert service.executed == ["perf_regression"]
 
-    newer2 = datetime.now(timezone.utc).isoformat()
-    service.twin["timeline"] = [
-        {"timestamp": newer2, "event": "perf.regression"},
-        {"timestamp": newer, "event": "perf.regression"},
-    ]
+    newest = (base + timedelta(minutes=5)).isoformat()
+    service.twin["timeline"] = make_timeline(older, newer, newest)
 
     watcher.run_once()
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    assert state["perf_regression"]["last_event_ts"] == newer2
+    assert state["perf_regression"]["last_event_ts"] == newest
     assert service.executed == ["perf_regression", "perf_regression"]
+
 
 
 class FlakyMissionService(FakeMissionService):

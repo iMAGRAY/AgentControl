@@ -1003,19 +1003,58 @@ class MissionService:
         return []
 
     def _task_board(self, project_root: Path) -> Dict[str, Any]:
-        tasks_dir = project_root / "reports" / "tasks"
-        tasks: list[dict[str, Any]] = []
-        if tasks_dir.exists():
-            for path in sorted(tasks_dir.glob("*.json")):
-                try:
-                    task = json.loads(path.read_text(encoding="utf-8"))
-                    if isinstance(task, dict):
-                        tasks.append(task | {"path": str(path)})
-                except json.JSONDecodeError:
-                    continue
+        board_path = project_root / "data" / "tasks.board.json"
+        board_info: Dict[str, Any] | None = None
+        counts = {"total": 0, "open": 0, "done": 0}
+        if board_path.exists():
+            board_payload = self._load_json(board_path)
+            if isinstance(board_payload, dict):
+                tasks = board_payload.get("tasks") or []
+                if isinstance(tasks, list):
+                    for entry in tasks:
+                        if not isinstance(entry, dict):
+                            continue
+                        counts["total"] += 1
+                        status = str(entry.get("status", "")).lower()
+                        if status in {"done", "closed"}:
+                            counts["done"] += 1
+                        else:
+                            counts["open"] += 1
+                    preview = [
+                        {k: item.get(k) for k in ("id", "title", "status") if k in item}
+                        for item in tasks
+                        if isinstance(item, dict)
+                    ]
+                    board_info = {
+                        "path": str(board_path.relative_to(project_root)),
+                        "updated_at": board_payload.get("updated_at"),
+                        "version": board_payload.get("version"),
+                        "preview": preview[:5],
+                    }
+        last_sync = self._load_json(project_root / "reports" / "tasks" / "sync.json")
+        if last_sync is None:
+            legacy = self._load_json(project_root / "reports" / "tasks_sync.json")
+            if isinstance(legacy, dict):
+                last_sync = {
+                    "generated_at": legacy.get("generated_at"),
+                    "provider": legacy.get("provider"),
+                    "summary": legacy.get("summary"),
+                    "applied": legacy.get("applied"),
+                }
+        history_entries: list[Dict[str, Any]] = []
+        history_dir = project_root / "reports" / "tasks" / "history"
+        if history_dir.exists():
+            for history_path in sorted(history_dir.glob("*.json"), reverse=True):
+                entry = self._load_json(history_path)
+                if isinstance(entry, dict):
+                    history_entries.append(entry | {"path": str(history_path.relative_to(project_root))})
+                    if len(history_entries) >= 10:
+                        break
         return {
-            "tasks": tasks,
-            "open": sum(1 for task in tasks if task.get("status") == "open"),
+            "counts": counts,
+            "board": board_info,
+            "lastSync": last_sync,
+            "history": history_entries,
         }
 
     def _runtime_stale(self, project_root: Path) -> bool:

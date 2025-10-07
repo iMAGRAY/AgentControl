@@ -60,6 +60,8 @@ def test_upgrade_keeps_template_when_not_overridden(tmp_path: Path) -> None:
     project_id = ProjectId.for_new_project(project_root)
     service.bootstrap(project_id, "stable", template="default")
 
-    service.upgrade(project_id, "stable")
+    report = service.upgrade(project_id, "stable")
+    assert report.template_name == "default"
+    assert not report.dry_run
     data = json.loads(project_id.descriptor_path().read_text("utf-8"))
     assert data["template"] == "default"

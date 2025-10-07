@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -81,7 +83,7 @@ def test_perf_history_regression_detection(tmp_path: Path) -> None:
     followup_payload = json.loads(followup.read_text(encoding="utf-8"))
     assert followup_payload["regressions"]
     assert followup_payload["status"] == "regression"
-    tasks_path = tmp_path / ".agentcontrol" / "state" / "perf_tasks.json"
+    tasks_path = _state_dir(tmp_path) / "perf_tasks.json"
     assert tasks_path.exists()
     tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
     assert any(task.get("status") == "open" for task in tasks)
@@ -145,7 +147,16 @@ def test_perf_history_followup_resolved(tmp_path: Path) -> None:
     followup = tmp_path / "reports" / "automation" / "perf_followup.json"
     payload = json.loads(followup.read_text(encoding="utf-8"))
     assert payload["status"] == "resolved"
-    tasks_path = tmp_path / ".agentcontrol" / "state" / "perf_tasks.json"
+    tasks_path = _state_dir(tmp_path) / "perf_tasks.json"
     assert tasks_path.exists()
     tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
     assert all(task.get("status") == "resolved" for task in tasks)
+def _state_dir(base: Path) -> Path:
+    override = os.environ.get("AGENTCONTROL_STATE_DIR")
+    if override:
+        expanded = Path(override).expanduser()
+        if any(part.startswith(".test_place") for part in expanded.parts):
+            digest = hashlib.sha256(str(base.resolve()).encode("utf-8", "surrogatepass")).hexdigest()
+            return expanded / digest
+        return expanded
+    return base / ".agentcontrol" / "state"

@@ -14,8 +14,8 @@ from agentcontrol.domain.tasks import (
     TaskSyncPlan,
     build_sync_plan,
 )
-from agentcontrol.adapters.tasks.file_provider import FileTaskProvider
-from agentcontrol.ports.tasks.provider import TaskProvider, TaskProviderError
+from agentcontrol.adapters.tasks.providers import build_provider_from_config
+from agentcontrol.ports.tasks.provider import TaskProviderError
 
 
 class TaskSyncError(RuntimeError):
@@ -51,11 +51,16 @@ class TaskSyncService:
         self,
         *,
         config_path: Path | None = None,
+        provider: Dict[str, Any] | None = None,
         apply: bool = False,
         output_path: Path | None = None,
     ) -> TaskSyncResult:
-        provider_config = self._load_provider_config(config_path)
-        provider = self._build_provider(provider_config)
+        provider_config = self._resolve_provider_config(config_path, provider)
+        try:
+            build_result = build_provider_from_config(self._root, provider_config)
+        except TaskProviderError as exc:
+            raise TaskSyncError(str(exc)) from exc
+        provider = build_result.provider
         try:
             provider_tasks = list(provider.fetch())
         except TaskProviderError as exc:
@@ -77,7 +82,7 @@ class TaskSyncService:
 
         report_payload = self._build_report_payload(
             plan=plan,
-            provider_config=provider_config,
+            provider_config=build_result.report_config,
             board_path=board_path,
             applied=applied,
         )
@@ -86,14 +91,29 @@ class TaskSyncService:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+        self._write_mission_artifacts(report_payload, report_path)
+
         return TaskSyncResult(
             board_path=board_path,
             report_path=report_path,
             plan=plan,
-            provider_config=provider_config,
+            provider_config=build_result.report_config,
             applied=applied,
             report_payload=report_payload,
         )
+
+    def _resolve_provider_config(
+        self,
+        config_path: Path | None,
+        provider: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        if provider is not None and config_path is not None:
+            raise TaskSyncError(
+                "tasks.sync.config_conflict: specify either --config or --provider"
+            )
+        if provider is not None:
+            return self._normalise_provider_config(provider)
+        return self._load_provider_config(config_path)
 
     def _load_provider_config(self, config_path: Path | None) -> Dict[str, Any]:
         if config_path is None:
@@ -103,32 +123,26 @@ class TaskSyncService:
                 f"tasks.sync.config_not_found: provider config missing at {config_path}"
             )
         try:
-            config = json.loads(config_path.read_text(encoding="utf-8"))
+            raw_config = json.loads(config_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise TaskSyncError(f"tasks.sync.config_invalid: {exc}") from exc
+        return self._normalise_provider_config(raw_config)
+
+    def _normalise_provider_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(config, dict):
             raise TaskSyncError("tasks.sync.config_invalid: root must be object")
-        if "type" not in config:
+        data: Dict[str, Any] = dict(config)
+        provider_type = data.get("type")
+        if not isinstance(provider_type, str) or not provider_type.strip():
             raise TaskSyncError("tasks.sync.config_invalid: missing type")
-        if not isinstance(config["type"], str) or not config["type"]:
-            raise TaskSyncError("tasks.sync.config_invalid: type must be string")
-        options = config.get("options")
+        options = data.get("options")
         if options is None:
             options = {}
         if not isinstance(options, dict):
             raise TaskSyncError("tasks.sync.config_invalid: options must be object")
-        config["options"] = options
-        return config
-
-    def _build_provider(self, config: Dict[str, Any]) -> TaskProvider:
-        provider_type = config["type"].lower()
-        options = config.get("options", {})
-        if provider_type == "file":
-            raw_path = options.get("path")
-            if not isinstance(raw_path, str) or not raw_path:
-                raise TaskSyncError("tasks.sync.config_invalid: options.path required for file provider")
-            return FileTaskProvider(self._root, Path(raw_path))
-        raise TaskSyncError(f"tasks.sync.provider_not_supported: {provider_type}")
+        data["type"] = provider_type.strip()
+        data["options"] = dict(options)
+        return data
 
     def _build_report_payload(
         self,
@@ -150,6 +164,42 @@ class TaskSyncService:
         }
         payload.update(plan.to_dict())
         return payload
+
+    def _write_mission_artifacts(self, report_payload: Dict[str, Any], report_path: Path) -> None:
+        mission_dir = self._root / "reports" / "tasks"
+        mission_dir.mkdir(parents=True, exist_ok=True)
+
+        summary = {
+            "generated_at": report_payload.get("generated_at"),
+            "provider": report_payload.get("provider", {}),
+            "summary": report_payload.get("summary", {}),
+            "applied": report_payload.get("applied", False),
+            "report": str(report_path.relative_to(self._root)),
+        }
+        actions = report_payload.get("actions")
+        if isinstance(actions, list):
+            summary["actions"] = actions[:10]
+
+        latest_path = mission_dir / "sync.json"
+        latest_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        history_dir = mission_dir / "history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = report_payload.get("generated_at", "unknown")
+        slug = self._slugify_timestamp(timestamp)
+        candidate = history_dir / f"{slug}.json"
+        counter = 1
+        while candidate.exists():
+            candidate = history_dir / f"{slug}_{counter}.json"
+            counter += 1
+        candidate.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _slugify_timestamp(timestamp: str) -> str:
+        if not timestamp:
+            return "unknown"
+        slug = timestamp.replace(":", "").replace("-", "").replace(" ", "_")
+        return slug.replace("/", "_")
 
 
 def _relativize(path: Path, base: Path) -> str:

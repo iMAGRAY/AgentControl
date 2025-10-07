@@ -125,7 +125,17 @@ TARGET_FILENAMES = {
     "pom.xml",
 }
 
-SKIP_DIR_PREFIXES = (".git/", "dist/", "build/", "node_modules/", "coverage/", "reports/", "journal/", "state/")
+SKIP_DIR_PREFIXES = (
+    ".git/",
+    "dist/",
+    "build/",
+    "node_modules/",
+    "coverage/",
+    "reports/",
+    "journal/",
+    "state/",
+    "vendor/",
+)
 
 MAX_FILE_BYTES = 2 * 1024 * 1024  # 2 MiB
 

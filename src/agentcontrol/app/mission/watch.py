@@ -202,11 +202,18 @@ class MissionWatcher:
     def _evaluate_rule(self, rule: WatchRule, timeline: List[Dict[str, Any]]) -> Optional[WatchActionResult]:
         if not timeline:
             return None
-        latest_event = None
+        latest_event: Optional[Dict[str, Any]] = None
+        latest_event_dt: Optional[datetime] = None
         for entry in timeline:
-            if entry.get("event") == rule.event:
+            if entry.get("event") != rule.event:
+                continue
+            raw_ts = entry.get("timestamp")
+            parsed_ts = _parse_datetime(raw_ts)
+            if parsed_ts is None:
+                parsed_ts = datetime.min.replace(tzinfo=timezone.utc)
+            if latest_event_dt is None or parsed_ts > latest_event_dt:
                 latest_event = entry
-                break
+                latest_event_dt = parsed_ts
         if latest_event is None:
             return None
         event_ts = latest_event.get("timestamp") or datetime.now(timezone.utc).isoformat()
