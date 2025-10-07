@@ -60,6 +60,7 @@ from agentcontrol.app.migration.service import MigrationService
 from agentcontrol.app.sandbox.service import SandboxService
 from agentcontrol.app.extension.service import ExtensionService
 from agentcontrol.app.release_notes import ReleaseNotesError, ReleaseNotesGenerator
+from agentcontrol.app.gallery.service import GalleryError, GalleryService
 from agentcontrol.app.tasks import TaskSyncError, TaskSyncResult, TaskSyncService
 from agentcontrol.domain.project import (
     PROJECT_DESCRIPTOR,
@@ -951,6 +952,71 @@ def _print_task_sync_result(
     else:
         print("Dry-run only; use --apply to persist changes")
     print(f"Report stored at {result.report_path}")
+
+
+def _gallery_cmd(args: argparse.Namespace) -> int:
+    project_path = _default_project_path(getattr(args, "path", None))
+    command = getattr(args, "gallery_command", "list")
+    as_json = bool(getattr(args, "json", False))
+    service = GalleryService(project_path)
+
+    if command == "list":
+        try:
+            samples = service.list_samples()
+        except GalleryError as exc:
+            print(f"gallery error: {exc}", file=sys.stderr)
+            return 1
+        payload = [
+            {
+                "id": sample.sample_id,
+                "name": sample.name,
+                "description": sample.description,
+                "tags": list(sample.tags),
+                "estimated_size_kb": sample.estimated_size_kb,
+                "origin": sample.origin,
+            }
+            for sample in samples
+        ]
+        record_event(SETTINGS, "gallery.list", {"count": len(payload)})
+        if as_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            if not payload:
+                print("No gallery samples available")
+            else:
+                for item in payload:
+                    tags = ", ".join(item["tags"]) if item["tags"] else "-"
+                    print(f"{item['id']}\t{item['name']} [{tags}] ~{item['estimated_size_kb']} KiB")
+                    if item["description"]:
+                        print(f"  {item['description']}")
+        return 0
+
+    if command == "fetch":
+        sample_id = getattr(args, "sample_id")
+        dest_arg = getattr(args, "dest", None)
+        destination = Path(dest_arg).expanduser() if dest_arg else Path.cwd()
+        as_directory = bool(getattr(args, "directory", False))
+        try:
+            result = service.export_sample(sample_id, destination, archive=not as_directory)
+        except GalleryError as exc:
+            print(f"gallery error: {exc}", file=sys.stderr)
+            return 1
+        payload = {
+            "id": result.sample.sample_id,
+            "path": str(result.output_path),
+            "size_bytes": result.size_bytes,
+            "archive": not as_directory,
+        }
+        record_event(SETTINGS, "gallery.fetch", payload | {"dest": dest_arg})
+        if as_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            mode = "archive" if payload["archive"] else "directory"
+            print(f"Fetched {result.sample.sample_id} -> {result.output_path} ({mode}, {result.size_bytes} bytes)")
+        return 0
+
+    print("Unsupported gallery command", file=sys.stderr)
+    return 2
 
 
 def _release_notes_cmd(args: argparse.Namespace) -> int:
@@ -3615,6 +3681,21 @@ def build_parser() -> argparse.ArgumentParser:
     extension_publish.add_argument("--dry-run", action="store_true", help="Mark the export as dry run")
     extension_publish.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     extension_publish.set_defaults(func=_extension_publish_cmd)
+
+    gallery_cmd = sub.add_parser("gallery", help="Sample gallery utilities")
+    gallery_cmd.add_argument("--path", dest="path", help="Project path (default: current directory)")
+    gallery_sub = gallery_cmd.add_subparsers(dest="gallery_command", required=True)
+
+    gallery_list = gallery_sub.add_parser("list", help="List available gallery samples")
+    gallery_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    gallery_list.set_defaults(func=_gallery_cmd, gallery_command="list")
+
+    gallery_fetch = gallery_sub.add_parser("fetch", help="Download a gallery sample as archive or directory")
+    gallery_fetch.add_argument("sample_id", help="Identifier of the gallery sample")
+    gallery_fetch.add_argument("--dest", help="Destination directory or archive path (default: current directory)")
+    gallery_fetch.add_argument("--directory", action="store_true", help="Copy as directory instead of ZIP archive")
+    gallery_fetch.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
+    gallery_fetch.set_defaults(func=_gallery_cmd, gallery_command="fetch")
 
     release_cmd = sub.add_parser("release", help="Release management utilities")
     release_sub = release_cmd.add_subparsers(dest="release_command", required=True)

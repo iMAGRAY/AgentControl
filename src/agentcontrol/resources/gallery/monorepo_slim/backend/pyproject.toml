@@ -1,0 +1,14 @@
+[project]
+name = "monorepo-backend"
+version = "0.1.0"
+description = "Backend service for the monorepo gallery sample"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.29",
+]
+
+[tool.uvicorn]
+app = "api.main:app"
+reload = true
+port = 8000

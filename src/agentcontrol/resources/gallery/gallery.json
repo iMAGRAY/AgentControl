@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "samples": [
+    {
+      "id": "python-minimal",
+      "name": "Python Minimal Backend",
+      "description": "Single FastAPI service with healthcheck endpoint.",
+      "tags": ["python", "fastapi", "backend"],
+      "source": "python_minimal",
+      "estimated_size_kb": 30
+    },
+    {
+      "id": "monorepo-slim",
+      "name": "Monorepo Slim",
+      "description": "Two-service mono repo: FastAPI backend + Vite React frontend.",
+      "tags": ["monorepo", "python", "node"],
+      "source": "monorepo_slim",
+      "estimated_size_kb": 120
+    }
+  ]
+}

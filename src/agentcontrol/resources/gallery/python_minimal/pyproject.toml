@@ -1,0 +1,20 @@
+[project]
+name = "python-minimal-gallery"
+version = "0.1.0"
+description = "Minimal FastAPI service sample for AgentControl gallery"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.29",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.uvicorn]
+app = "app:app"
+port = 8000
+reload = true

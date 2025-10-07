@@ -56,6 +56,8 @@ src/agentcontrol/app/extension/__init__.py
 src/agentcontrol/app/extension/integrity.py
 src/agentcontrol/app/extension/schema.py
 src/agentcontrol/app/extension/service.py
+src/agentcontrol/app/gallery/__init__.py
+src/agentcontrol/app/gallery/service.py
 src/agentcontrol/app/info/__init__.py
 src/agentcontrol/app/info/service.py
 src/agentcontrol/app/mcp/manager.py
@@ -102,6 +104,11 @@ src/agentcontrol/resources/__init__.py
 src/agentcontrol/resources/docs_bridge.schema.json
 src/agentcontrol/resources/extension_manifest.schema.json
 src/agentcontrol/resources/telemetry.schema.json
+src/agentcontrol/resources/gallery/gallery.json
+src/agentcontrol/resources/gallery/monorepo_slim/backend/api/main.py
+src/agentcontrol/resources/gallery/monorepo_slim/frontend/package.json
+src/agentcontrol/resources/gallery/monorepo_slim/frontend/tsconfig.json
+src/agentcontrol/resources/gallery/python_minimal/src/app.py
 src/agentcontrol/resources/profiles/meta.yaml
 src/agentcontrol/resources/profiles/monorepo.yaml
 src/agentcontrol/resources/profiles/python.yaml

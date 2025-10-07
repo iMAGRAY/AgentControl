@@ -7,5 +7,6 @@
 - [MCP integration](mcp_integration.md)
 - [Mission control walkthrough](mission_control_walkthrough.md)
 - [Performance nightly harness](perf_nightly.md)
+- [Sample gallery](sample_gallery.md)
 - [Release notes automation](release_notes.md)
 - [Task sync automation](tasks_sync.md)

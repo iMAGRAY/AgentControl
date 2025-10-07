@@ -125,7 +125,7 @@ TASKS:
       - [Docs updated with workflow guidance]
   - id: P11-004
     title: Sample gallery
-    status: todo
+    status: done
     priority: p2
     ac:
       - [Curated gallery of mono/poly/meta repos packaged ≤30 MB]
