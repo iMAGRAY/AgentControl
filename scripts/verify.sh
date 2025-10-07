@@ -128,6 +128,7 @@ run_step "ensure:data/tasks.board.json" "critical" "( sdk::ensure_file 'data/tas
 
 run_step "check:todo_sections" "critical" "grep -q '^## Program' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Epics' \"$SDK_ROOT/todo.machine.md\" && grep -q '^## Big Tasks' \"$SDK_ROOT/todo.machine.md\""
 run_step "make-alignment" "critical" "\"$SDK_ROOT/scripts/check-make-alignment.py\""
+run_step "legacy-pipelines" "critical" "\"$SDK_ROOT/scripts/check-legacy-pipelines.py\""
 
 run_step "shellcheck" "warning" "sdk::run_shellcheck_if_available"
 run_step "roadmap-status" "warning" "\"$SDK_ROOT/scripts/roadmap-status.sh\" compact"

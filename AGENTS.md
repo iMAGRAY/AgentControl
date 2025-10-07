@@ -40,14 +40,14 @@ TASKS:
     owner: sdk-core
   - id: P5-001
     title: Legacy capsule auto-upgrade
-    status: todo
+    status: done
     priority: p0
     ac:
       - [`agentcall upgrade` migrates legacy `./agentcontrol/` layout to `.agentcontrol/` capsule with timestamped backup]
       - [Verify step asserts absence of legacy pipelines after upgrade]
   - id: P5-002
     title: Makefile / CLI alignment guard
-    status: todo
+    status: done
     priority: p0
     ac:
       - [`scripts/check-make-alignment.py` wired into verify]
