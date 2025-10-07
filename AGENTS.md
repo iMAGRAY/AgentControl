@@ -90,7 +90,7 @@ TASKS:
       - [SLA policies trigger escalations when follow-ups exceed thresholds]
   - id: P10-001
     title: Task sync core
-    status: todo
+    status: done
     priority: p0
     ac:
       - [`agentcall tasks sync` diffs `data/tasks.board.json` vs provider with create/update/close]

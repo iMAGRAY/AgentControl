@@ -13,24 +13,52 @@ import select
 import subprocess
 import sys
 import time
+from dataclasses import asdict
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable
 from textwrap import dedent
+import textwrap
 
 from agentcontrol.adapters.bootstrap_profile.file_repository import FileBootstrapProfileRepository
 from agentcontrol.app.bootstrap_profile.service import BootstrapProfileService
-from agentcontrol.app.bootstrap_service import BootstrapService
+from agentcontrol.app.bootstrap_service import BootstrapService, UpgradeReport
 from agentcontrol.app.command_service import CommandService
 from agentcontrol.app.docs import DocsBridgeService, DocsBridgeServiceError, DocsCommandService
 from agentcontrol.app.mission.service import MissionService, MissionExecResult
+from agentcontrol.app.mission.dashboard import (
+    MissionDashboardRenderer,
+    run_dashboard_curses,
+    write_snapshot,
+    terminal_width,
+)
+from agentcontrol.app.mission.web import (
+    MissionDashboardWebApp,
+    MissionDashboardWebConfig,
+    load_or_create_session_token,
+)
+from agentcontrol.app.mission.watch import (
+    MissionWatcher,
+    load_watch_rules,
+    load_sla_rules,
+)
 from agentcontrol.app.mcp.manager import MCPManager
 from agentcontrol.app.runtime.service import RuntimeService
 from agentcontrol.app.info import InfoService
 from agentcontrol.app.migration.service import MigrationService
 from agentcontrol.app.sandbox.service import SandboxService
-from agentcontrol.domain.project import PROJECT_DESCRIPTOR, PROJECT_DIR, ProjectId, ProjectNotInitialisedError
+from agentcontrol.app.extension.service import ExtensionService
+from agentcontrol.app.tasks.service import TaskSyncService, build_provider as build_task_provider
+from agentcontrol.app.tasks.service import TaskSyncService, build_provider as build_task_provider
+from agentcontrol.domain.project import (
+    PROJECT_DESCRIPTOR,
+    PROJECT_DIR,
+    ProjectCapsule,
+    ProjectId,
+    ProjectNotInitialisedError,
+)
+from agentcontrol.domain.tasks import TaskSyncOp
 from agentcontrol.adapters.fs_template_repo import FSTemplateRepository
 from agentcontrol.settings import SETTINGS
 from agentcontrol.domain.mcp import MCPServerConfig
@@ -48,19 +76,19 @@ from agentcontrol.utils.updater import maybe_auto_update
 
 HELP_OVERVIEW = dedent(
     """
-    Быстрый старт:
-      - установить CLI один раз: pipx install agentcontrol
-      - в проекте:   agentcall quickstart --template default [ПУТЬ]
+    Quick start:
+      - Install the CLI once: pipx install agentcontrol
+      - Inside a repository: agentcall quickstart --template default [PATH]
 
-    Основные пайплайны:
-      - agentcall setup      — готовит .agentcontrol/, окружение и зависимости
-      - agentcall verify     — fmt/tests/security/perf/docs guard
-      - agentcall mission …  — миссионный дашборд и авто-playbooks
+    Core pipelines:
+      - agentcall setup      - prepare .agentcontrol/, environments, and tools
+      - agentcall verify     - run the quality gate (fmt/tests/security/perf/docs)
+      - agentcall mission ... - mission dashboard and automated playbooks
 
-    Анти-паттерны:
-      - не запускайте agentcall внутри исходников самого SDK
-      - не правьте .agentcontrol/ вручную — используйте quickstart/upgrade
-      - не пропускайте verify перед ship — релиз блокируется красными отчётами
+    Anti-patterns:
+      - Do not run agentcall inside the SDK source tree itself
+      - Do not edit .agentcontrol/ manually; use quickstart or upgrade
+      - Do not skip verify before ship; the release gate blocks on failures
     """
 )
 
@@ -78,6 +106,272 @@ def _default_project_path(path_arg: str | None) -> Path:
 def _state_directory_for(project_path: Path) -> Path:
     digest = hashlib.sha256(str(project_path).encode("utf-8")).hexdigest()[:16]
     return SETTINGS.state_dir / digest
+
+
+def _collect_help_context(project_path: Path) -> dict[str, Any]:
+    resolved = project_path.expanduser().resolve()
+    context: dict[str, Any] = {
+        "version": __version__,
+        "cwd": str(resolved),
+        "sdk_repo": _is_sdk_source_tree(resolved),
+        "project": {"present": False},
+        "recommendations": [],
+        "docs": [
+            "docs/getting_started.md",
+            "docs/mission/watchers.md",
+            "docs/tutorials/mission_control_walkthrough.md",
+            "docs/tutorials/extensions.md",
+        ],
+        "environment": [
+            "AGENTCONTROL_NO_AUTO_INIT=1 — отключает авто-bootstrap",
+            "AGENTCONTROL_DISABLE_AUTO_UPDATE=1 — запрещает автообновления",
+            "AGENTCONTROL_AUTO_UPDATE_CACHE=<dir> — офлайн-кэш обновлений",
+        ],
+        "warnings": [],
+    }
+
+    recommendations: list[str] = context["recommendations"]
+
+    try:
+        project_id = ProjectId.from_existing(resolved)
+    except ProjectNotInitialisedError:
+        recommendations.extend(
+            [
+                "agentcall quickstart --template default",
+                "agentcall verify",
+                "agentcall help --path <project> (после инициализации)",
+            ]
+        )
+        return context
+
+    capsule = ProjectCapsule.load(project_id)
+    project_context: dict[str, Any] = {
+        "present": True,
+        "path": str(project_id.root),
+        "template": {
+            "name": capsule.template_name,
+            "version": capsule.template_version,
+            "channel": capsule.channel,
+        },
+    }
+
+    verify_path = project_id.root / "reports" / "verify.json"
+    verify_summary: dict[str, Any]
+    if verify_path.exists():
+        try:
+            payload = json.loads(verify_path.read_text(encoding="utf-8"))
+            steps = payload.get("steps", [])
+            failed = [step["name"] for step in steps if step.get("status") == "fail"]
+            warnings = [
+                step["name"]
+                for step in steps
+                if step.get("severity") == "warning" or step.get("status") == "warning"
+            ]
+            if failed:
+                status = "fail"
+            elif warnings:
+                status = "warn"
+            else:
+                status = "ok"
+            verify_summary = {
+                "status": status,
+                "generated_at": payload.get("generated_at"),
+                "step_count": len(steps),
+                "failed_steps": failed,
+                "warning_steps": warnings,
+            }
+        except (json.JSONDecodeError, OSError):
+            verify_summary = {"status": "error", "generated_at": None, "step_count": 0}
+    else:
+        verify_summary = {"status": "missing", "generated_at": None, "step_count": 0}
+    project_context["verify"] = verify_summary
+
+    watch_config = project_id.root / PROJECT_DIR / "config" / "watch.yaml"
+    watch_state_path = project_id.root / PROJECT_DIR / "state" / "watch.json"
+    sla_config = project_id.root / PROJECT_DIR / "config" / "sla.yaml"
+
+    watch_summary: dict[str, Any] = {
+        "config_path": str(watch_config.relative_to(project_id.root)) if watch_config.exists() else None,
+        "state_path": str(watch_state_path.relative_to(project_id.root)) if watch_state_path.exists() else None,
+        "rules": [],
+        "sla": [],
+        "last_event": None,
+        "errors": [],
+    }
+
+    if watch_config.exists():
+        try:
+            rules = load_watch_rules(watch_config)
+            watch_summary["rules"] = [
+                {
+                    "id": rule.id,
+                    "event": rule.event,
+                    "playbook": rule.playbook_issue,
+                    "debounce_minutes": rule.debounce_minutes,
+                    "max_retries": rule.max_retries,
+                }
+                for rule in rules
+            ]
+        except ValueError as exc:
+            watch_summary["errors"].append(str(exc))
+    else:
+        watch_summary["errors"].append("watch.yaml missing")
+
+    if sla_config.exists():
+        try:
+            entries = load_sla_rules(sla_config)
+            watch_summary["sla"] = [
+                {
+                    "id": entry.id,
+                    "acknowledgement": entry.acknowledgement,
+                    "max_minutes": entry.max_minutes,
+                    "severity": entry.severity,
+                }
+                for entry in entries
+            ]
+        except ValueError as exc:
+            watch_summary["errors"].append(str(exc))
+
+    if watch_state_path.exists():
+        try:
+            state_payload = json.loads(watch_state_path.read_text(encoding="utf-8"))
+            entries: list[dict[str, Any]] = []
+            for rule_id, value in (state_payload or {}).items():
+                if isinstance(value, dict):
+                    entries.append(
+                        {
+                            "rule": rule_id,
+                            "last_event_ts": value.get("last_event_ts"),
+                            "last_status": value.get("last_status"),
+                            "attempts": value.get("attempts"),
+                        }
+                    )
+            watch_summary["state"] = entries
+            if entries:
+                def _sort_key(item: dict[str, Any]) -> tuple[int, str]:
+                    ts = item.get("last_event_ts")
+                    return (0 if ts else 1, ts or "")
+
+                latest = sorted(entries, key=_sort_key, reverse=True)[0]
+                watch_summary["last_event"] = latest
+        except (json.JSONDecodeError, OSError):
+            watch_summary["errors"].append("watch.json unreadable")
+
+    project_context["watch"] = watch_summary
+
+    recommendations.extend(
+        [
+            "agentcall mission dashboard --no-curses",
+            "agentcall mission watch --once --json" if watch_summary["rules"] else "agentcall mission watch --once --json (создайте watch.yaml)",
+        ]
+    )
+
+    if verify_summary["status"] != "ok":
+        recommendations.insert(0, "agentcall verify")
+    else:
+        recommendations.insert(0, "agentcall verify (актуализируйте перед ship)")
+
+    project_context["recommendations"] = recommendations
+    context["project"] = project_context
+    return context
+
+
+def _format_lines(context: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+
+    def _wrap(text: str, *, indent: int = 0, bullet: str | None = None) -> None:
+        prefix = " " * indent
+        if bullet is not None:
+            initial = prefix + bullet
+            subsequent = " " * (indent + len(bullet))
+        else:
+            initial = prefix
+            subsequent = prefix
+        wrapped = textwrap.wrap(
+            text,
+            width=80,
+            initial_indent=initial,
+            subsequent_indent=subsequent,
+        )
+        if not wrapped:
+            lines.append(initial.rstrip())
+        else:
+            lines.extend(wrapped)
+
+    lines.append(f"AgentControl CLI {context['version']} — contextual help")
+    lines.append(f"Working dir: {context['cwd']}")
+    if context.get("sdk_repo"):
+        _wrap(
+            "Внимание: вы внутри репозитория SDK. Используйте scripts/test-place.sh для отладки шаблонов.",
+            indent=0,
+        )
+
+    project = context.get("project", {})
+    lines.append("")
+    if not project.get("present"):
+        lines.append("На этой директории капсула AgentControl не обнаружена.")
+        lines.append("Quickstart:")
+        for idx, cmd in enumerate(context.get("recommendations", []), start=1):
+            _wrap(cmd, indent=2, bullet=f"{idx}. ")
+    else:
+        template = project.get("template", {})
+        _wrap(
+            f"Проект: {template.get('name', '?')}@{template.get('version', '?')} (канал {template.get('channel', '?')})",
+            indent=0,
+        )
+        verify = project.get("verify", {})
+        _wrap(
+            f"Verify: статус {verify.get('status', 'unknown')} (steps={verify.get('step_count', 0)}, generated_at={verify.get('generated_at') or '—'})",
+            indent=0,
+        )
+        watch = project.get("watch", {})
+        rule_count = len(watch.get("rules", []))
+        config_path = watch.get("config_path") or "нет watch.yaml"
+        _wrap(
+            f"Watch rules: {rule_count} (config: {config_path})",
+            indent=0,
+        )
+        for note in watch.get("errors", []):
+            _wrap(f"Watch note: {note}", indent=0)
+        if watch.get("last_event"):
+            last = watch["last_event"]
+            _wrap(
+                f"Последний триггер: {last.get('rule')} → {last.get('last_status')} @ {last.get('last_event_ts') or '—'}",
+                indent=0,
+            )
+        if watch.get("sla"):
+            _wrap(
+                f"SLA правил: {len(watch['sla'])} (config: .agentcontrol/config/sla.yaml)",
+                indent=0,
+            )
+        lines.append("Рекомендованные шаги:")
+        for idx, cmd in enumerate(project.get("recommendations", []), start=1):
+            _wrap(cmd, indent=2, bullet=f"{idx}. ")
+
+    if context.get("docs"):
+        lines.append("")
+        lines.append("Документация:")
+        for doc in context["docs"]:
+            _wrap(doc, indent=2, bullet="- ")
+
+    if context.get("environment"):
+        lines.append("")
+        lines.append("Переменные среды:")
+        for env in context["environment"]:
+            _wrap(env, indent=2, bullet="- ")
+
+    return lines
+
+
+def _help_cmd(args: argparse.Namespace) -> int:
+    project_path = _default_project_path(getattr(args, "path", None))
+    context = _collect_help_context(project_path)
+    if getattr(args, "json", False):
+        print(json.dumps(context, ensure_ascii=False, indent=2))
+        return 0
+    lines = _format_lines(context)
+    print("\n".join(lines))
+    return 0
 
 
 def _is_sdk_source_tree(path: Path) -> bool:
@@ -213,6 +507,9 @@ def _resolve_project_id(bootstrap: BootstrapService, project_path: Path, command
     try:
         return ProjectId.from_existing(project_path)
     except ProjectNotInitialisedError:
+        legacy_descriptor = project_path / "agentcontrol" / PROJECT_DESCRIPTOR
+        if legacy_descriptor.exists() and command == "upgrade":
+            return ProjectId.for_new_project(project_path)
         if allow_auto:
             project_id = _auto_bootstrap_project(bootstrap, project_path, command)
             if project_id is not None:
@@ -290,11 +587,11 @@ def _bootstrap_cmd(args: argparse.Namespace) -> int:
 def _print_quickstart_summary(project_path: Path, summary: list[tuple[str, int]]) -> None:
     print(f"Project ready: {project_path}")
     if not summary:
-        print("  • setup/verify пропущены по флагам")
+        print("  - setup/verify skipped by flags")
         return
     for name, code in summary:
         status = "ok" if code == 0 else f"exit {code}"
-        print(f"  • {name}: {status}")
+        print(f"  - {name}: {status}")
 
 
 def _quickstart_cmd(args: argparse.Namespace) -> int:
@@ -402,6 +699,28 @@ def _bootstrap_profile_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_upgrade_report(report: UpgradeReport, *, as_json: bool, project_path: Path) -> None:
+    if as_json:
+        print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+        return
+
+    legacy = report.legacy_migration
+    if legacy.performed:
+        print(f"Legacy capsule migrated to {legacy.new_path}")
+        if legacy.backup_path:
+            print(f"Backup stored at {legacy.backup_path}")
+    elif legacy.reason:
+        print(f"Legacy migration skipped: {legacy.reason}")
+
+    if report.actions:
+        print("Actions:")
+        for action in report.actions:
+            print(f"  - {action}")
+
+    if report.dry_run:
+        print(f"Dry run only — no changes applied in {project_path}")
+
+
 def _upgrade_cmd(args: argparse.Namespace) -> int:
     bootstrap, _ = _build_services()
     project_path = _default_project_path(args.path)
@@ -409,13 +728,79 @@ def _upgrade_cmd(args: argparse.Namespace) -> int:
     if project_id is None:
         return 1
 
-    bootstrap.upgrade(project_id, args.channel, template=args.template)
+    try:
+        report = bootstrap.upgrade(
+            project_id,
+            args.channel,
+            template=args.template,
+            legacy_migrate=not getattr(args, "skip_legacy_migrate", False),
+            dry_run=getattr(args, "dry_run", False),
+        )
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    _print_upgrade_report(report, as_json=getattr(args, "json", False), project_path=project_path)
+
+    if report.dry_run:
+        return 0
+
     record_event(
         SETTINGS,
         "upgrade",
-        {"channel": args.channel, "template": args.template or "(existing)"},
+        {
+            "channel": args.channel,
+            "template": (args.template or report.template_name or "(existing)"),
+            "template_version": report.template_version,
+        },
     )
     print(f"Project upgraded at {project_path}")
+    return 0
+
+
+def _tasks_sync_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "tasks.sync", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    try:
+        provider = build_task_provider(args.provider, input_path=args.input)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    service = TaskSyncService(project_id, provider)
+    report = service.sync(dry_run=args.dry_run)
+
+    status = "dry_run" if args.dry_run else "applied"
+    record_structured_event(
+        SETTINGS,
+        "tasks.sync",
+        status=status,
+        component="tasks",
+        payload={
+            "provider": args.provider,
+            "operations": len(report["operations"]),
+            "dry_run": args.dry_run,
+        },
+    )
+
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        print(
+            f"Tasks sync ({args.provider}) — {len(report['operations'])} operations"
+        )
+        for op in report["operations"]:
+            desc = op.get("type")
+            task_id = op.get("task_id")
+            print(f"  - {desc} {task_id}")
+        if args.dry_run:
+            print("Dry run: no changes applied")
+        else:
+            print("Board updated and report stored in reports/tasks/sync.json")
     return 0
 
 
@@ -500,6 +885,154 @@ def _list_cmd(args: argparse.Namespace) -> int:
         print(name)
     return 0
 
+
+def _extension_service(args: argparse.Namespace, command: str) -> tuple[ProjectId | None, ExtensionService | None]:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, f"extension.{command}", allow_auto=True)
+    if project_id is None:
+        return None, None
+    return project_id, ExtensionService(project_id)
+
+
+def _extension_init_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "init")
+    if service is None or project_id is None:
+        return 1
+
+    try:
+        service.init(args.name, force=args.force)
+    except FileExistsError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    entry = service.add(args.name)
+    record_event(
+        SETTINGS,
+        "extension.init",
+        {"project": str(project_id.root), "name": entry.name, "version": entry.version},
+    )
+    print(f"Extension scaffolded at {entry.path}")
+    print("Registered in catalog")
+    return 0
+
+
+def _extension_add_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "add")
+    if service is None or project_id is None:
+        return 1
+
+    try:
+        source_path = Path(args.source).expanduser().resolve() if getattr(args, "source", None) else None
+        entry = service.add(
+            args.name,
+            source=source_path,
+            git_url=getattr(args, "git", None),
+            ref=getattr(args, "ref", None),
+        )
+    except (FileNotFoundError, FileExistsError, NotADirectoryError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    payload = {
+        "project": str(project_id.root),
+        "name": entry.name,
+        "version": entry.version,
+        "source": entry.source,
+        "path": entry.path,
+    }
+    record_event(SETTINGS, "extension.add", payload)
+    if getattr(args, "json", False):
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Extension '{entry.name}' registered at {entry.path}")
+    return 0
+
+
+def _extension_list_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "list")
+    if service is None or project_id is None:
+        return 1
+
+    entries = service.list()
+    if args.json:
+        payload = [asdict(entry) for entry in entries]
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not entries:
+            print("No extensions registered")
+        else:
+            for entry in entries:
+                hint = f" [source: {entry.source}]" if entry.source else ""
+                print(f"- {entry.name} {entry.version} :: {entry.description}{hint}")
+    return 0
+
+
+def _extension_remove_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "remove")
+    if service is None or project_id is None:
+        return 1
+    removed = service.remove(args.name, purge=getattr(args, "purge", False))
+    if removed:
+        payload = {
+            "project": str(project_id.root),
+            "name": args.name,
+            "purged": bool(getattr(args, "purge", False)),
+        }
+        record_event(SETTINGS, "extension.remove", payload)
+        if getattr(args, "json", False):
+            print(json.dumps({"removed": True, **payload}, ensure_ascii=False, indent=2))
+        else:
+            suffix = " and purged" if payload["purged"] else ""
+            print(f"Extension '{args.name}' removed from catalog{suffix}")
+        return 0
+    error_payload = {"project": str(project_id.root), "name": args.name}
+    if getattr(args, "json", False):
+        print(json.dumps({"removed": False, **error_payload}, ensure_ascii=False, indent=2))
+    else:
+        print(f"Extension '{args.name}' not found", file=sys.stderr)
+    return 1
+
+
+def _extension_lint_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "lint")
+    if service is None or project_id is None:
+        return 1
+    result = service.lint(name=args.name)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        errors = result["errors"]
+        if errors:
+            print("Lint issues:")
+            for error in errors:
+                print(f"  - {error}")
+        else:
+            print("No issues detected")
+    record_event(
+        SETTINGS,
+        "extension.lint",
+        {
+            "project": str(project_id.root),
+            "name": args.name,
+            "errors": len(result["errors"]),
+        },
+    )
+    return 0 if not result["errors"] else 1
+
+
+def _extension_publish_cmd(args: argparse.Namespace) -> int:
+    project_id, service = _extension_service(args, "publish")
+    if service is None or project_id is None:
+        return 1
+    output = service.publish(dry_run=args.dry_run)
+    payload = {"project": str(project_id.root), "dry_run": args.dry_run, "path": str(output)}
+    record_event(SETTINGS, "extension.publish", payload)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        flag = "(dry-run)" if args.dry_run else ""
+        print(f"Extensions catalog exported to {output} {flag}".strip())
+    return 0
 
 def _cleanup_cmd(args: argparse.Namespace) -> int:
     project_path = _default_project_path(args.path)
@@ -1006,38 +1539,56 @@ def _clear_terminal() -> None:
     print("\033[2J\033[H", end="")
 
 
-def _log_palette_action(project_path: Path, entry: dict[str, Any], result: MissionExecResult) -> None:
-    report_dir = project_path / "reports" / "automation"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    log_path = report_dir / "mission-actions.json"
-    log_data: list[dict[str, Any]] = []
-    if log_path.exists():
-        try:
-            log_data = json.loads(log_path.read_text(encoding="utf-8"))
-            if not isinstance(log_data, list):
-                log_data = []
-        except json.JSONDecodeError:
-            log_data = []
-    log_entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "id": entry.get("id"),
-        "label": entry.get("label"),
-        "action": entry.get("action"),
-        "status": result.status,
-        "message": result.message,
-    }
-    if result.action:
-        log_entry["resultAction"] = result.action
-    if result.playbook:
-        log_entry["playbook"] = result.playbook
-    log_data.append(log_entry)
-    log_path.write_text(json.dumps(log_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def _log_palette_action(
+    project_path: Path,
+    entry: dict[str, Any],
+    result: MissionExecResult,
+    *,
+    service: MissionService | None = None,
+    operation_id: str | None = None,
+    source: str = "cli",
+) -> None:
+    svc = service or MissionService()
+    action_id = entry.get("id") or entry.get("label") or "mission-action"
+    label = entry.get("label") or action_id
+    actor_id = entry.get("actorId") or action_id
+    category = entry.get("category") or (entry.get("action") or {}).get("kind")
+    raw_tags = entry.get("tags") or []
+    if category:
+        raw_tags = [category, *raw_tags]
+    tags = [tag for tag in dict.fromkeys(raw_tags) if isinstance(tag, str) and tag]
+    timeline_event = f"{source}.{action_id}".replace(":", ".").replace(" ", "_")
+    svc.record_action(
+        project_path,
+        action_id=action_id,
+        label=label,
+        action=entry.get("action"),
+        result=result,
+        source=source,
+        operation_id=operation_id,
+        actor_id=actor_id,
+        origin=source,
+        tags=tags,
+        append_timeline=True,
+        timeline_event=timeline_event,
+        timeline_payload={
+            "category": category or (tags[0] if tags else "mission"),
+            "label": label,
+            "action": entry.get("action"),
+            "palette": {
+                key: entry[key]
+                for key in ("id", "label", "category", "type")
+                if key in entry
+            },
+        },
+    )
 
 
 def _update_mission_dashboard(project_path: Path, analytics: dict[str, Any]) -> None:
     report_dir = project_path / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
     dashboard_path = report_dir / "architecture-dashboard.json"
+    activity_path = report_dir / "mission-activity.json"
     data: dict[str, Any]
     if dashboard_path.exists():
         try:
@@ -1048,9 +1599,18 @@ def _update_mission_dashboard(project_path: Path, analytics: dict[str, Any]) -> 
             data = {}
     else:
         data = {}
+    mission_payload = dict(analytics)
+    mission_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     data.setdefault("mission", {})
-    data["mission"] = analytics | {"updated_at": datetime.now(timezone.utc).isoformat()}
+    data["mission"] = mission_payload
     dashboard_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    activity_snapshot = {
+        "generated_at": mission_payload["updated_at"],
+        "activity": mission_payload.get("activity", {}),
+        "filters": mission_payload.get("activityFilters", {}),
+    }
+    activity_path.write_text(json.dumps(activity_snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _render_mission_dashboard(
@@ -1231,6 +1791,24 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
     print("Mission Analytics")
     print("=================")
     print(f"activity count: {activity.get('count', 0)}")
+    sources = activity.get("sources") or {}
+    if sources:
+        print("by source:")
+        for name, count in sorted(sources.items(), key=lambda item: item[0]):
+            print(f"  - {name}: {count}")
+    actors = activity.get("actors") or {}
+    if actors:
+        print("top actors:")
+        for name, count in sorted(actors.items(), key=lambda item: item[1], reverse=True)[:5]:
+            print(f"  - {name}: {count}")
+    tags = activity.get("tags") or {}
+    if tags:
+        print("tag summary:")
+        for name, count in sorted(tags.items(), key=lambda item: item[1], reverse=True)[:5]:
+            print(f"  - {name}: {count}")
+    last_op = activity.get("lastOperationId")
+    if last_op:
+        print(f"last operation: {last_op} @ {activity.get('lastTimestamp')}")
     recent = activity.get("recent") or []
     if recent:
         print("recent actions:")
@@ -1283,6 +1861,78 @@ def _print_mission_analytics(payload: dict[str, Any]) -> None:
         for task in open_tasks[:5]:
             print(f"  - {task.get('id')}: {task.get('recommended_action')}")
     print()
+
+
+def _summarize_activity_entries(entries: list[dict[str, Any]], log_path: str | Path) -> dict[str, Any]:
+    sources: dict[str, int] = {}
+    actors: dict[str, int] = {}
+    tags: dict[str, int] = {}
+    last_operation_id: str | None = None
+    last_timestamp: str | None = None
+    for entry in entries:
+        source = entry.get("source") or entry.get("origin")
+        if isinstance(source, str) and source:
+            sources[source] = sources.get(source, 0) + 1
+        actor = entry.get("actorId")
+        if isinstance(actor, str) and actor:
+            actors[actor] = actors.get(actor, 0) + 1
+        entry_tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
+        for tag in entry_tags:
+            if isinstance(tag, str) and tag:
+                tags[tag] = tags.get(tag, 0) + 1
+        op_id = entry.get("operationId")
+        if isinstance(op_id, str) and op_id:
+            last_operation_id = op_id
+        ts = entry.get("timestamp")
+        if isinstance(ts, str):
+            last_timestamp = ts
+    recent = entries[-5:]
+    return {
+        "count": len(entries),
+        "recent": recent[::-1],
+        "logPath": str(log_path),
+        "sources": sources,
+        "actors": actors,
+        "tags": tags,
+        "lastOperationId": last_operation_id,
+        "lastTimestamp": last_timestamp,
+    }
+
+
+def _filter_activity_payload(
+    activity: dict[str, Any] | None,
+    *,
+    sources: list[str] | None,
+    actors: list[str] | None,
+    tags: list[str] | None,
+) -> dict[str, Any] | None:
+    if not activity or not (sources or actors or tags):
+        return activity
+    log_path = activity.get("logPath")
+    if not log_path:
+        return activity
+    try:
+        entries = json.loads(Path(log_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return activity
+
+    def _match(entry: dict[str, Any]) -> bool:
+        if sources:
+            source = entry.get("source") or entry.get("origin")
+            if source not in sources:
+                return False
+        if actors:
+            actor = entry.get("actorId")
+            if actor not in actors:
+                return False
+        if tags:
+            entry_tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
+            if not any(tag in entry_tags for tag in tags):
+                return False
+        return True
+
+    filtered = [entry for entry in entries if _match(entry)]
+    return _summarize_activity_entries(filtered, log_path)
 
 
 def _mission_cmd(args: argparse.Namespace) -> int:
@@ -1339,6 +1989,104 @@ def _mission_cmd(args: argparse.Namespace) -> int:
             component="mission",
             duration_ms=duration,
             payload=event_context | {"twin": str(result.path)},
+        )
+        return 0
+
+    if command == "dashboard":
+        filters_tuple = tuple(filters) if filters else tuple(MISSION_FILTER_CHOICES)
+        if getattr(args, "serve", False):
+            host = getattr(args, "bind", "127.0.0.1")
+            port = int(getattr(args, "port", 8765) or 0)
+            interval = max(float(getattr(args, "interval", 5.0)), 0.5)
+            provided_token = getattr(args, "token", None)
+            if provided_token:
+                token = provided_token
+                session_path = None
+            else:
+                token, session_path = load_or_create_session_token(project_path)
+            config = MissionDashboardWebConfig(
+                project_root=project_path,
+                filters=filters_tuple,
+                timeline_limit=timeline_limit,
+                interval=interval,
+                token=token,
+                host=host,
+                port=port,
+            )
+            app = MissionDashboardWebApp(service, config)
+            server = app.create_server()
+            actual_host, actual_port = server.server_address
+            print(f"Mission dashboard web server listening on http://{actual_host}:{actual_port}/")
+            print(f"Authorization token: {token}")
+            if session_path:
+                print(f"Session token saved in {session_path}")
+            print("Endpoints: / (UI), /healthz, /sse/events, POST /playbooks/<issue>")
+            print("Press Ctrl+C to stop.")
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                print("Stopping mission dashboard web server")
+            finally:
+                app.shutdown()
+                server.shutdown()
+                server.server_close()
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "mission.dashboard",
+                status="success",
+                component="mission",
+                duration_ms=duration,
+                payload=event_context | {
+                    "mode": "web",
+                    "bind": actual_host,
+                    "port": actual_port,
+                    "interval": interval,
+                },
+            )
+            return 0
+
+        result = service.persist_twin(project_path)
+        payload = result.twin
+        renderer = MissionDashboardRenderer(payload, filters, timeline_limit)
+        snapshot_path = getattr(args, "snapshot", None)
+        if snapshot_path:
+            path = Path(snapshot_path).expanduser().resolve()
+            write_snapshot(renderer, path)
+            print(f"Mission dashboard snapshot written to {path}")
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "mission.dashboard",
+                status="success",
+                component="mission",
+                duration_ms=duration,
+                payload=event_context | {"snapshot": str(path)},
+            )
+            return 0
+        use_curses = getattr(args, "no_curses", False) is False and sys.stdout.isatty()
+        width = terminal_width()
+        if use_curses:
+            exit_code = run_dashboard_curses(service, project_path, renderer, filters, timeline_limit)
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "mission.dashboard",
+                status="success",
+                component="mission",
+                duration_ms=duration,
+                payload=event_context | {"mode": "curses"},
+            )
+            return exit_code
+        print(renderer.render_text(width=width))
+        duration = (time.perf_counter() - start) * 1000
+        record_structured_event(
+            SETTINGS,
+            "mission.dashboard",
+            status="success",
+            component="mission",
+            duration_ms=duration,
+            payload=event_context | {"mode": "static"},
         )
         return 0
 
@@ -1438,9 +2186,90 @@ def _mission_exec_cmd(args: argparse.Namespace) -> int:
         "id": f"playbook:{payload.get('playbook') or issue or 'unknown'}",
         "label": payload.get("playbook") or issue or "mission exec",
         "action": {"kind": "playbook" if result.playbook else "mission_exec_top", "issue": payload.get("playbook") or issue},
+        "category": result.playbook.get("category") if result.playbook else None,
     }
-    _log_palette_action(project_path, log_entry, result)
+    _log_palette_action(project_path, log_entry, result, service=service, source="mission.exec")
     return 0 if result.status in {"success", "noop"} else 1
+
+
+def _mission_watch_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "mission", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    config_path = project_id.root / PROJECT_DIR / "config" / "watch.yaml"
+    sla_path = project_id.root / PROJECT_DIR / "config" / "sla.yaml"
+    try:
+        rules = load_watch_rules(config_path)
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    try:
+        sla_rules = load_sla_rules(sla_path)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if not rules and not sla_rules:
+        print("No watch rules or SLA entries configured", file=sys.stderr)
+        return 1
+
+    watcher = MissionWatcher(project_id, MissionService(), rules, sla_rules)
+    interval = getattr(args, "interval", 60.0)
+    iterations = getattr(args, "max_iterations", 0)
+    if getattr(args, "once", False):
+        iterations = 1
+    executed = 0
+
+    try:
+        while True:
+            start = time.perf_counter()
+            report = watcher.run_once()
+            duration = (time.perf_counter() - start) * 1000
+            record_structured_event(
+                SETTINGS,
+                "mission.watch",
+                status="success",
+                component="mission",
+                duration_ms=duration,
+                payload={
+                    "path": str(project_id.root),
+                    "actions": len(report["actions"]),
+                    "sla_breaches": len(report["sla"]),
+                },
+            )
+            for breach in report["sla"]:
+                record_structured_event(
+                    SETTINGS,
+                    "sla.breach",
+                    status=breach.get("severity", "warning"),
+                    component="mission",
+                    payload=breach | {"path": str(project_id.root)},
+                )
+            if getattr(args, "json", False):
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+            else:
+                if report["actions"]:
+                    print("Triggered actions:")
+                    for action in report["actions"]:
+                        print(
+                            f"  - {action['rule']} -> {action['status']} (event {action['event_ts']})"
+                        )
+                if report["sla"]:
+                    print("SLA breaches:")
+                    for breach in report["sla"]:
+                        print(
+                            f"  - {breach['acknowledgement']} status={breach['status']} age={breach['minutes_since_update']:.1f}m"
+                        )
+            executed += 1
+            if iterations and executed >= iterations:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("mission watch interrupted")
+    return 0
 
 
 def _mission_analytics_cmd(args: argparse.Namespace) -> int:
@@ -1463,23 +2292,50 @@ def _mission_analytics_cmd(args: argparse.Namespace) -> int:
     payload = result.twin
     duration = (time.perf_counter() - start) * 1000
 
+    sources_filter = getattr(args, "sources", None)
+    actors_filter = getattr(args, "actors", None)
+    tags_filter = getattr(args, "tags", None)
+
+    activity = payload.get("activity") or {}
+    filtered_activity = _filter_activity_payload(activity, sources=sources_filter, actors=actors_filter, tags=tags_filter)
+    if filtered_activity is None:
+        filtered_activity = activity
+
+    analytics_payload = dict(payload)
+    analytics_payload["activity"] = filtered_activity
+    filters_meta: dict[str, Any] | None = None
+    if sources_filter or actors_filter or tags_filter:
+        filters_meta = {}
+        if sources_filter:
+            filters_meta["sources"] = sources_filter
+        if actors_filter:
+            filters_meta["actors"] = actors_filter
+        if tags_filter:
+            filters_meta["tags"] = tags_filter
+
     if getattr(args, "json", False):
         summary = {
-            "activity": payload.get("activity", {}),
-            "acknowledgements": payload.get("acknowledgements", {}),
-            "perf": payload.get("perf", {}),
-            "tasks": payload.get("tasks", {}),
+            "activity": filtered_activity,
+            "acknowledgements": analytics_payload.get("acknowledgements", {}),
+            "perf": analytics_payload.get("perf", {}),
+            "tasks": analytics_payload.get("tasks", {}),
         }
+        if filters_meta:
+            summary["filters"] = filters_meta
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:
-        _print_mission_analytics(payload)
+        _print_mission_analytics(analytics_payload)
 
-    _update_mission_dashboard(project_path, {
-        "activity": payload.get("activity", {}),
-        "acknowledgements": payload.get("acknowledgements", {}),
-        "perf": payload.get("perf", {}),
-        "tasks": payload.get("tasks", {}),
-    })
+    dashboard_payload = {
+        "activity": filtered_activity,
+        "acknowledgements": analytics_payload.get("acknowledgements", {}),
+        "perf": analytics_payload.get("perf", {}),
+        "tasks": analytics_payload.get("tasks", {}),
+    }
+    if filters_meta:
+        dashboard_payload["activityFilters"] = filters_meta
+
+    _update_mission_dashboard(project_path, dashboard_payload)
 
     record_structured_event(
         SETTINGS,
@@ -2122,7 +2978,7 @@ def _mission_ui(
                     "action_type": (entry.get("action") or {}).get("kind"),
                 },
             )
-            _log_palette_action(project_path, entry, result_exec)
+            _log_palette_action(project_path, entry, result_exec, service=service, source="mission.ui")
             time.sleep(1.0)
     except KeyboardInterrupt:
         record_structured_event(
@@ -2270,6 +3126,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command", required=True)
 
+    help_cmd = sub.add_parser(
+        "help",
+        help="Показать контекстную справку по проекту",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Contextual guidance for AgentControl projects",
+    )
+    help_cmd.add_argument("--path", nargs="?", help="Проект (по умолчанию: текущая директория)")
+    help_cmd.add_argument("--json", action="store_true", help="Вывести справку в формате JSON")
+    help_cmd.set_defaults(func=_help_cmd)
+
     quickstart_cmd = sub.add_parser("quickstart", help="Bootstrap project and run setup/verify")
     quickstart_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
     quickstart_cmd.add_argument("--channel", default="stable", help="Template channel (default: stable)")
@@ -2297,7 +3163,99 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
     upgrade_cmd.add_argument("--channel", default="stable")
     upgrade_cmd.add_argument("--template", default=None, help="Override template name")
+    upgrade_cmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview legacy migration and template upgrade without applying changes",
+    )
+    upgrade_cmd.add_argument(
+        "--skip-legacy-migrate",
+        action="store_true",
+        help="Skip automatic migration of legacy agentcontrol/ capsules",
+    )
+    upgrade_cmd.add_argument("--json", action="store_true", help="Emit machine-readable report")
     upgrade_cmd.set_defaults(func=_upgrade_cmd)
+
+    tasks_cmd = sub.add_parser(
+        "tasks",
+        help="Task board operations",
+    )
+    tasks_sub = tasks_cmd.add_subparsers(dest="tasks_command", required=True)
+
+    tasks_sync_cmd = tasks_sub.add_parser("sync", help="Synchronise tasks with a provider")
+    tasks_sync_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    tasks_sync_cmd.add_argument("--provider", default="file", help="Provider name (default: file)")
+    tasks_sync_cmd.add_argument("--input", help="Provider input (e.g. JSON file path)")
+    tasks_sync_cmd.add_argument("--dry-run", action="store_true", help="Preview operations without applying")
+    tasks_sync_cmd.add_argument("--json", action="store_true", help="Emit machine-readable report")
+    tasks_sync_cmd.set_defaults(func=_tasks_sync_cmd)
+
+    extension_help = dedent(
+        """
+        Lifecycle commands for project extensions.
+
+        Quickstart recipes:
+          1. agentcall extension init docs_sync
+          2. agentcall extension add docs_sync --source extensions/docs_sync
+          3. agentcall extension publish --json
+
+        Outputs:
+          - --json emits structured catalog entries for add/list/remove/publish.
+        """
+    )
+    extension_epilog = dedent(
+        """
+        Avoid:
+          - Running inside the SDK repository (use scripts/test-place.sh instead).
+          - Mixing --source and --git flags in a single add command.
+          - Registering scaffolds before manifest.json passes lint.
+
+        Docs:
+          - docs/tutorials/extensions.md
+        """
+    )
+    extension_cmd = sub.add_parser(
+        "extension",
+        help="Manage project extensions",
+        description=extension_help,
+        epilog=extension_epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    extension_cmd.add_argument("--path", dest="path", default=None, help="Project path (default: current directory)")
+    extension_sub = extension_cmd.add_subparsers(dest="extension_command", required=True)
+
+    extension_init = extension_sub.add_parser("init", help="Scaffold a new extension")
+    extension_init.add_argument("name")
+    extension_init.add_argument("--force", action="store_true", help="Overwrite existing extension scaffold")
+    extension_init.set_defaults(func=_extension_init_cmd)
+
+    extension_add = extension_sub.add_parser("add", help="Register an existing extension in the catalog")
+    extension_add.add_argument("name")
+    extension_add.add_argument("--source", help="Local path to copy the extension from")
+    extension_add.add_argument("--git", dest="git", help="Git repository URL to clone the extension from")
+    extension_add.add_argument("--ref", dest="ref", help="Git reference/branch to checkout when cloning")
+    extension_add.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
+    extension_add.set_defaults(func=_extension_add_cmd)
+
+    extension_list = extension_sub.add_parser("list", help="List registered extensions")
+    extension_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    extension_list.set_defaults(func=_extension_list_cmd)
+
+    extension_remove = extension_sub.add_parser("remove", help="Remove an extension from the catalog")
+    extension_remove.add_argument("name")
+    extension_remove.add_argument("--purge", action="store_true", help="Delete extension files after removal")
+    extension_remove.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
+    extension_remove.set_defaults(func=_extension_remove_cmd)
+
+    extension_lint = extension_sub.add_parser("lint", help="Validate extension manifests")
+    extension_lint.add_argument("--name", default=None, help="Validate a specific extension only")
+    extension_lint.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    extension_lint.set_defaults(func=_extension_lint_cmd)
+
+    extension_publish = extension_sub.add_parser("publish", help="Export extension catalog")
+    extension_publish.add_argument("--dry-run", action="store_true", help="Mark the export as dry run")
+    extension_publish.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    extension_publish.set_defaults(func=_extension_publish_cmd)
 
     list_cmd = sub.add_parser("commands", help="List available project commands")
     list_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")
@@ -2511,6 +3469,27 @@ def build_parser() -> argparse.ArgumentParser:
     mission_ui.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events per refresh")
     mission_ui.set_defaults(func=_mission_cmd, mission_command="ui")
 
+    mission_dashboard = mission_sub.add_parser("dashboard", help="Interactive mission dashboard (TUI)")
+    mission_dashboard.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_dashboard.add_argument("--filter", dest="filters", action="append", choices=MISSION_FILTER_CHOICES, help="Filter sections to display")
+    mission_dashboard.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events to display")
+    mission_dashboard.add_argument("--snapshot", help="Write HTML snapshot to the given path")
+    mission_dashboard.add_argument("--no-curses", action="store_true", help="Disable curses UI and print static output")
+    mission_dashboard.add_argument("--serve", action="store_true", help="Start lightweight web server instead of TUI")
+    mission_dashboard.add_argument("--bind", default="127.0.0.1", help="Bind address for --serve (default: 127.0.0.1)")
+    mission_dashboard.add_argument("--port", type=int, default=8765, help="Bind port for --serve (default: 8765, 0 for random)")
+    mission_dashboard.add_argument("--token", help="Override auth token for --serve (default: session.json token)")
+    mission_dashboard.add_argument("--interval", type=float, default=5.0, help="Seconds between SSE updates in --serve mode")
+    mission_dashboard.set_defaults(func=_mission_cmd, mission_command="dashboard")
+
+    mission_watch = mission_sub.add_parser("watch", help="Automate playbooks based on mission events")
+    mission_watch.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_watch.add_argument("--interval", type=float, default=60.0, help="Polling interval in seconds (default: 60)")
+    mission_watch.add_argument("--max-iterations", type=int, default=0, help="Stop after N iterations (0 = run until interrupted)")
+    mission_watch.add_argument("--once", action="store_true", help="Run a single iteration and exit")
+    mission_watch.add_argument("--json", action="store_true", help="Emit machine-readable JSON per iteration")
+    mission_watch.set_defaults(func=_mission_watch_cmd)
+
     mission_exec = mission_sub.add_parser("exec", help="Execute highest-priority playbook")
     mission_exec.add_argument("path", nargs="?", help="Project path (default: current directory)")
     mission_exec.add_argument("--json", action="store_true", help="Emit machine-readable JSON result")
@@ -2527,6 +3506,9 @@ def build_parser() -> argparse.ArgumentParser:
     mission_analytics = mission_sub.add_parser("analytics", help="Show mission analytics summary")
     mission_analytics.add_argument("path", nargs="?", help="Project path (default: current directory)")
     mission_analytics.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
+    mission_analytics.add_argument("--source", dest="sources", action="append", help="Filter activity by source/origin")
+    mission_analytics.add_argument("--actor", dest="actors", action="append", help="Filter activity by actorId")
+    mission_analytics.add_argument("--tag", dest="tags", action="append", help="Filter activity by tag")
     mission_analytics.set_defaults(func=_mission_analytics_cmd)
 
     doctor_cmd = sub.add_parser("doctor", help="Environment diagnostics")
@@ -2585,7 +3567,7 @@ def _preprocess_argv(argv: list[str]) -> list[str]:
         return argv
     if argv[0] != "mission":
         return argv
-    mission_subcommands = {"summary", "ui", "detail", "exec", "analytics"}
+    mission_subcommands = {"summary", "ui", "detail", "exec", "analytics", "dashboard", "watch"}
     if len(argv) >= 2:
         candidate = argv[1]
         if not candidate.startswith("-") and candidate not in mission_subcommands:

@@ -36,6 +36,9 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    ```bash
    agentcall bootstrap --profile python   # capture profile answers
    agentcall agents auth                  # authenticate agent tooling
+   agentcall extension init auto_docs     # scaffold an automation extension
+   agentcall mission watch --once         # run automation watchers one cycle
+   agentcall help --json                  # inspect verify/watch status & tips
    ```
    All artefacts (capsule, reports, virtualenv) live under `project/.agentcontrol/`; the host repository stays untouched.
 
@@ -60,6 +63,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 ## 4. Command Portfolio
 | Command | Purpose | Notes |
 | --- | --- | --- |
+| `agentcall help [--json] [--path PATH]` | Contextual project guidance (verify/watch/SLA, docs, next steps). | JSON output suits agents/CI; works even outside the capsule. |
 | `agentcall status [PATH]` | Dashboard (auto-bootstrap optional). | Enable auto-bootstrap with `AGENTCONTROL_AUTO_INIT=1`; also honour `AGENTCONTROL_DEFAULT_TEMPLATE`, `AGENTCONTROL_DEFAULT_CHANNEL`. |
 | `agentcall init / upgrade` | Template provisioning or migration. | Templates: `default`, `python`, `node`, `monorepo`. |
 | `agentcall setup` | Install project dependencies and agent CLIs. | Respect `SKIP_AGENT_INSTALL`, `SKIP_HEART_SYNC`. |
@@ -71,7 +75,11 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall progress` | Recalculate and render roadmap/task progress. | Emits `reports/architecture-dashboard.json`. |
 | `agentcall roadmap` | Render roadmap summaries (table, json). | Uses `scripts/roadmap-status.sh` helpers. |
 | `agentcall doctor` | Environment diagnostics (bootstrap-aware). | `--bootstrap` emits profile checks and JSON summary. |
+| `agentcall extension …` | Manage project extensions (init/add/list/lint/publish). | Catalog stored under `extensions/catalog.json`. |
+| `agentcall mission dashboard` | Interactive mission dashboard (curses/static/snapshot/web). | Use `--snapshot` for HTML or `--serve` for SSE web mode. |
+| `agentcall mission watch` | Headless automation daemon reacting to mission events. | Configured via `.agentcontrol/config/watch.yaml`. |
 | `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
+| `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider input. | `--provider file --input path` (JSON snapshot), `--dry-run`, `reports/tasks/sync.json`. |
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report [--recent N]`, `tail --limit`, `clear`. |
 | `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |

@@ -11,6 +11,7 @@
 - `agentcall mission watch` automates playbooks based on timeline events, writes `reports/automation/watch.json` & `sla.json`, and honours `.agentcontrol/config/watch.yaml` / `sla.yaml`.
 - Mission analytics/summary expose aggregated activity (sources/actors/tags, last operation), TUI headers reflect filters, a snapshot lands in `reports/mission-activity.json`, and verify checks its integrity.
 - GitHub Actions release workflow теперь автоматически запускается при push в `main` и публикует пакет на PyPI (при наличии `PYPI_TOKEN`).
+- `agentcall tasks sync` получает новый поток: `--provider file --input <json>` с dry-run JSON отчётом, локальное применение обновляет `data/tasks.board.json` и сохраняет `reports/tasks/sync.json`.
 
 ## 0.4.4 — 2025-10-05
 - The performance remediation flow now creates follow-up tasks (`reports/tasks/PERF-*.json`, `.agentcontrol/state/perf_tasks.json`), keeps their status in sync, and emits `task.followup.*` timeline events.
