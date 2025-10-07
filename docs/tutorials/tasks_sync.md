@@ -33,7 +33,10 @@ agentcall tasks sync --provider file --input state/provider/tasks_snapshot.json 
 `--input` подставляет путь в `options.path`. Дополнительные параметры задаются через `--provider-option`, например `--provider-option snapshot_path=state/provider/jira.json` или `--provider-option auth.token_env=JIRA_API_TOKEN`.
 Для удалённых провайдеров добавьте идентификаторы репозитория/фильтры:
 ```bash
-agentcall tasks sync --provider jira   --provider-option snapshot_path=state/provider/jira.json   --provider-option base_url=https://example.atlassian.net   --provider-option jql="project = AC"
+agentcall tasks sync --provider jira \
+  --provider-option snapshot_path=state/provider/jira.json \
+  --provider-option base_url=https://example.atlassian.net \
+  --provider-option jql="project = AC"
 ```
 
 ## 3. Просмотрите план (dry-run)

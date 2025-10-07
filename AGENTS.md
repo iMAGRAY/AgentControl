@@ -96,7 +96,7 @@ TASKS:
       - [Dry-run JSON output consumed by mission analytics]
   - id: P10-002
     title: External task connectors
-    status: todo
+    status: done
     priority: p0
     ac:
       - [Jira connector with encrypted credentials + pagination/retry tests]
