@@ -59,6 +59,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
    agentcall mission watch --once         # run automation watchers one cycle
    agentcall docs portal --json           # publish static knowledge portal
    agentcall docs lint --knowledge --json # generate docs coverage report
+   agentcall release notes --json         # generate Markdown + JSON release notes
    agentcall help --json                  # inspect verify/watch status & tips
    ```
    All artefacts (capsule, reports, virtualenv) live under `project/.agentcontrol/`; the host repository stays untouched.
@@ -103,6 +104,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider config. | `--config config/tasks.provider.json` или `--provider file --input <json>`, `--apply`, `--json` → `reports/tasks_sync.json`. |
 | `agentcall templates` | List installed templates. | Supports channels such as `stable`, `nightly`. |
 | `agentcall telemetry …` | Inspect or clear local telemetry. | Subcommands: `report [--recent N]`, `tail --limit`, `clear`. |
+| `agentcall release notes` | Generate Markdown/JSON release notes. | `--from-ref`, `--to-ref`, `--max-commits`, `--output`, `--json`. |
 | `agentcall plugins …` | Manage plugins (`list`, `install`, `remove`, `info`). | Entry point: `agentcontrol.plugins`. |
 | `agentcall cache …` | Manage offline auto-update cache. | `list`, `add <wheel>`, `download <version>`, `verify`. |
 

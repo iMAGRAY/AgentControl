@@ -65,6 +65,8 @@ src/agentcontrol/app/mission/dashboard.py
 src/agentcontrol/app/mission/service.py
 src/agentcontrol/app/mission/watch.py
 src/agentcontrol/app/mission/web.py
+src/agentcontrol/app/release_notes/__init__.py
+src/agentcontrol/app/release_notes/service.py
 src/agentcontrol/app/runtime/service.py
 src/agentcontrol/app/sandbox/service.py
 src/agentcontrol/app/tasks/__init__.py

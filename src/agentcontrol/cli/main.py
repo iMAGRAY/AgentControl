@@ -59,6 +59,7 @@ from agentcontrol.app.info import InfoService
 from agentcontrol.app.migration.service import MigrationService
 from agentcontrol.app.sandbox.service import SandboxService
 from agentcontrol.app.extension.service import ExtensionService
+from agentcontrol.app.release_notes import ReleaseNotesError, ReleaseNotesGenerator
 from agentcontrol.app.tasks import TaskSyncError, TaskSyncResult, TaskSyncService
 from agentcontrol.domain.project import (
     PROJECT_DESCRIPTOR,
@@ -950,6 +951,54 @@ def _print_task_sync_result(
     else:
         print("Dry-run only; use --apply to persist changes")
     print(f"Report stored at {result.report_path}")
+
+
+def _release_notes_cmd(args: argparse.Namespace) -> int:
+    bootstrap, _ = _build_services()
+    project_path = _default_project_path(getattr(args, "path", None))
+    project_id = _resolve_project_id(bootstrap, project_path, "release.notes", allow_auto=True)
+    if project_id is None:
+        return 1
+
+    generator = ReleaseNotesGenerator(project_id)
+    from_ref = getattr(args, "from_ref", None)
+    to_ref = getattr(args, "to_ref", "HEAD")
+    max_commits = getattr(args, "max_commits", None)
+    output_override = getattr(args, "output", None)
+    json_requested = bool(getattr(args, "json", False))
+
+    output_path: Path | None = None
+    if output_override:
+        candidate = Path(output_override).expanduser()
+        if not candidate.is_absolute():
+            candidate = (project_path / candidate).resolve()
+        output_path = candidate
+
+    try:
+        result = generator.generate(
+            from_ref=from_ref,
+            to_ref=to_ref,
+            max_commits=max_commits,
+            output_path=output_path,
+            json_output=json_requested,
+        )
+    except ReleaseNotesError as exc:
+        print(f"release notes error: {exc}", file=sys.stderr)
+        return 1
+
+    payload = {
+        "markdown": str(result.markdown_path),
+        "json": str(result.json_path) if result.json_path else None,
+        "summary": result.summary,
+    }
+    if json_requested:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Release notes saved to {payload['markdown']}")
+        if payload["json"]:
+            print(f"JSON summary saved to {payload['json']}")
+        print(f"Commits analysed: {payload['summary']['commit_count']}")
+    return 0
 
 
 def _run_pipeline(command: str, args: argparse.Namespace) -> int:
@@ -3566,6 +3615,25 @@ def build_parser() -> argparse.ArgumentParser:
     extension_publish.add_argument("--dry-run", action="store_true", help="Mark the export as dry run")
     extension_publish.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     extension_publish.set_defaults(func=_extension_publish_cmd)
+
+    release_cmd = sub.add_parser("release", help="Release management utilities")
+    release_sub = release_cmd.add_subparsers(dest="release_command", required=True)
+
+    release_notes = release_sub.add_parser("notes", help="Generate release notes from git history")
+    release_notes.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    release_notes.add_argument("--from-ref", help="Lower bound git reference (exclusive)")
+    release_notes.add_argument("--to-ref", default="HEAD", help="Upper bound git reference (default: HEAD)")
+    release_notes.add_argument("--max-commits", type=int, help="Limit number of commits analysed")
+    release_notes.add_argument(
+        "--output",
+        help="Markdown output path (default: reports/release_notes.md)",
+    )
+    release_notes.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit metadata as JSON (also writes reports/release_notes.json)",
+    )
+    release_notes.set_defaults(func=_release_notes_cmd)
 
     list_cmd = sub.add_parser("commands", help="List available project commands")
     list_cmd.add_argument("path", nargs="?", help="Project path (default: current directory)")

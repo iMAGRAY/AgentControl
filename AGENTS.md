@@ -118,7 +118,7 @@ TASKS:
       - [Verify fails on stale links/orphan tutorials]
   - id: P11-003
     title: Automated release notes
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`agentcall release notes` synthesises changelog from telemetry + git tags]
