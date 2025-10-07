@@ -20,7 +20,7 @@ CATALOG_FILENAME = "catalog.json"
 DEFAULT_MANIFEST = {
     "name": "",
     "version": "0.1.0",
-    "description": "",
+    "description": "Describe extension purpose.",
     "entry_points": {
         "playbooks": [],
         "hooks": [],
@@ -128,6 +128,7 @@ class ExtensionService:
         manifest_path = target / "manifest.json"
         manifest = json.loads(json.dumps(DEFAULT_MANIFEST))
         manifest["name"] = name
+        manifest["description"] = f"{name} extension"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         readme = target / "README.md"
         if not readme.exists():
