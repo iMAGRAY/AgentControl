@@ -1,0 +1,17 @@
+{
+  "name": "auto_perf",
+  "version": "0.1.0",
+  "description": "Performance regression follow-up automation",
+  "entry_points": {
+    "playbooks": [
+      "playbooks/perf_followup.yaml"
+    ],
+    "hooks": [
+      "hooks/archive_history.sh"
+    ],
+    "mcp": []
+  },
+  "compatibility": {
+    "cli": ">=0.5.1"
+  }
+}

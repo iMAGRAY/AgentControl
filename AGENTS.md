@@ -54,7 +54,7 @@ TASKS:
       - [Mismatched Make targets vs CLI pipelines fail CI with actionable diff]
   - id: P7-001
     title: Extension CLI + schema
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`agentcall extension init|add|list|remove` manage catalog entries]
@@ -105,14 +105,14 @@ TASKS:
       - [Mission dashboard reflects external status backfeed]
   - id: P11-001
     title: Docs portal generator
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`agentcall docs portal` emits static site ≤ size budget]
       - [Search + provenance for tutorials/examples]
   - id: P11-002
     title: Knowledge lint & coverage
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`agentcall docs lint --knowledge` outputs `reports/docs_coverage.json`]

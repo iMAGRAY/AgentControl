@@ -201,11 +201,13 @@ AC::DOC-5::tutorials_published::>=3::—::formats=guide,troubleshooting,sample_r
 
 ---
 ## 12. Immediate Next Steps (0.5.1 → 0.6 Roadmap)
-1. **Phase 7 – Extension Ecosystem Hardening**: deliver command parity, packaging policy, and deterministic help UX (todo `P7.1–P7.3`). Extend verify with `extension-integrity` once manifests land.
+1. **Phase 7 – Extension Ecosystem Hardening**: deliver command parity, packaging policy, and deterministic help UX (todo `P7.1–P7.3`). Extend verify with `extension-integrity` once manifests land.  
+   **Phase update (2025-10-07):** `agentcall extension lint` now validates against `extension_manifest.schema.json`, sandbox verify publishes `reports/extensions.json`, and sample extensions are packaged with SHA256 + integrity checks.
 2. **Phase 8 – Mission Dashboard Web Mode**: ✅ delivered (stateless `--serve`, SSE feed, `/playbooks/<id>` POST, docs in `docs/mission/dashboard_web.md`).
 3. **Phase 9 – Automation Watcher Telemetry**: ✅ watcher actions now emit `actorId`, `origin`, remediation outcome, and taxonomy tags into `watch.json` + `journal/task_events.jsonl` (see `tests/mission/test_watch.py`).
-4. **Phase 10 – Task Ecosystem Integration**: build provider-agnostic sync core, then Jira/GitHub connectors with encryption and mission backfeed.
+4. **Phase 10 – Task Ecosystem Integration**: ✅ provider-агностический sync core (`agentcall tasks sync`, отчёт `reports/tasks_sync.json`); далее — Jira/GitHub коннекторы с шифрованием и обратным фидом в миссию.
 5. **Phase 11 – Knowledge & Documentation DX**: generate docs portal, knowledge lint, automated release notes, and sample gallery under package size guard.
+   **Phase update (2025-10-07):** `agentcall docs portal` теперь выпускает само-достаточный сайт (`reports/docs/portal`), а `agentcall docs lint --knowledge` формирует `reports/docs_coverage.json`, проверяя заголовки/резюме/ссылки и падая на осиротевших туториалах. Портал и lint публикуют телеметрию с бюджетом и счетчиками ошибок; следующая веха — automated release notes и sample gallery.
 6. **Phase 12 – Meta-Repo & Scale Readiness**: introduce workspace descriptors, distributed agent scheduler, sharded perf harness, and stress testing.
 7. **Phase 13 – Install & Distribution UX**: ship bootstrap installer, cache doctor, standalone bundle research, and telemetry opt-in wizard ensuring zero-sudo installs.
 

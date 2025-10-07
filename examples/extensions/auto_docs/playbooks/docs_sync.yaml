@@ -1,0 +1,6 @@
+name: Docs Sync
+summary: Resolve documentation drift detected by verify pipeline.
+steps:
+  - run: agentcall docs diff --json
+  - run: agentcall docs repair --json
+  - run: agentcall mission summary --filter docs --json

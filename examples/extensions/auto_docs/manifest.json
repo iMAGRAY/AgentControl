@@ -1,0 +1,15 @@
+{
+  "name": "auto_docs",
+  "version": "0.1.0",
+  "description": "Doc drift remediation playbooks for AgentControl",
+  "entry_points": {
+    "playbooks": [
+      "playbooks/docs_sync.yaml"
+    ],
+    "hooks": [],
+    "mcp": []
+  },
+  "compatibility": {
+    "cli": ">=0.5.1"
+  }
+}

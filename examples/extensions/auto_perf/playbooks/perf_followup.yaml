@@ -1,0 +1,6 @@
+name: Perf Follow-Up
+summary: Handle docs benchmark regression alerts.
+steps:
+  - run: agentcall mission detail perf --json
+  - run: agentcall auto tests --apply
+  - run: agentcall mission summary --filter perf --json
