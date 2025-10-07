@@ -63,6 +63,7 @@ src/agentcontrol/app/info/service.py
 src/agentcontrol/app/mcp/manager.py
 src/agentcontrol/app/migration/service.py
 src/agentcontrol/app/mission/__init__.py
+src/agentcontrol/app/mission/assigner.py
 src/agentcontrol/app/mission/dashboard.py
 src/agentcontrol/app/mission/service.py
 src/agentcontrol/app/mission/watch.py
@@ -132,6 +133,7 @@ src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/agents.json
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/automation.sh
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/commands.sh
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/docs.bridge.yaml
+src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/mission_assign.yaml
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/sla.yaml
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/config/watch.yaml
 src/agentcontrol/templates/0.5.1/default/.agentcontrol/data/tasks.board.json
@@ -219,6 +221,7 @@ src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/agents.json
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/automation.sh
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/commands.sh
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/docs.bridge.yaml
+src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/mission_assign.yaml
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/sla.yaml
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/config/watch.yaml
 src/agentcontrol/templates/0.5.1/monorepo/.agentcontrol/data/tasks.board.json
@@ -318,6 +321,7 @@ src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/agents.json
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/automation.sh
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/commands.sh
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/docs.bridge.yaml
+src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/mission_assign.yaml
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/sla.yaml
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/config/watch.yaml
 src/agentcontrol/templates/0.5.1/node/.agentcontrol/data/tasks.board.json
@@ -406,6 +410,7 @@ src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/agents.json
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/automation.sh
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/commands.sh
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/docs.bridge.yaml
+src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/mission_assign.yaml
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/sla.yaml
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/config/watch.yaml
 src/agentcontrol/templates/0.5.1/python/.agentcontrol/data/tasks.board.json

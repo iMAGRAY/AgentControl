@@ -82,6 +82,7 @@ AgentControl is an enterprise-grade toolkit that standardises how autonomous eng
 | `agentcall extension …` | Manage project extensions (init/add/list/lint/publish). | Catalog stored under `extensions/catalog.json`. |
 | `agentcall mission dashboard` | Interactive mission dashboard (curses/static/snapshot/web). | Use `--snapshot` for HTML or `--serve` for SSE web mode. |
 | `agentcall mission watch` | Headless automation daemon reacting to mission events. | Configured via `.agentcontrol/config/watch.yaml`. |
+| `agentcall mission assign` | Schedule tasks for agents with quotas. | `--task`, `--agent`, `--status`, `--list`, `--json`. |
 | `agentcall agents …` | Manage agent CLIs (`install`, `auth`, `status`, `logs`, `workflow`). | Configuration in `config/agents.json`. |
 | `agentcall tasks sync` | Diff local `data/tasks.board.json` against provider config. | `--config config/tasks.provider.json` или `--provider file --input <json>`, `--apply`, `--json` → `reports/tasks_sync.json`. |
 | `agentcall mission summary` | Summarise current project or workspace. | `--workspace --json --output reports/workspace_summary.json`. |

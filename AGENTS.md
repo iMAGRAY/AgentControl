@@ -139,7 +139,7 @@ TASKS:
       - [`agentcall mission summary --workspace` aggregates multi-repo status]
   - id: P12-002
     title: Distributed agent scheduler
-    status: todo
+    status: done
     priority: p1
     ac:
       - [`agentcall mission assign` schedules tasks with optimistic locking & quotas]

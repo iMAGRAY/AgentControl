@@ -53,6 +53,7 @@ from agentcontrol.app.mission.watch import (
     load_watch_rules,
     load_sla_rules,
 )
+from agentcontrol.app.mission.assigner import MissionAssignmentError, MissionAssignmentService
 from agentcontrol.app.mcp.manager import MCPManager
 from agentcontrol.app.runtime.service import RuntimeService
 from agentcontrol.app.info import InfoService
@@ -437,28 +438,14 @@ def _sync_packaged_templates() -> None:
             return
         source_version_dir = sorted(candidates)[-1]
 
-    target_version_dir = SETTINGS.template_dir / "stable" / SETTINGS.cli_version
-    if target_version_dir.exists():
-        shutil.rmtree(target_version_dir)
-    shutil.copytree(source_version_dir, target_version_dir, dirs_exist_ok=True)
-
-    for entry in target_version_dir.iterdir():
-        if entry.is_dir():
-            checksum = _compute_template_checksum(entry)
-            (entry / "template.sha256").write_text(f"{checksum}\n", encoding="utf-8")
-
-
-def _compute_template_checksum(target: Path) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    for path in sorted(target.rglob("*")):
-        if path.is_file() and path.name != "template.sha256":
-            digest.update(path.relative_to(target).as_posix().encode("utf-8"))
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
-
-
+    repo = FSTemplateRepository(SETTINGS.template_dir)
+    for entry in source_version_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        try:
+            repo.install_from_directory(entry)
+        except ValueError as exc:  # pragma: no cover - defensive: packaged templates validated in tests
+            raise RuntimeError(f"Invalid packaged template bundle at {entry}: {exc}") from exc
 def _print_project_hint(project_path: Path, command: str) -> None:
     print(f"Path {project_path} does not contain an AgentControl project.", file=sys.stderr)
     print("This directory is not an AgentControl project.", file=sys.stderr)
@@ -1123,6 +1110,56 @@ def _mission_summary_cmd(args: argparse.Namespace) -> int:
         print(f"Mission summary generated_at={summary['generated_at']}")
         print(f"Program progress: {progress}")
         print(f"Verify status: {verify_status}")
+    return 0
+
+
+def _mission_assign_cmd(args: argparse.Namespace) -> int:
+    project_path = _default_project_path(getattr(args, "path", None))
+    service = MissionAssignmentService(project_path)
+
+    if getattr(args, "list", False):
+        try:
+            payload = service.list_assignments()
+        except MissionAssignmentError as exc:
+            print(f"assignment error: {exc}", file=sys.stderr)
+            return 1
+        if getattr(args, "json", False):
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            assignments = payload.get("assignments", [])
+            if not assignments:
+                print("No active assignments")
+            else:
+                for item in assignments:
+                    print(f"{item['task_id']} -> {item['agent_id']} [{item['status']}]")
+        return 0
+
+    task_id = getattr(args, "task")
+    agent_id = getattr(args, "agent")
+    status_override = getattr(args, "status", None)
+    if status_override:
+        try:
+            result = service.update_status(task_id, status_override, agent_id=agent_id)
+        except MissionAssignmentError as exc:
+            print(f"assignment error: {exc}", file=sys.stderr)
+            return 1
+        if getattr(args, "json", False):
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"Updated {result['task_id']} -> {result['agent_id']} status={result['status']}")
+        return 0
+
+    try:
+        payload = service.assign(task_id, agent_id)
+    except MissionAssignmentError as exc:
+        print(f"assignment error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        assignment = payload["assignment"]
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(assignment["assigned_at"]))
+        print(f"Assigned {assignment['task_id']} to {assignment['agent_id']} at {timestamp}")
     return 0
 
 
@@ -4000,7 +4037,7 @@ def build_parser() -> argparse.ArgumentParser:
     migrate_cmd.set_defaults(func=_migrate_cmd)
 
     mission_cmd = sub.add_parser("mission", help="Mission control commands")
-    mission_cmd.set_defaults(func=_mission_cmd, mission_command="summary")
+    mission_cmd.set_defaults(func=_mission_summary_cmd)
     mission_sub = mission_cmd.add_subparsers(dest="mission_command")
 
     mission_summary = mission_sub.add_parser("summary", help="Render mission summary")
@@ -4050,6 +4087,15 @@ def build_parser() -> argparse.ArgumentParser:
     mission_detail.add_argument("--json", action="store_true", help="Emit machine-readable detail output")
     mission_detail.add_argument("--timeline-limit", type=int, default=10, help="Number of timeline events to display")
     mission_detail.set_defaults(func=_mission_cmd, mission_command="detail")
+
+    mission_assign = mission_sub.add_parser("assign", help="Assign tasks to agents with quotas")
+    mission_assign.add_argument("path", nargs="?", help="Project path (default: current directory)")
+    mission_assign.add_argument("--task", help="Task identifier")
+    mission_assign.add_argument("--agent", help="Agent identifier")
+    mission_assign.add_argument("--status", help="Update assignment status instead of creating a new one")
+    mission_assign.add_argument("--list", action="store_true", help="List current assignments")
+    mission_assign.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    mission_assign.set_defaults(func=_mission_assign_cmd)
 
     mission_analytics = mission_sub.add_parser("analytics", help="Show mission analytics summary")
     mission_analytics.add_argument("path", nargs="?", help="Project path (default: current directory)")
@@ -4115,7 +4161,7 @@ def _preprocess_argv(argv: list[str]) -> list[str]:
         return argv
     if argv[0] != "mission":
         return argv
-    mission_subcommands = {"summary", "ui", "detail", "exec", "analytics", "dashboard", "watch"}
+    mission_subcommands = {"summary", "ui", "detail", "exec", "analytics", "dashboard", "watch", "assign"}
     if len(argv) >= 2:
         candidate = argv[1]
         if not candidate.startswith("-") and candidate not in mission_subcommands:

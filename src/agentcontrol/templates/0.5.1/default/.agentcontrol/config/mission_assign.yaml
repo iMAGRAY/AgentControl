@@ -1,0 +1,5 @@
+agents:
+  - id: default
+    name: Default Agent
+    max_active: 3
+    tags: ["core"]
